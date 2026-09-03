@@ -15,7 +15,8 @@ export const APIKEY_PROVIDERS_GATEWAYS = {
     color: "#6366F1",
     textIcon: "1M",
     website: "https://1min.ai",
-    authHint: "Create an API key at https://docs.1min.ai/docs/api/create-api-key, then paste it here.",
+    authHint:
+      "Create an API key at https://docs.1min.ai/docs/api/create-api-key, then paste it here.",
     apiHint:
       "1min.ai uses a proprietary chat API (single prompt string + SSE) instead of OpenAI chat/completions. OmniRoute flattens OpenAI messages into a labeled prompt and translates the SSE stream.",
     passthroughModels: true,
@@ -47,7 +48,8 @@ export const APIKEY_PROVIDERS_GATEWAYS = {
     website: "https://freebuff.com",
     hasFree: true,
     serviceKinds: ["llm"],
-    authHint: "Enter Freebuff / Codebuff Auth Token (obtained via CLI login or automated harvester).",
+    authHint:
+      "Enter Freebuff / Codebuff Auth Token (obtained via CLI login or automated harvester).",
     freeNote: "Free Codebuff / Freebuff AI models.",
     apiHint: "Token is authenticated against Codebuff upstream session pool.",
     passthroughModels: true,
@@ -907,7 +909,7 @@ export const APIKEY_PROVIDERS_GATEWAYS = {
     id: "aimlapi",
     serviceKinds: ["llm"],
     alias: "aiml",
-    name: "AI/ML API",
+    name: "aimlapi.com",
     icon: "hub",
     color: "#6366F1",
     textIcon: "AI",
