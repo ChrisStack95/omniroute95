@@ -131,3 +131,50 @@ export function recoverKimiToolCallNarration(text: string): NarrationRecoveryRes
 function genId(): string {
   return "call_" + Math.random().toString(36).slice(2, 14);
 }
+
+/**
+ * Minimal shape of the cursor executor's stream/finalization context that the
+ * recovery needs to read and mutate. Kept structurally typed so the helper can
+ * live here without importing the executor (avoids a module cycle).
+ */
+export interface KimiRecoveryCtx {
+  totalText: string;
+  toolCalls: { id: string; name: string; argumentsJson: string }[];
+  emittedToolCallIndex?: number;
+}
+
+/**
+ * Recover a Kimi narration-emitted tool call directly into a cursor executor
+ * context. No-op unless nothing structured was produced yet. When `emit` is
+ * provided (streaming path) each recovered call is also emitted as a chunk.
+ * Returns true when a recovery was applied.
+ */
+export function applyKimiToolCallRecovery(
+  ctx: KimiRecoveryCtx,
+  emit?: (chunk: { tool_calls: unknown[] }) => void
+): boolean {
+  if (ctx.toolCalls.length !== 0 || !ctx.totalText) return false;
+  const recovered = recoverKimiToolCallNarration(ctx.totalText);
+  if (!recovered || recovered.toolCalls.length === 0) return false;
+  ctx.totalText = recovered.content;
+  for (const tc of recovered.toolCalls) {
+    const index = ctx.emittedToolCallIndex ?? 0;
+    if (ctx.emittedToolCallIndex !== undefined) ctx.emittedToolCallIndex++;
+    ctx.toolCalls.push({
+      id: tc.id,
+      name: tc.function.name,
+      argumentsJson: tc.function.arguments,
+    });
+    emit?.({
+      tool_calls: [
+        {
+          index,
+          id: tc.id,
+          type: "function",
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        },
+      ],
+    });
+  }
+  return true;
+}
