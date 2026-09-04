@@ -58,26 +58,26 @@ const DELIM_CHAIN_RE = new RegExp("(?:\\s*(?:" + TAIL_FRAGMENT + "))+", "gu");
 // Balanced-JSON scan: starting at `start`, return the end index (exclusive) of
 // the first complete {...} object, honoring strings and escapes. -1 if the
 // object never closes (truncated).
+// Advance the string/escape state for one char. Returns the new state; the
+// caller only tracks brace depth for chars that are outside a string.
+function nextScanState(
+  c: string,
+  st: { inStr: boolean; esc: boolean }
+): { inStr: boolean; esc: boolean; skip: boolean } {
+  if (st.esc) return { inStr: st.inStr, esc: false, skip: true };
+  if (c === "\\") return { inStr: st.inStr, esc: st.inStr, skip: true };
+  if (c === '"') return { inStr: !st.inStr, esc: false, skip: true };
+  return { inStr: st.inStr, esc: false, skip: st.inStr };
+}
+
 function scanJsonObjectEnd(text: string, start: number): number {
   if (text[start] !== "{") return -1;
   let depth = 0;
-  let inStr = false;
-  let esc = false;
+  let st: { inStr: boolean; esc: boolean; skip?: boolean } = { inStr: false, esc: false };
   for (let i = start; i < text.length; i++) {
     const c = text[i];
-    if (esc) {
-      esc = false;
-      continue;
-    }
-    if (c === "\\") {
-      esc = true;
-      continue;
-    }
-    if (c === '"') {
-      inStr = !inStr;
-      continue;
-    }
-    if (inStr) continue;
+    st = nextScanState(c, st);
+    if (st.skip || st.esc) continue;
     if (c === "{") depth++;
     else if (c === "}") {
       depth--;
@@ -157,24 +157,27 @@ export function applyKimiToolCallRecovery(
   const recovered = recoverKimiToolCallNarration(ctx.totalText);
   if (!recovered || recovered.toolCalls.length === 0) return false;
   ctx.totalText = recovered.content;
-  for (const tc of recovered.toolCalls) {
-    const index = ctx.emittedToolCallIndex ?? 0;
-    if (ctx.emittedToolCallIndex !== undefined) ctx.emittedToolCallIndex++;
-    ctx.toolCalls.push({
-      id: tc.id,
-      name: tc.function.name,
-      argumentsJson: tc.function.arguments,
-    });
-    emit?.({
-      tool_calls: [
-        {
-          index,
-          id: tc.id,
-          type: "function",
-          function: { name: tc.function.name, arguments: tc.function.arguments },
-        },
-      ],
-    });
-  }
+  for (const tc of recovered.toolCalls) recordRecoveredCall(ctx, tc, emit);
   return true;
+}
+
+/** Push one recovered call into ctx (and emit it when streaming). */
+function recordRecoveredCall(
+  ctx: KimiRecoveryCtx,
+  tc: RecoveredToolCall,
+  emit?: (chunk: { tool_calls: unknown[] }) => void
+): void {
+  const index = ctx.emittedToolCallIndex ?? 0;
+  if (ctx.emittedToolCallIndex !== undefined) ctx.emittedToolCallIndex++;
+  ctx.toolCalls.push({ id: tc.id, name: tc.function.name, argumentsJson: tc.function.arguments });
+  emit?.({
+    tool_calls: [
+      {
+        index,
+        id: tc.id,
+        type: "function",
+        function: { name: tc.function.name, arguments: tc.function.arguments },
+      },
+    ],
+  });
 }
