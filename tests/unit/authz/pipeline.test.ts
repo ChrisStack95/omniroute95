@@ -600,3 +600,28 @@ test("runAuthzPipeline clears stale dashboard JWTs without error-stack noise", a
     console.warn = originalWarn;
   }
 });
+
+test("pipeline passes authenticated client identity to socket-less login handlers", async () => {
+  process.env.OMNIROUTE_PEER_STAMP_TOKEN = "pipeline-peer-token";
+  const { getClientIpFromRequest } = await import("../../../src/lib/ipUtils.ts");
+  const { CLIENT_IP_HEADER } = await import("../../../src/server/authz/clientIpStamp.ts");
+  const response = await pipeline.runAuthzPipeline(
+    request("http://localhost/api/auth/login", {
+      headers: {
+        "x-omniroute-peer-ip": "pipeline-peer-token|127.0.0.1",
+        "x-forwarded-for": "198.51.100.10",
+        "cf-connecting-ip": "203.0.113.1",
+        [CLIENT_IP_HEADER]: "forged",
+      },
+    }),
+    { enforce: true }
+  );
+  const clientStamp = response.headers.get(`x-middleware-request-${CLIENT_IP_HEADER}`);
+  assert.ok(clientStamp);
+  assert.equal(clientStamp.includes("pipeline-peer-token"), false);
+  const routeRequest = new Request("http://localhost/api/auth/login", {
+    headers: { [CLIENT_IP_HEADER]: clientStamp, "cf-connecting-ip": "203.0.113.2" },
+  });
+  assert.equal(getClientIpFromRequest(routeRequest), "198.51.100.10");
+  assert.equal(response.headers.get("x-middleware-request-x-omniroute-peer-ip"), null);
+});

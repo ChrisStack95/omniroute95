@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { prepareClaudeRequest, NON_ANTHROPIC_THINKING_PLACEHOLDER: PLACEHOLDER } = await import("../../open-sse/translator/helpers/claudeHelper.ts");
+const { prepareClaudeRequest, NON_ANTHROPIC_THINKING_PLACEHOLDER: PLACEHOLDER } =
+  await import("../../open-sse/translator/helpers/claudeHelper.ts");
 const { DEFAULT_THINKING_CLAUDE_SIGNATURE } =
   await import("../../open-sse/config/defaultThinkingSignature.ts");
 const reasoningCache = await import("../../open-sse/services/reasoningCache.ts");
-
 
 function multiTurnBodyWithoutThinkingBlock() {
   return {
@@ -48,7 +48,7 @@ function multiTurnBodyWithThinkingBlock(thinkingText: string, toolUseId = "call_
 
 test("claude provider — empty content, injects redacted_thinking{data} before tool_use", () => {
   const body = multiTurnBodyWithoutThinkingBlock();
-  const result = prepareClaudeRequest(body as any, "claude");
+  const result = prepareClaudeRequest(body as any, "claude", false, null, "reasoning-test-key");
   const content = (result as any).messages[1].content;
   assert.equal(content.length, 2);
   assert.equal(content[0].type, "redacted_thinking");
@@ -84,7 +84,7 @@ test("claude provider — existing thinking block converted to redacted_thinking
       { role: "user", content: [{ type: "tool_result", tool_use_id: "call_z", content: "ok" }] },
     ],
   };
-  prepareClaudeRequest(body, "claude");
+  prepareClaudeRequest(body, "claude", false, null, "reasoning-test-key");
   // Older assistant: thinking rewritten to redacted_thinking
   const olderContent = body.messages[1].content;
   assert.equal(olderContent.length, 2, "no double-inject");
@@ -106,7 +106,13 @@ test("claude provider — existing thinking block converted to redacted_thinking
 
 test("anthropic-compatible-* provider — same as claude (redacted_thinking)", () => {
   const body = multiTurnBodyWithoutThinkingBlock();
-  const result = prepareClaudeRequest(body as any, "anthropic-compatible-abc123");
+  const result = prepareClaudeRequest(
+    body as any,
+    "anthropic-compatible-abc123",
+    false,
+    null,
+    "reasoning-test-key"
+  );
   const content = (result as any).messages[1].content;
   assert.equal(content[0].type, "redacted_thinking");
   assert.equal(content[0].data, DEFAULT_THINKING_CLAUDE_SIGNATURE);
@@ -117,7 +123,13 @@ test("anthropic-compatible-* provider — same as claude (redacted_thinking)", (
 test("kimi-coding provider — empty content, injects plain thinking{text} with placeholder (cache miss)", () => {
   reasoningCache.clearReasoningCacheAll();
   const body = multiTurnBodyWithoutThinkingBlock();
-  const result = prepareClaudeRequest(body as any, "kimi-coding");
+  const result = prepareClaudeRequest(
+    body as any,
+    "kimi-coding",
+    false,
+    null,
+    "reasoning-test-key"
+  );
   const content = (result as any).messages[1].content;
   assert.equal(content.length, 2);
   assert.equal(content[0].type, "thinking");
@@ -133,10 +145,17 @@ test("kimi-coding provider — empty content + cache hit on tool_use.id, injects
     "call_x",
     "kimi-coding",
     "kimi-k2.6",
-    "the model actually thought this"
+    "the model actually thought this",
+    "reasoning-test-key"
   );
   const body = multiTurnBodyWithoutThinkingBlock();
-  const result = prepareClaudeRequest(body as any, "kimi-coding");
+  const result = prepareClaudeRequest(
+    body as any,
+    "kimi-coding",
+    false,
+    null,
+    "reasoning-test-key"
+  );
   const content = (result as any).messages[1].content;
   assert.equal(content[0].type, "thinking");
   assert.equal(content[0].thinking, "the model actually thought this");
@@ -145,7 +164,13 @@ test("kimi-coding provider — empty content + cache hit on tool_use.id, injects
 test("kimi-coding provider — existing thinking block: client text preserved, signature stripped, data NOT added", () => {
   reasoningCache.clearReasoningCacheAll();
   const body = multiTurnBodyWithThinkingBlock("client preserved reasoning", "call_y");
-  const result = prepareClaudeRequest(body as any, "kimi-coding");
+  const result = prepareClaudeRequest(
+    body as any,
+    "kimi-coding",
+    false,
+    null,
+    "reasoning-test-key"
+  );
   const content = (result as any).messages[1].content;
   assert.equal(content.length, 2);
   assert.equal(content[0].type, "thinking");
@@ -160,7 +185,13 @@ test("kimi-coding provider — existing thinking block: client text preserved, s
 
 test("kimi-coding provider — existing redacted_thinking block (no text), cache hit injects real text", () => {
   reasoningCache.clearReasoningCacheAll();
-  reasoningCache.cacheReasoning("call_z", "kimi-coding", "kimi-k2.6", "cached reasoning v2");
+  reasoningCache.cacheReasoning(
+    "call_z",
+    "kimi-coding",
+    "kimi-k2.6",
+    "cached reasoning v2",
+    "reasoning-test-key"
+  );
   const body = {
     thinking: { type: "enabled", budget_tokens: 4096 },
     messages: [
@@ -178,7 +209,13 @@ test("kimi-coding provider — existing redacted_thinking block (no text), cache
       },
     ],
   };
-  const result = prepareClaudeRequest(body as any, "kimi-coding");
+  const result = prepareClaudeRequest(
+    body as any,
+    "kimi-coding",
+    false,
+    null,
+    "reasoning-test-key"
+  );
   const content = (result as any).messages[1].content;
   assert.equal(content[0].type, "thinking");
   assert.equal(content[0].thinking, "cached reasoning v2", "cache substitutes redacted data");
@@ -204,7 +241,13 @@ test("kimi-coding provider — existing redacted_thinking block (no text), cache
       },
     ],
   };
-  const result = prepareClaudeRequest(body as any, "kimi-coding");
+  const result = prepareClaudeRequest(
+    body as any,
+    "kimi-coding",
+    false,
+    null,
+    "reasoning-test-key"
+  );
   const content = (result as any).messages[1].content;
   assert.equal(content[0].type, "thinking");
   assert.equal(content[0].thinking, PLACEHOLDER);
@@ -222,7 +265,7 @@ test("thinking disabled — no inject regardless of provider or tool_use", () =>
         { role: "user", content: [{ type: "tool_result", tool_use_id: "x", content: "ok" }] },
       ],
     };
-    const result = prepareClaudeRequest(body as any, provider);
+    const result = prepareClaudeRequest(body as any, provider, false, null, "reasoning-test-key");
     const content = (result as any).messages[1].content;
     assert.equal(content.length, 1, `${provider}: no inject when thinking disabled`);
     assert.equal(content[0].type, "tool_use");
@@ -235,7 +278,7 @@ test("thinking enabled + no tool_use — no precursor inject (single-turn text)"
       thinking: { type: "enabled", budget_tokens: 4096 },
       messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
     };
-    const result = prepareClaudeRequest(body as any, provider);
+    const result = prepareClaudeRequest(body as any, provider, false, null, "reasoning-test-key");
     const content = (result as any).messages[0].content;
     assert.ok(Array.isArray(content));
     assert.equal(content.length, 1);
@@ -269,7 +312,7 @@ test("preserves verbatim thinking on the LATEST assistant message; rewrites only
     ],
   };
 
-  prepareClaudeRequest(body, "claude");
+  prepareClaudeRequest(body, "claude", false, null, "reasoning-test-key");
 
   const olderAssistant = body.messages[0];
   const latestAssistant = body.messages[2];
@@ -314,7 +357,7 @@ test("non-Anthropic upstream: preserves latest assistant thinking text verbatim,
     ],
   };
 
-  prepareClaudeRequest(body, "kimi-coding");
+  prepareClaudeRequest(body, "kimi-coding", false, null, "reasoning-test-key");
 
   // Latest assistant: text preserved verbatim
   assert.equal(body.messages[2].content[0].type, "thinking");

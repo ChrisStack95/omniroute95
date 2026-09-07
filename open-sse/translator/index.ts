@@ -160,6 +160,8 @@ export function translateRequest(
     preserveDeveloperRole?: boolean;
     preserveCacheControl?: boolean;
     signatureNamespace?: string | null;
+    /** Authenticated server-side API key identity; never read from body/credentials. */
+    reasoningCacheApiKeyId?: string | null;
     preCompressionBody?: Record<string, unknown> | null;
     /** UA-detected GitHub Copilot client. Forwarded to translators via the
      *  transient `_copilotClient` credential flag (see openai-responses → openai). */
@@ -309,7 +311,13 @@ export function translateRequest(
   if (targetFormat === FORMATS.CLAUDE) {
     const isClaudePassthrough = sourceFormat === FORMATS.CLAUDE;
     const preserveCache = isClaudePassthrough || options?.preserveCacheControl === true;
-    result = prepareClaudeRequest(result, provider, preserveCache, model);
+    result = prepareClaudeRequest(
+      result,
+      provider,
+      preserveCache,
+      model,
+      options?.reasoningCacheApiKeyId
+    );
   }
 
   // Normalize openai-responses input shape for providers that require list input.
@@ -415,7 +423,7 @@ export function translateRequest(
 
         // Try reasoning cache first
         if (firstToolUseId) {
-          const cached = lookupReasoning(firstToolUseId);
+          const cached = lookupReasoning(firstToolUseId, options?.reasoningCacheApiKeyId, provider);
           if (cached) {
             msg.content.splice(firstToolUseIdx, 0, {
               type: "thinking",
@@ -443,7 +451,7 @@ export function translateRequest(
         ? msg.tool_calls[0]?.id
         : getAssistantMessageCacheKey(result, 0);
       if (cacheKey) {
-        const cached = lookupReasoning(cacheKey);
+        const cached = lookupReasoning(cacheKey, options?.reasoningCacheApiKeyId, provider);
         if (cached) {
           msg.reasoning_content = cached;
           recordReplay();

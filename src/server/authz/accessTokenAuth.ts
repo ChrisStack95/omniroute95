@@ -33,7 +33,15 @@ export function extractBearer(request: Request): string | null {
 
 function safePathname(url: string): string {
   try {
-    return new URL(url).pathname;
+    const pathname = new URL(url).pathname;
+    // Route handlers retain Next's configured basePath in request.url, while
+    // the proxy classification sees the path with it removed. Scope matching
+    // must use the same application-relative path at both auth gates.
+    const basePath = (process.env.OMNIROUTE_BASE_PATH || "").replace(/\/+$/, "");
+    if (basePath && (pathname === basePath || pathname.startsWith(`${basePath}/`))) {
+      return pathname.slice(basePath.length) || "/";
+    }
+    return pathname;
   } catch {
     return "/";
   }

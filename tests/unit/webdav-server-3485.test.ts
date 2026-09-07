@@ -243,10 +243,7 @@ test("verifyBasicAuth: empty header returns false", async () => {
 
 test("verifyBasicAuth: non-Basic scheme returns false", async () => {
   const { verifyBasicAuth } = await importHandler();
-  assert.equal(
-    verifyBasicAuth("Bearer some-token", "alice", "s3cr3t"),
-    false
-  );
+  assert.equal(verifyBasicAuth("Bearer some-token", "alice", "s3cr3t"), false);
 });
 
 test("verifyBasicAuth: malformed base64 returns false", async () => {
@@ -362,7 +359,15 @@ test("buildPropfindXml: escapes XML special chars in names", async () => {
 test("buildPropfindXml: file entry has no D:collection resourcetype", async () => {
   const { buildPropfindXml } = await importHandler();
   const xml = buildPropfindXml(
-    [{ name: "note.md", href: "/api/v1/webdav/note.md", isDir: false, size: 99, mtime: new Date() }],
+    [
+      {
+        name: "note.md",
+        href: "/api/v1/webdav/note.md",
+        isDir: false,
+        size: 99,
+        mtime: new Date(),
+      },
+    ],
     "/api/v1/webdav/"
   );
   // File should have empty resourcetype, not a collection
@@ -595,6 +600,147 @@ test("PROPFIND on vault root returns 207 with entries", async () => {
   assert.equal(propfindRes.status, 207);
   assert.match(propfindRes.body, /D:multistatus/);
   assert.match(propfindRes.body, /propfind-test\.md/);
+});
+
+test("WebDAV confines all methods and destinations when vault symlinks point outside", async (t) => {
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "omni-webdav-outside-"));
+  const fixture = path.join(intVaultDir, "symlink-security");
+  fs.mkdirSync(fixture);
+  fs.writeFileSync(path.join(outside, "secret.md"), "synthetic outside secret");
+  fs.symlinkSync(outside, path.join(fixture, "outside-dir"), "dir");
+  fs.symlinkSync(path.join(outside, "secret.md"), path.join(fixture, "outside-file"));
+  fs.symlinkSync(path.join(outside, "missing"), path.join(fixture, "dangling"));
+  fs.symlinkSync(path.join(fixture, "outside-dir"), path.join(fixture, "chain"), "dir");
+  fs.writeFileSync(path.join(fixture, "source.md"), "safe source");
+  t.after(() => {
+    fs.rmSync(fixture, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+
+  const prefix = "/api/v1/webdav/symlink-security";
+  for (const method of [
+    "GET",
+    "HEAD",
+    "PROPFIND",
+    "PUT",
+    "DELETE",
+    "MKCOL",
+    "MOVE",
+    "COPY",
+    "LOCK",
+    "UNLOCK",
+    "OPTIONS",
+  ]) {
+    for (const resource of [
+      "outside-file",
+      "outside-dir/secret.md",
+      "chain/secret.md",
+      "dangling/new.md",
+    ]) {
+      const result = await webdavRequest({
+        method,
+        url: `${prefix}/${resource}`,
+        headers: { authorization: AUTH_HEADER, destination: `${prefix}/unused.md` },
+        body: method === "PUT" ? Buffer.from("must not write") : undefined,
+        dataDir: intDataDir,
+      });
+      assert.equal(result.status, 403, `${method} ${resource}`);
+      assert.doesNotMatch(result.body, /synthetic outside secret/);
+    }
+  }
+
+  for (const method of ["PUT", "MKCOL"]) {
+    const result = await webdavRequest({
+      method,
+      url: `${prefix}/outside-dir/new/nested`,
+      headers: { authorization: AUTH_HEADER },
+      body: method === "PUT" ? Buffer.from("must not write") : undefined,
+      dataDir: intDataDir,
+    });
+    assert.equal(result.status, 403, `${method} new destination`);
+  }
+
+  for (const method of ["MOVE", "COPY"]) {
+    for (const destination of ["outside-file", "outside-dir/new/nested.md", "dangling/new.md"]) {
+      const result = await webdavRequest({
+        method,
+        url: `${prefix}/source.md`,
+        headers: {
+          authorization: AUTH_HEADER,
+          destination: `http://localhost${prefix}/${destination}`,
+        },
+        dataDir: intDataDir,
+      });
+      assert.equal(result.status, 403, `${method} to ${destination}`);
+      assert.equal(fs.readFileSync(path.join(fixture, "source.md"), "utf8"), "safe source");
+    }
+  }
+
+  const listing = await webdavRequest({
+    method: "PROPFIND",
+    url: prefix,
+    headers: { authorization: AUTH_HEADER, depth: "1" },
+    dataDir: intDataDir,
+  });
+  assert.equal(listing.status, 207);
+  assert.match(listing.body, /source\.md/);
+  assert.doesNotMatch(listing.body, /outside-file|outside-dir|dangling|chain/);
+  assert.equal(
+    fs.readFileSync(path.join(outside, "secret.md"), "utf8"),
+    "synthetic outside secret"
+  );
+  assert.deepEqual(fs.readdirSync(outside), ["secret.md"]);
+});
+
+test("WebDAV preserves reads and new writes through symlinks confined within the vault", async (t) => {
+  const fixture = path.join(intVaultDir, "internal-links");
+  fs.mkdirSync(path.join(fixture, "real"), { recursive: true });
+  fs.symlinkSync("real", path.join(fixture, "alias"), "dir");
+  t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+  const url = "/api/v1/webdav/internal-links/alias/new/note.md";
+  const put = await webdavRequest({
+    method: "PUT",
+    url,
+    headers: { authorization: AUTH_HEADER },
+    body: Buffer.from("inside vault"),
+    dataDir: intDataDir,
+  });
+  assert.equal(put.status, 201);
+  assert.equal(fs.readFileSync(path.join(fixture, "real/new/note.md"), "utf8"), "inside vault");
+  const get = await webdavRequest({
+    method: "GET",
+    url,
+    headers: { authorization: AUTH_HEADER },
+    dataDir: intDataDir,
+  });
+  assert.equal(get.status, 200);
+  assert.equal(get.body, "inside vault");
+});
+
+test("WebDAV PUT refuses a pre-existing temporary symlink without touching its target", async (t) => {
+  const fixture = path.join(intVaultDir, "temporary-link");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "omni-webdav-temp-outside-"));
+  fs.mkdirSync(fixture);
+  const outsideFile = path.join(outside, "secret.md");
+  fs.writeFileSync(outsideFile, "synthetic outside content");
+  t.mock.method(Date, "now", () => 1700000000000);
+  const temporary = path.join(fixture, "note.md.omniroute-webdav-tmp-1700000000000");
+  fs.symlinkSync(outsideFile, temporary);
+  t.after(() => {
+    fs.rmSync(fixture, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+  const result = await webdavRequest({
+    method: "PUT",
+    url: "/api/v1/webdav/temporary-link/note.md",
+    headers: { authorization: AUTH_HEADER },
+    body: Buffer.from("must not overwrite"),
+    dataDir: intDataDir,
+  });
+  assert.equal(result.status, 500);
+  assert.equal(fs.readFileSync(outsideFile, "utf8"), "synthetic outside content");
+  assert.equal(fs.existsSync(path.join(fixture, "note.md")), false);
+  assert.equal(fs.lstatSync(temporary).isSymbolicLink(), true);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

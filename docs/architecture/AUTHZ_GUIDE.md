@@ -217,3 +217,35 @@ Use `assertAuth(req, expectedClass)` inside handlers — it throws `AuthzAsserti
 - [COMPLIANCE.md](../security/COMPLIANCE.md) — audit log for auth events
 - [MCP-SERVER.md](../frameworks/MCP-SERVER.md) — MCP scope enforcement details
 - Source: `src/server/authz/`, `src/lib/api/requireManagementAuth.ts`
+
+## Restricted CLI credentials and client IPs
+
+Remote CLI access tokens (`oma_`) use the `read < write < admin` hierarchy
+implemented in `src/server/authz/accessScopes.ts`. Key creation, mutation and
+rotation require `admin`; full key disclosure through `/api/cli-tools/keys` or
+`/api/keys/[id]/reveal` also requires `admin`. Masked `/api/keys` inventory remains
+available to `read` tokens. Provider list/detail responses mask keys for restricted
+CLI tokens even when the global reveal flag is enabled. CLI settings, configuration
+backups and Codex profiles require `admin`, as do sync/relay token mutations.
+Dashboard sessions and management API keys retain
+credential-management access.
+
+Login lockout and audit IPs are resolved by `src/lib/ipUtils.ts` from the socket
+peer or the authenticated custom-server peer stamp. The pipeline forwards an
+HMAC-authenticated client-IP stamp to socket-less handlers without exposing its
+process secret. Requests without a trusted peer/stamp use the `unknown` bucket.
+`CF-Connecting-IP` never selects the login bucket.
+
+Only loopback proxies are trusted by default. `OMNIROUTE_TRUSTED_PROXY_IPS` adds
+comma-separated exact IPs/CIDRs for controlled reverse proxies, including Docker
+bridges. Such proxies must overwrite `X-Forwarded-For` or append the immediate
+client; resolution walks right-to-left and stops at the first untrusted hop.
+Keep backend ports private and restrict configured CIDRs to the proxy network.
+
+For the ai-router nginx deployment, `/api/auth/dashboard-access` accepts GET/HEAD
+and returns `204` only for a valid dashboard cookie; otherwise it returns `401`.
+Responses use `Cache-Control: no-store`. This endpoint is intended for nginx
+`auth_request` checks on additional dashboard client API aliases. Deploy the new
+fork before enabling the ai-router nginx configuration that calls it. The existing
+router-host `/v1` block remains intentional; additional aliases allow dashboard
+sessions only, so ordinary API keys must use the gateway data plane.

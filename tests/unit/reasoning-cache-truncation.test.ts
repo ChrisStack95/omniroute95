@@ -37,8 +37,8 @@ test("reasoning string > 10000 chars is truncated to 10000", async () => {
   reset();
   const key = randomUUID();
   const long = "A".repeat(15000);
-  cacheReasoningByKey(key, "deepseek", "deepseek-r1", long);
-  const result = lookupReasoning(key);
+  cacheReasoningByKey(key, "deepseek", "deepseek-r1", long, "reasoning-test-key");
+  const result = lookupReasoning(key, "reasoning-test-key", "deepseek");
   assert.ok(result, "should return cached reasoning");
   assert.equal(result.length, 10000, "should be truncated to MAX_ENTRY_BYTES");
 });
@@ -47,8 +47,8 @@ test("short reasoning string is cached unchanged", async () => {
   reset();
   const key = randomUUID();
   const short = "short reasoning content";
-  cacheReasoningByKey(key, "deepseek", "deepseek-r1", short);
-  const result = lookupReasoning(key);
+  cacheReasoningByKey(key, "deepseek", "deepseek-r1", short, "reasoning-test-key");
+  const result = lookupReasoning(key, "reasoning-test-key", "deepseek");
   assert.ok(result, "should return cached reasoning");
   assert.equal(result, short);
 });
@@ -58,8 +58,8 @@ test("truncation preserves the beginning of the string", async () => {
   const key = randomUUID();
   const prefix = "BEGINNING_MARKER_";
   const long = prefix + "X".repeat(20000);
-  cacheReasoningByKey(key, "deepseek", "deepseek-r1", long);
-  const result = lookupReasoning(key);
+  cacheReasoningByKey(key, "deepseek", "deepseek-r1", long, "reasoning-test-key");
+  const result = lookupReasoning(key, "reasoning-test-key", "deepseek");
   assert.ok(result, "should return cached reasoning");
   assert.ok(result.startsWith(prefix), "truncated result should preserve the beginning");
   assert.equal(result.length, 10000);
@@ -74,7 +74,7 @@ test("memory cache respects MAX_MEMORY_ENTRIES limit (200)", async () => {
   for (let i = 0; i < 201; i++) {
     const k = `entry-${i}-${randomUUID()}`;
     keys.push(k);
-    cacheReasoningByKey(k, "deepseek", "deepseek-r1", `reasoning-${i}`);
+    cacheReasoningByKey(k, "deepseek", "deepseek-r1", `reasoning-${i}`, "reasoning-test-key");
   }
 
   // The first entry should have been evicted from memory.
@@ -84,7 +84,7 @@ test("memory cache respects MAX_MEMORY_ENTRIES limit (200)", async () => {
   //
   // Simpler approach: verify that we don't blow up and that the 201st entry
   // is retrievable (it was the last inserted, so definitely in memory).
-  const last = lookupReasoning(keys[200]);
+  const last = lookupReasoning(keys[200], "reasoning-test-key", "deepseek");
   assert.ok(last, "most recent entry should be in memory cache");
   assert.ok(last.includes("reasoning-200"), "should contain expected content");
 });

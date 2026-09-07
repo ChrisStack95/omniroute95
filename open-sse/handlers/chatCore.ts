@@ -1734,6 +1734,7 @@ export async function handleChatCore({
             normalizeToolCallId,
             preserveDeveloperRole,
             preserveCacheControl,
+            reasoningCacheApiKeyId: apiKeyInfo?.id,
             copilotClient: copilotCompatibleReasoning,
           }
         );
@@ -1909,6 +1910,7 @@ export async function handleChatCore({
           preserveDeveloperRole,
           preserveCacheControl,
           signatureNamespace: connectionId,
+          reasoningCacheApiKeyId: apiKeyInfo?.id,
           copilotClient: copilotCompatibleReasoning,
           ...(preCompressionBody ? { preCompressionBody } : {}),
         }
@@ -3939,6 +3941,7 @@ export async function handleChatCore({
       const firstChoice = translatedResponse?.choices?.[0];
       const msg = firstChoice?.message;
       cacheReasoningFromAssistantMessage(msg, provider, model, {
+        apiKeyId: apiKeyInfo?.id,
         requestId: skillRequestId,
         messageIndex: 0,
       });
@@ -4320,6 +4323,7 @@ export async function handleChatCore({
         const choices = body.choices as { message?: Record<string, unknown> }[] | undefined;
         const msg = choices?.[0]?.message;
         cacheReasoningFromAssistantMessage(msg, provider, model, {
+          apiKeyId: apiKeyInfo?.id,
           requestId: skillRequestId,
           messageIndex: 0,
         });

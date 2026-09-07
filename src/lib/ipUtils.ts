@@ -1,4 +1,7 @@
-import { isIP } from "node:net";
+import { BlockList, isIP } from "node:net";
+import { resolveStampedPeer } from "@/server/authz/peerStampValue";
+import { PEER_IP_HEADER } from "@/server/authz/headers";
+import { CLIENT_IP_HEADER, resolveClientIpStamp } from "@/server/authz/clientIpStamp";
 
 /**
  * T07: Extract the real client IP from X-Forwarded-For header.
@@ -36,59 +39,61 @@ function normalizePeer(addr: string | undefined): string {
   return trimmed.startsWith("::ffff:") ? trimmed.slice("::ffff:".length) : trimmed;
 }
 
-/**
- * Whether the TCP peer is a loopback address (i.e. the request reached us via
- * a local reverse proxy such as nginx). Only then is it safe to trust the
- * forwarding headers — from a direct public socket those headers are
- * attacker-controlled and must be ignored, otherwise per-IP brute-force
- * buckets (login lockout, etc.) become spoofable / shareable.
- *
- * Ported from decolua/9router#1893.
- */
-function isLoopbackPeer(addr: string | undefined): boolean {
-  const ip = normalizePeer(addr);
-  if (!ip) return false;
-  if (ip === "::1") return true;
-  return ip.startsWith("127.");
+/** Only configured reverse proxies may supply an X-Forwarded-For chain. */
+function isTrustedProxy(address: string): boolean {
+  const ip = normalizePeer(address);
+  if (!isIP(ip)) return false;
+  const trusted = new BlockList();
+  trusted.addSubnet("127.0.0.0", 8, "ipv4");
+  trusted.addAddress("::1", "ipv6");
+  for (const entry of (process.env.OMNIROUTE_TRUSTED_PROXY_IPS || "").split(",")) {
+    const [rawAddress, prefix, ...extra] = entry.trim().split("/");
+    const candidate = normalizePeer(rawAddress);
+    const family = isIP(candidate);
+    if (!family || extra.length) continue;
+    const type = family === 4 ? "ipv4" : "ipv6";
+    try {
+      if (prefix === undefined) trusted.addAddress(candidate, type);
+      else if (/^\d+$/.test(prefix)) trusted.addSubnet(candidate, Number(prefix), type);
+    } catch {
+      // Invalid configuration never broadens trust.
+    }
+  }
+  return trusted.check(ip, isIP(ip) === 4 ? "ipv4" : "ipv6");
 }
 
 /**
- * Extract client IP from a Request or NextRequest object.
+ * Resolve the client from a real peer, a server-authenticated peer stamp, or
+ * the pipeline's authenticated client-IP stamp. Header-only requests without
+ * these proofs share the unknown bucket; arbitrary forwarding headers cannot
+ * create fresh login buckets. CF-Connecting-IP is deliberately never trusted.
  *
- * Behind a local reverse proxy (TCP peer is loopback) we trust the standard
- * forwarding headers in priority order: CF-Connecting-IP > X-Forwarded-For >
- * X-Real-IP. Directly from a public socket those headers are spoofable, so we
- * key by the unspoofable TCP peer address instead. When no peer is known
- * (edge runtime / fetch path with no socket) we fall back to the headers so
- * we don't regress to "unknown" for every request in that path.
+ * Reverse proxies must overwrite XFF or append their immediate client to it.
+ * Walk from the socket towards the client, stopping at the first untrusted hop.
  */
 export function getClientIpFromRequest(req: {
   headers?: Headers | { get?: (n: string) => string | null };
   socket?: { remoteAddress?: string };
   ip?: string;
 }): string {
-  // Helper to get header value from either Headers object or plain object
-  const getHeader = (name: string): string | null => {
-    if (!req.headers) return null;
-    if (typeof (req.headers as Headers).get === "function") {
-      return (req.headers as Headers).get(name);
-    }
-    return null;
-  };
-
-  const remoteAddress = req.ip ?? req.socket?.remoteAddress;
-  const hasPeer = Boolean(normalizePeer(remoteAddress));
-  const trustForwardingHeaders = !hasPeer || isLoopbackPeer(remoteAddress);
-
-  if (trustForwardingHeaders) {
-    const cfIp = getHeader("cf-connecting-ip");
-    if (cfIp && isIP(cfIp.trim()) !== 0) return cfIp.trim();
-
-    const xff = getHeader("x-forwarded-for");
-    const realIp = getHeader("x-real-ip");
-    return extractClientIp(xff ?? realIp, remoteAddress);
+  const getHeader = (name: string): string | null => req.headers?.get?.(name) ?? null;
+  const token = process.env.OMNIROUTE_PEER_STAMP_TOKEN;
+  const rawPeer =
+    req.socket?.remoteAddress ?? req.ip ?? resolveStampedPeer(getHeader(PEER_IP_HEADER), token);
+  const peer = normalizePeer(rawPeer ?? undefined);
+  if (!isIP(peer)) {
+    return resolveClientIpStamp(getHeader(CLIENT_IP_HEADER), token) ?? "unknown";
   }
+  if (!isTrustedProxy(peer)) return peer;
 
-  // Direct public peer — forwarding headers are attacker-controlled, ignore.
-  return normalizePeer(remoteAddress);
+  const forwarded = getHeader("x-forwarded-for") ?? getHeader("x-real-ip");
+  if (!forwarded) return peer;
+  const hops = forwarded.split(",").map((part) => normalizePeer(part));
+  let current = peer;
+  for (let i = hops.length - 1; i >= 0 && isTrustedProxy(current); i--) {
+    // A malformed nearest hop must not let us skip to attacker-controlled data.
+    if (!isIP(hops[i])) return current;
+    current = hops[i];
+  }
+  return current;
 }

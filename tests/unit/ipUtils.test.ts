@@ -36,9 +36,9 @@ describe("ipUtils — loopback-gated forwarding headers", () => {
     assert.equal(getClientIpFromRequest(req), "203.0.113.12");
   });
 
-  it("trusts CF-Connecting-IP when TCP peer is loopback", () => {
+  it("ignores CF-Connecting-IP even when TCP peer is loopback", () => {
     const req = makeReq({ "cf-connecting-ip": "203.0.113.13" }, "127.0.0.1");
-    assert.equal(getClientIpFromRequest(req), "203.0.113.13");
+    assert.equal(getClientIpFromRequest(req), "127.0.0.1");
   });
 
   it("ignores spoofed X-Forwarded-For when TCP peer is a public address", () => {
@@ -53,11 +53,10 @@ describe("ipUtils — loopback-gated forwarding headers", () => {
     assert.equal(getClientIpFromRequest(req), "198.51.100.7");
   });
 
-  it("falls back to forwarding headers when no socket peer is known", () => {
-    // Edge runtime / fetch path where req.socket is absent — preserve prior
-    // behavior, otherwise we'd lose all IPs in that path.
+  it("uses the unknown bucket when no socket peer is known", () => {
+    // Socket-less requests need an authenticated stamp, not caller headers.
     const req = makeReq({ "x-forwarded-for": "203.0.113.20" });
-    assert.equal(getClientIpFromRequest(req), "203.0.113.20");
+    assert.equal(getClientIpFromRequest(req), "unknown");
   });
 
   it("returns loopback peer when no forwarding headers are present", () => {

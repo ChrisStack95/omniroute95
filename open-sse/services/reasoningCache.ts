@@ -13,6 +13,8 @@
  * @see Issue #1628
  */
 
+import { createHash } from "node:crypto";
+
 import {
   clearAllReasoningCache,
   cleanupExpiredReasoning,
@@ -120,6 +122,8 @@ type AssistantMessageLike = {
 };
 
 type AssistantMessageCacheContext = {
+  /** Authenticated identity supplied by the server, never from request JSON. */
+  apiKeyId?: string | null;
   requestId?: string;
   messageIndex?: number;
 };
@@ -127,6 +131,26 @@ type AssistantMessageCacheContext = {
 type ToolCallLike = {
   id?: unknown;
 };
+
+/** Build an opaque, versioned key. Legacy unscoped rows are never queried. */
+export function buildReasoningCacheKey(
+  key: string,
+  apiKeyId: string | null | undefined,
+  provider: string | null | undefined
+): string | null {
+  if (
+    !key ||
+    typeof apiKeyId !== "string" ||
+    !apiKeyId.trim() ||
+    typeof provider !== "string" ||
+    !provider.trim()
+  )
+    return null;
+  const digest = createHash("sha256")
+    .update(JSON.stringify([apiKeyId, provider.trim().toLowerCase(), key]))
+    .digest("hex");
+  return `reasoning:v2:${digest}`;
+}
 
 const memoryCache = new Map<string, MemoryCacheEntry>();
 const MAX_MEMORY_ENTRIES = 200;
@@ -176,18 +200,21 @@ export function cacheReasoning(
   toolCallId: string,
   provider: string,
   model: string,
-  reasoning: string
+  reasoning: string,
+  apiKeyId?: string | null
 ): void {
-  cacheReasoningByKey(toolCallId, provider, model, reasoning);
+  cacheReasoningByKey(toolCallId, provider, model, reasoning, apiKeyId);
 }
 
 export function cacheReasoningByKey(
   key: string,
   provider: string,
   model: string,
-  reasoning: string
+  reasoning: string,
+  apiKeyId?: string | null
 ): void {
-  if (!key || !reasoning) return;
+  const scopedKey = buildReasoningCacheKey(key, apiKeyId, provider);
+  if (!scopedKey || !reasoning) return;
 
   if (reasoning.length > MAX_ENTRY_BYTES) {
     reasoning = reasoning.slice(0, MAX_ENTRY_BYTES);
@@ -199,7 +226,7 @@ export function cacheReasoningByKey(
   if (memoryCache.size >= MAX_MEMORY_ENTRIES) {
     evictOldest();
   }
-  memoryCache.set(key, {
+  memoryCache.set(scopedKey, {
     reasoning,
     provider,
     model,
@@ -208,7 +235,7 @@ export function cacheReasoningByKey(
   });
 
   try {
-    setReasoningCache(key, provider, model, reasoning, TTL_MS);
+    setReasoningCache(scopedKey, provider, model, reasoning, TTL_MS);
   } catch {
     // DB persistence failure is non-fatal; memory cache still serves the hot path.
   }
@@ -225,10 +252,11 @@ export function cacheReasoningBatch(
   toolCallIds: string[],
   provider: string,
   model: string,
-  reasoning: string
+  reasoning: string,
+  apiKeyId?: string | null
 ): void {
   for (const id of toolCallIds) {
-    if (id) cacheReasoning(id, provider, model, reasoning);
+    if (id) cacheReasoning(id, provider, model, reasoning, apiKeyId);
   }
 }
 
@@ -242,7 +270,11 @@ export function cacheReasoningFromAssistantMessage(
   model: string,
   context?: AssistantMessageCacheContext
 ): number {
-  if (!message || message.role !== "assistant") {
+  if (
+    !message ||
+    message.role !== "assistant" ||
+    !buildReasoningCacheKey("capture", context?.apiKeyId, provider)
+  ) {
     return 0;
   }
 
@@ -270,12 +302,13 @@ export function cacheReasoningFromAssistantMessage(
       buildAssistantMessageCacheKey(requestId, messageIndex),
       provider,
       model,
-      reasoning
+      reasoning,
+      context?.apiKeyId
     );
     return 1;
   }
 
-  cacheReasoningBatch(toolCallIds, provider, model, reasoning);
+  cacheReasoningBatch(toolCallIds, provider, model, reasoning, context?.apiKeyId);
   return toolCallIds.length;
 }
 
@@ -283,27 +316,32 @@ export function cacheReasoningFromAssistantMessage(
  * Look up cached reasoning_content by tool_call_id.
  * Memory first → DB fallback → null (miss).
  */
-export function lookupReasoning(toolCallId: string): string | null {
-  if (!toolCallId) {
+export function lookupReasoning(
+  toolCallId: string,
+  apiKeyId?: string | null,
+  provider?: string | null
+): string | null {
+  const scopedKey = buildReasoningCacheKey(toolCallId, apiKeyId, provider);
+  if (!scopedKey) {
     misses++;
     return null;
   }
 
   // 1. Check memory
-  const mem = memoryCache.get(toolCallId);
+  const mem = memoryCache.get(scopedKey);
   if (mem) {
     if (Date.now() < mem.expiresAt) {
       hits++;
       return mem.reasoning;
     }
     // Expired in memory — remove
-    memoryCache.delete(toolCallId);
+    memoryCache.delete(scopedKey);
   }
 
   // 2. Fallback to DB
   let dbResult: { reasoning: string; provider: string; model: string } | null = null;
   try {
-    dbResult = getReasoningCache(toolCallId);
+    dbResult = getReasoningCache(scopedKey);
   } catch {
     // DB lookup failure is non-fatal; treat it as a cache miss.
   }
@@ -314,7 +352,7 @@ export function lookupReasoning(toolCallId: string): string | null {
       promotedReasoning = promotedReasoning.slice(0, MAX_ENTRY_BYTES);
     }
     // Promote back to memory for fast subsequent lookups
-    memoryCache.set(toolCallId, {
+    memoryCache.set(scopedKey, {
       reasoning: promotedReasoning,
       provider: dbResult.provider,
       model: dbResult.model,

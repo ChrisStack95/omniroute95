@@ -27,6 +27,8 @@ import {
 } from "./headers";
 import type { AuthSubject, RouteClass, RouteClassification } from "./types";
 import type { AuthOutcome, RoutePolicy } from "./context";
+import { getClientIpFromRequest } from "../../lib/ipUtils";
+import { CLIENT_IP_HEADER, stampClientIp } from "./clientIpStamp";
 
 export interface AuthzPipelineOptions {
   enforce?: boolean;
@@ -308,6 +310,12 @@ export async function runAuthzPipeline(
   // per-process token never reaches route handlers or upstream providers.
   requestHeaders.delete(PEER_IP_HEADER);
   requestHeaders.delete(VIA_PROXY_HEADER);
+  requestHeaders.delete(CLIENT_IP_HEADER);
+  const clientIpStamp = stampClientIp(
+    getClientIpFromRequest(request),
+    process.env.OMNIROUTE_PEER_STAMP_TOKEN
+  );
+  if (clientIpStamp) requestHeaders.set(CLIENT_IP_HEADER, clientIpStamp);
 
   requestHeaders.set(AUTHZ_HEADER_ROUTE_CLASS, classification.routeClass);
   requestHeaders.set(AUTHZ_HEADER_REQUEST_ID, requestId);

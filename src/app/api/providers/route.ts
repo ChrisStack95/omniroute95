@@ -31,7 +31,7 @@ import {
 } from "@/lib/providers/requestDefaults";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { isManagedProviderConnectionId } from "@/lib/providers/catalog";
-import { isApiKeyRevealEnabled, maskStoredApiKey } from "@/lib/apiKeyExposure";
+import { isApiKeyRevealEnabledForRequest, maskStoredApiKey } from "@/lib/apiKeyExposure";
 import {
   buildModelSyncInternalHeaders,
   fetchModelSyncInternal,
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 
   try {
     const connections = await getProviderConnections();
-    const revealKeys = isApiKeyRevealEnabled();
+    const revealKeys = isApiKeyRevealEnabledForRequest(request);
 
     // Hide or mask sensitive fields
     const safeConnections = connections.map((c) => ({

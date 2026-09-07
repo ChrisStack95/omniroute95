@@ -168,6 +168,42 @@ export function resolveVaultPath(vaultRoot, requestPath) {
 }
 
 /**
+ * Check each existing component against the canonical vault root. Walking from
+ * the root also catches dangling symlinks above a not-yet-created destination;
+ * realpath on that destination alone would only report ENOENT.
+ *
+ * @param {string} vaultRoot Canonical (realpath) vault root.
+ * @param {string} absPath Lexically confined request or destination path.
+ */
+function assertVaultConfinement(vaultRoot, absPath) {
+  const relative = path.relative(vaultRoot, absPath);
+  if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+    throw { status: 403, message: "Forbidden" };
+  }
+  let current = vaultRoot;
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (err) {
+      if (err.code === "ENOENT") return; // all remaining components are new
+      throw { status: 403, message: "Forbidden" };
+    }
+    if (!stat.isSymbolicLink()) continue;
+    let target;
+    try {
+      target = fs.realpathSync(current);
+    } catch {
+      throw { status: 403, message: "Forbidden" }; // dangling link or cycle
+    }
+    if (target !== vaultRoot && !target.startsWith(vaultRoot + path.sep)) {
+      throw { status: 403, message: "Forbidden" };
+    }
+  }
+}
+
+/**
  * Validate a Destination header value for MOVE/COPY against the same vault root.
  *
  * @param {string} vaultRoot
@@ -494,8 +530,7 @@ function buildEntryHref(baseHref, relativePath, isDir) {
 function handleOptions(req, res) {
   res.writeHead(200, {
     DAV: "1, 2",
-    Allow:
-      "OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, LOCK, UNLOCK",
+    Allow: "OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, LOCK, UNLOCK",
     "MS-Author-Via": "DAV",
     "Content-Length": "0",
   });
@@ -509,8 +544,9 @@ function handleOptions(req, res) {
  * @param {import("node:http").ServerResponse} res
  * @param {string} absPath
  * @param {string} requestPath
+ * @param {string} vaultRoot
  */
-function handlePropfind(req, res, absPath, requestPath) {
+function handlePropfind(req, res, absPath, requestPath, vaultRoot) {
   const depth = req.headers["depth"] || "1";
 
   let stat;
@@ -551,6 +587,7 @@ function handlePropfind(req, res, absPath, requestPath) {
       const childAbs = path.join(absPath, child);
       let childStat;
       try {
+        assertVaultConfinement(vaultRoot, childAbs);
         childStat = fs.statSync(childAbs);
       } catch {
         continue;
@@ -626,8 +663,9 @@ function handleGet(req, res, absPath, headOnly) {
  * @param {import("node:http").IncomingMessage} req
  * @param {import("node:http").ServerResponse} res
  * @param {string} absPath
+ * @param {string} vaultRoot
  */
-async function handlePut(req, res, absPath) {
+async function handlePut(req, res, absPath, vaultRoot) {
   // Check if this is an update (204) or create (201)
   let existed = false;
   try {
@@ -650,7 +688,10 @@ async function handlePut(req, res, absPath) {
   const tmpPath = absPath + ".omniroute-webdav-tmp-" + Date.now();
   let writeStream;
   try {
-    writeStream = fs.createWriteStream(tmpPath);
+    // Open synchronously and exclusively so a pre-existing temporary symlink
+    // cannot be followed, or renamed over the target after an async open error.
+    const fd = fs.openSync(tmpPath, "wx", 0o600);
+    writeStream = fs.createWriteStream(tmpPath, { fd });
   } catch {
     sendError(res, 500, "Could not write file");
     return;
@@ -697,6 +738,8 @@ async function handlePut(req, res, absPath) {
 
   // Atomic rename
   try {
+    assertVaultConfinement(vaultRoot, tmpPath);
+    assertVaultConfinement(vaultRoot, absPath);
     fs.renameSync(tmpPath, absPath);
   } catch {
     try {
@@ -746,8 +789,9 @@ function handleDelete(res, absPath) {
  * @param {import("node:http").IncomingMessage} req
  * @param {import("node:http").ServerResponse} res
  * @param {string} absPath
+ * @param {string} vaultRoot
  */
-function handleMkcol(req, res, absPath) {
+function handleMkcol(req, res, absPath, vaultRoot) {
   // MKCOL must not have a request body per RFC 4918 §9.3
   let bodyReceived = false;
   req.on("data", () => {
@@ -756,6 +800,13 @@ function handleMkcol(req, res, absPath) {
   req.on("end", () => {
     if (bodyReceived) {
       sendError(res, 415, "Unsupported Media Type: MKCOL must not have a body");
+      return;
+    }
+
+    try {
+      assertVaultConfinement(vaultRoot, absPath);
+    } catch {
+      sendError(res, 403, "Forbidden");
       return;
     }
 
@@ -811,6 +862,7 @@ function handleMove(req, res, absPath, vaultRoot) {
   try {
     const resolved = resolveDestinationPath(vaultRoot, destinationHeader);
     destAbs = resolved.absPath;
+    assertVaultConfinement(vaultRoot, destAbs);
   } catch (err) {
     if (err && err.status) {
       sendError(res, err.status, err.message || "Forbidden");
@@ -934,7 +986,7 @@ export async function maybeHandleWebdav(req, res) {
   // Resolve vault root
   let vaultRoot;
   try {
-    vaultRoot = path.resolve(config.vaultPath);
+    vaultRoot = fs.realpathSync(path.resolve(config.vaultPath));
   } catch {
     sendError(res, 500, "Server configuration error");
     return true;
@@ -945,6 +997,7 @@ export async function maybeHandleWebdav(req, res) {
   try {
     const resolved = resolveVaultPath(vaultRoot, url);
     absPath = resolved.absPath;
+    assertVaultConfinement(vaultRoot, absPath);
   } catch (err) {
     if (err && err.status) {
       sendError(res, err.status, "Forbidden");
@@ -961,7 +1014,7 @@ export async function maybeHandleWebdav(req, res) {
         handleOptions(req, res);
         break;
       case "PROPFIND":
-        handlePropfind(req, res, absPath, url);
+        handlePropfind(req, res, absPath, url, vaultRoot);
         break;
       case "GET":
         handleGet(req, res, absPath, false);
@@ -970,13 +1023,13 @@ export async function maybeHandleWebdav(req, res) {
         handleGet(req, res, absPath, true);
         break;
       case "PUT":
-        await handlePut(req, res, absPath);
+        await handlePut(req, res, absPath, vaultRoot);
         break;
       case "DELETE":
         handleDelete(res, absPath);
         break;
       case "MKCOL":
-        handleMkcol(req, res, absPath);
+        handleMkcol(req, res, absPath, vaultRoot);
         break;
       case "MOVE":
         handleMove(req, res, absPath, vaultRoot);

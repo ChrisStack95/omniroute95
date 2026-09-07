@@ -7,8 +7,8 @@
  *
  * Hierarchy (admin ⊃ write ⊃ read):
  *   - read  : list/inspect only (models list, providers status, logs, usage, cost)
- *   - write : read + configure/apply (setup-codex, keys add, config set, combo edit)
- *   - admin : write + sensitive management (tokens create/revoke, providers add,
+ *   - write : read + configure/apply (config set, combo edit)
+ *   - admin : write + sensitive management (tokens create/revoke, keys add/reveal, providers add,
  *             services install/start, policy, oauth)
  *
  * Loopback-only routes that spawn processes (`isLocalOnlyPath`) are NEVER reachable

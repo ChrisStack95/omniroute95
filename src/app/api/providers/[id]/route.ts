@@ -23,8 +23,11 @@ import {
   isClaudeExtraUsageBlockEnabled,
 } from "@/lib/providers/claudeExtraUsage";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
-import { isApiKeyRevealEnabled, maskStoredApiKey } from "@/lib/apiKeyExposure";
-import { refreshConnectionRateLimits, enableRateLimitProtection } from "@/../open-sse/services/rateLimitManager";
+import { isApiKeyRevealEnabledForRequest, maskStoredApiKey } from "@/lib/apiKeyExposure";
+import {
+  refreshConnectionRateLimits,
+  enableRateLimitProtection,
+} from "@/../open-sse/services/rateLimitManager";
 
 function normalizeCodexLimitPolicy(
   incoming: unknown,
@@ -63,7 +66,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    const revealKeys = isApiKeyRevealEnabled();
+    const revealKeys = isApiKeyRevealEnabledForRequest(request);
 
     // Hide or mask sensitive fields
     const result: Record<string, any> = { ...connection };

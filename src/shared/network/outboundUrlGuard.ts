@@ -39,9 +39,15 @@ export class OutboundUrlGuardError extends Error {
 }
 
 function normalizeHost(hostname: string) {
-  const normalized = hostname.trim().toLowerCase();
+  let normalized = hostname.trim().toLowerCase();
   if (normalized.startsWith("[") && normalized.endsWith("]")) {
-    return normalized.slice(1, -1);
+    normalized = normalized.slice(1, -1);
+  }
+  // DNS answers may use expanded IPv6, unlike URL.hostname. Compare the same
+  // canonical representation in both paths, including IPv4-mapped addresses.
+  if (isIP(normalized) === 6) {
+    normalized = normalized.split("%", 1)[0];
+    return new URL(`http://[${normalized}]/`).hostname.slice(1, -1);
   }
   return normalized;
 }
@@ -54,14 +60,13 @@ export function isPrivateHost(hostname: string) {
     normalized === "localhost" ||
     normalized === "0.0.0.0" ||
     normalized === "127.0.0.1" ||
-    normalized === "::1" ||
+    normalized.startsWith("::") || // unspecified, loopback, IPv4-compatible/mapped
     normalized.endsWith(".localhost") ||
     normalized.endsWith(".local") ||
     // `.internal` is reserved for private use (ICANN-style) and is the
     // hostname suffix used by GCP/Azure metadata probes
     // (e.g. `metadata.google.internal`).
-    normalized.endsWith(".internal") ||
-    normalized.startsWith("::ffff:")
+    normalized.endsWith(".internal")
   ) {
     return true;
   }
@@ -75,15 +80,17 @@ export function isPrivateHost(hostname: string) {
     if (a === 192 && b === 168) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a >= 224) return true; // multicast, reserved, and limited broadcast
     return false;
   }
 
   if (isIP(normalized) === 6) {
+    const prefix = Number.parseInt(normalized.split(":", 1)[0], 16);
     return (
-      normalized === "::1" ||
-      normalized.startsWith("fc") ||
-      normalized.startsWith("fd") ||
-      normalized.startsWith("fe80:")
+      (prefix & 0xfe00) === 0xfc00 || // unique-local fc00::/7
+      (prefix & 0xffc0) === 0xfe80 || // link-local fe80::/10
+      (prefix & 0xffc0) === 0xfec0 || // deprecated site-local fec0::/10
+      (prefix & 0xff00) === 0xff00 // multicast ff00::/8
     );
   }
 

@@ -23,6 +23,9 @@ import { type AccessScope } from "@/lib/accessTokens/scopes";
 /** Sensitive management surfaces — require `admin` for ALL methods. */
 export const ADMIN_SCOPE_PREFIXES: readonly string[] = [
   "/api/cli/tokens", // access-token management (create/list/revoke)
+  "/api/cli-tools/keys", // returns complete inference/management credentials
+  "/api/cli-tools/backups", // reads/restores configurations containing credentials
+  "/api/cli-tools/codex-profiles", // profile configs can contain inline credentials
   "/api/oauth", // OAuth authorization flows
   "/api/auth", // login / logout / session
   "/api/policy", // policy engine
@@ -33,6 +36,9 @@ export const ADMIN_SCOPE_PREFIXES: readonly string[] = [
 /** Require `admin` only for mutating methods; GET/HEAD under these stay `read`. */
 export const ADMIN_MUTATION_PREFIXES: readonly string[] = [
   "/api/providers", // POST add provider / rotate key = admin; GET status = read
+  "/api/keys", // key creation, rotation, scope changes and deletion are credential management
+  "/api/sync/tokens", // configuration-sync credential issuance and revocation
+  "/api/relay/tokens", // relay credential issuance and revocation
   "/api/cli-tools/apply", // writes config onto the host filesystem
 ];
 
@@ -54,6 +60,8 @@ export function inferRequiredScope(method: string, path: string): AccessScope {
   const p = path || "/";
 
   if (matchesPrefix(p, ADMIN_SCOPE_PREFIXES)) return "admin";
+  if (/^\/api\/keys\/[^/]+\/reveal\/?$/.test(p)) return "admin";
+  if (/^\/api\/cli-tools\/[^/]+-settings(?:\/|$)/.test(p)) return "admin";
 
   const isMutation = !READ_METHODS.has(m);
   if (isMutation && matchesPrefix(p, ADMIN_MUTATION_PREFIXES)) return "admin";

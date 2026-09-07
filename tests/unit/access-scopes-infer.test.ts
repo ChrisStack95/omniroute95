@@ -9,10 +9,10 @@ test("read methods default to read", () => {
 });
 
 test("mutating methods default to write", () => {
-  assert.equal(inferRequiredScope("POST", "/api/keys"), "write");
+  assert.equal(inferRequiredScope("POST", "/api/combos"), "write");
   assert.equal(inferRequiredScope("PUT", "/api/config"), "write");
   assert.equal(inferRequiredScope("PATCH", "/api/combo/x"), "write");
-  assert.equal(inferRequiredScope("DELETE", "/api/keys/abc"), "write");
+  assert.equal(inferRequiredScope("DELETE", "/api/combos/abc"), "write");
 });
 
 test("admin-prefix routes require admin for ANY method", () => {
@@ -45,4 +45,29 @@ test("prefix matching does not over-match unrelated paths", () => {
   assert.equal(inferRequiredScope("GET", "/api/authz-inventory"), "read");
   // "/api/services" itself and its children are admin, but a lookalike is not
   assert.equal(inferRequiredScope("GET", "/api/services-catalog"), "read");
+});
+
+test("all credential mutation and disclosure operations require admin", () => {
+  for (const [method, path] of [
+    ["POST", "/api/keys"],
+    ["PATCH", "/api/keys/example"],
+    ["POST", "/api/keys/example/regenerate"],
+    ["DELETE", "/api/keys/example"],
+    ["GET", "/api/keys/example/reveal"],
+    ["HEAD", "/api/keys/example/reveal/"],
+    ["GET", "/api/cli-tools/keys"],
+    ["GET", "/api/cli-tools/codex-settings"],
+    ["POST", "/api/cli-tools/guide-settings/opencode"],
+    ["GET", "/api/cli-tools/backups"],
+    ["GET", "/api/cli-tools/codex-profiles"],
+    ["POST", "/api/sync/tokens"],
+    ["DELETE", "/api/relay/tokens/example"],
+    ["HEAD", "/api/cli-tools/keys/"],
+  ])
+    assert.equal(inferRequiredScope(method, path), "admin", `${method} ${path}`);
+  assert.equal(inferRequiredScope("GET", "/api/keys"), "read");
+  assert.equal(inferRequiredScope("GET", "/api/keys/example"), "read");
+  assert.equal(inferRequiredScope("GET", "/api/cli-tools/status"), "read");
+  assert.equal(inferRequiredScope("GET", "/api/sync/tokens"), "read");
+  assert.equal(inferRequiredScope("GET", "/api/relay/tokens"), "read");
 });
