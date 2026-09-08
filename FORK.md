@@ -285,6 +285,96 @@ Evaluated and deliberately NOT ported:
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | #10744 (fail over streaming responses terminated with empty completions) | needs the `openAi` SSE-lifecycle tracker from the #7285 rework; validateQuality.ts has diverged by ~357/73 lines, so porting it would drag a large slice of 3.8.50 |
 
+## Upstream review — 2026-09-08
+
+Reviewed against `origin/stable` at `214e687391ce6b3ebb105f93f0027b2f790e9612`.
+Queried all 694 upstream PRs updated since 2026-09-01 and all 278 open PRs with
+`gh`; shortlisted production-scope changes for diff, test, discussion and exact
+head review. These counts describe discovery, not 694 full code reviews.
+
+Adapted [#12863](https://github.com/diegosouzapw/OmniRoute/pull/12863)
+(OPEN at the reviewed upstream head):
+subtract cached prompt tokens from Gemini-to-Claude `input_tokens`, clamped to
+zero. Gemini's `promptTokenCount` includes the cached prefix; Anthropic's
+`input_tokens` excludes `cache_read_input_tokens`. Previously a 100-token prompt
+with 90 cached tokens was reported as 100 + 90 and counted as 190 by
+`getLoggedInputTokens`. The translated usage now reports 10 + 90 = 100.
+
+- Reviewed PR head: `5002c412819bb439ba08df2ed84717459e1c852d`.
+- Functional upstream commit: `d59b0d8dbb543d5bd65c3e8402107d36b92369b2`.
+- Adaptation after Claude Code CLI / Opus 5 review: keep cache-inclusive
+  `prompt_tokens` and `completion_tokens` in the translator's internal state;
+  subtract cache only when building the outgoing Anthropic `message_delta`.
+  A literal one-line port made full-cache/zero-output usage fall back to an
+  estimate and made stream metadata and response-body totals omit cached input.
+  Keeping normalized internal usage also preserves the full input for pricing.
+  Reject non-finite, negative and nonnumeric cache counters. No shared stream,
+  pricing or metadata implementation changes are required.
+- Risk: limited to Gemini-to-Anthropic usage accounting. OpenAI prompt totals,
+  output/thinking tokens, terminal events and wrapped stream handling retain
+  their existing contracts. No equivalent correction existed at the reviewed
+  stable head.
+- Sources: `open-sse/translator/response/gemini-to-claude.ts` and
+  `src/lib/usage/tokenAccounting.ts`.
+- Regression coverage: cached/uncached/full-cache prompts, invalid cache counters,
+  cache counts above prompt counts and retained usage across wrapped chunks.
+  Seven new `createSSEStream` tests exercise fragmented Gemini/Antigravity input,
+  emitted Anthropic usage, single terminal events, completion callback totals,
+  SSE metadata and pricing, including full-cache prompts with zero or missing
+  output counts. Five of these tests failed against the literal one-line port
+  and pass with this adaptation. All 83 tests across seven related suites pass.
+  `npm run typecheck:core`, scoped ESLint with the existing suppressions,
+  Prettier and `git diff --check` pass.
+
+The initial port was held because `check:file-size` found three production and
+six test violations already present at the reviewed stable head. The user then
+authorized resolving this debt. The size baseline and limits are unchanged:
+
+- Extract response-header helpers from `chatHelpers.ts`, WebSocket header filtering
+  from `codex.ts`, and error-status mappings from `streamHandler.ts` into leaf
+  modules. Existing exports and all six moved function bodies are preserved.
+- Extract response/capability/log fixtures from the chat-pipeline, chatcore
+  translation, combo-routing and translator-helper test suites.
+- Split translator replay and pure WebDAV scenarios into separately discovered
+  unit suites. All 290 original test cases remain. Their bodies are unchanged
+  except for the pre-existing combo fallback fixture failure described below.
+- The old combo fallback test returned a Claude response to the second OpenAI
+  request and expected only two HTTP calls. Update its mock to fail OpenAI by URL
+  and assert the current bounded same-account retry from #9708: two OpenAI calls
+  with the same credential, followed by Claude. Production retry policy is unchanged.
+- Replace eleven moved explicit `any` annotations with typed/unknown fixture
+  fields and reduce the corresponding ESLint suppression count from 261 to 250.
+
+The size gate now passes. The combined final run passes all 477 tests across
+21 related files. Scoped ESLint, core typecheck, formatting, the explicit-any
+budget, docs-sync and tracked-artifact checks pass. The circular-dependency scan
+remains advisory; the extracted production modules have no imports and add no cycles.
+
+Other reviewed candidates (statuses and heads as observed on 2026-09-08):
+
+| PR                                                             | Status / head         | Decision for v3.8.48                                                                                                                                                                                                            |
+| -------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#12585](https://github.com/diegosouzapw/OmniRoute/pull/12585) | OPEN `3df5ac987679`   | Already adapted: Codex passthrough deletes both sampling parameters before returning. Do not import the later shared-rule refactor.                                                                                             |
+| [#12644](https://github.com/diegosouzapw/OmniRoute/pull/12644) | OPEN `faa87c818e23`   | Already adapted: malformed message entries are rejected before dispatch; recorded above.                                                                                                                                        |
+| [#12827](https://github.com/diegosouzapw/OmniRoute/pull/12827) | OPEN `cc46f41ecf5c`   | Equivalent client version 0.153.4 already present in `open-sse/config/codexClient.ts` and identity tests through `290a8e722`.                                                                                                   |
+| [#12899](https://github.com/diegosouzapw/OmniRoute/pull/12899) | MERGED `cb924f14838b` | Rejected as written: the combo-name allowlist returns true before checking `disableNonPublicModels`. The new tests do not combine those settings; do not weaken key policy.                                                     |
+| [#12935](https://github.com/diegosouzapw/OmniRoute/pull/12935) | OPEN `bb3d539829b2`   | Not ported: accepts an empty sentinel with nonstandard Claude `stop_reason: length` for an Ollama/Qwen probe outside production scope; preserve empty-output failure handling.                                                  |
+| [#12997](https://github.com/diegosouzapw/OmniRoute/pull/12997) | OPEN `1bfbf8636364`   | Not applicable literally: the affected `imageCombo.ts` success-unwrapping path is absent on this base. Do not introduce later image-combo infrastructure.                                                                       |
+| [#12982](https://github.com/diegosouzapw/OmniRoute/pull/12982) | OPEN `a747a81555b4`   | Deferred: depends on the later image-combo path in its tests, which also assert the bare-array response rejected by #12997. Needs direct-handler/Codex-path tests on this base before an independent empty-payload adaptation.  |
+| [#12785](https://github.com/diegosouzapw/OmniRoute/pull/12785) | OPEN `af7f3351362b`   | Deferred: missing stop-sequence forwarding is relevant, but the literal nullish fallback can emit `[undefined]` for `stop_sequences: null`. Its three input cases do not establish null/empty/precedence behavior on this base. |
+| [#11809](https://github.com/diegosouzapw/OmniRoute/pull/11809) | MERGED `cc4e038bc7e3` | Deferred: changes Kiro account-state policy for a missing-profile 403; upstream classifier tests alone do not verify old-base profile discovery, cooldown and account recovery together.                                        |
+| [#12391](https://github.com/diegosouzapw/OmniRoute/pull/12391) | OPEN `895b007c809d`   | Deferred: cleanup runs only on abort; successful attempts that clear their timeout still leave listeners. The test aborts every attempt and does not cover that remaining lifecycle case.                                       |
+| [#12737](https://github.com/diegosouzapw/OmniRoute/pull/12737) | OPEN `8dade0d1c7c7`   | Deferred: useful premature-WebSocket-close failure, but it relies on the newer Codex public-error allowlist. Adapt and test the old error boundary before porting; do not copy the file-size rebaseline.                        |
+| [#12818](https://github.com/diegosouzapw/OmniRoute/pull/12818) | OPEN `911a18c05afa`   | Deferred: `dispatchPrelude.ts` is absent; old inline pinned dispatch has a different fallback set including 524. Needs old-path credential and pin-cleanup regression coverage.                                                 |
+| [#12964](https://github.com/diegosouzapw/OmniRoute/pull/12964) | OPEN `0b7be09f44fe`   | Deferred: `credentialPatterns.ts` is absent; changing a regex in the newer sanitizer does not port its security boundary to this base. A separate old-boundary redaction adaptation is required.                                |
+
+Publication policy for this maintenance: `fork-image-fenix007.yml` publishes on
+pushes to `stable`, while the inherited CI/quality workflows target other branches
+or manual dispatch. Maintenance commits use `[skip ci]` to suppress push-triggered
+image publication after local validation, as documented by
+[GitHub Actions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs).
+No workflow configuration, release tag or deployment is part of this change.
+
 ## Releasing an image
 
 ```bash

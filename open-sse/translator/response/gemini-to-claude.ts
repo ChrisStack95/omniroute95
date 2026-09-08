@@ -149,11 +149,18 @@ export function geminiToClaudeResponse(chunk, state) {
     const thoughtsTokens =
       typeof usageMeta.thoughtsTokenCount === "number" ? usageMeta.thoughtsTokenCount : 0;
     const cachedTokens =
-      typeof usageMeta.cachedContentTokenCount === "number" ? usageMeta.cachedContentTokenCount : 0;
+      typeof usageMeta.cachedContentTokenCount === "number" &&
+      Number.isFinite(usageMeta.cachedContentTokenCount) &&
+      usageMeta.cachedContentTokenCount > 0
+        ? usageMeta.cachedContentTokenCount
+        : 0;
 
+    // Internal accounting expects cache-inclusive prompt_tokens. Keep the
+    // Anthropic split at the wire boundary so cache-only usage is not estimated
+    // and stream metadata, call logs and pricing retain the full prompt count.
     state.usage = {
-      input_tokens: inputTokens,
-      output_tokens: candidatesTokens + thoughtsTokens,
+      prompt_tokens: inputTokens,
+      completion_tokens: candidatesTokens + thoughtsTokens,
     };
     if (cachedTokens > 0) {
       state.usage.cache_read_input_tokens = cachedTokens;
@@ -191,10 +198,15 @@ export function geminiToClaudeResponse(chunk, state) {
       stopReason = "end_turn";
     }
 
+    const cachedTokens = state.usage?.cache_read_input_tokens || 0;
     results.push({
       type: "message_delta",
       delta: { stop_reason: stopReason, stop_sequence: null },
-      usage: state.usage || { input_tokens: 0, output_tokens: 0 },
+      usage: {
+        input_tokens: Math.max(0, (state.usage?.prompt_tokens || 0) - cachedTokens),
+        output_tokens: state.usage?.completion_tokens || 0,
+        ...(cachedTokens > 0 ? { cache_read_input_tokens: cachedTokens } : {}),
+      },
     });
 
     results.push({ type: "message_stop" });
