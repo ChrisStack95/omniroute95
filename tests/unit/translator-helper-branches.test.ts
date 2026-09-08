@@ -1,3 +1,4 @@
+import { buildCapability } from "../fixtures/translator-capability.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -12,29 +13,6 @@ const { cacheReasoningByKey, clearReasoningCacheAll, getReasoningCacheServiceSta
   await import("../../open-sse/services/reasoningCache.ts");
 const { clearModelsDevCapabilities, saveModelsDevCapabilities } =
   await import("../../src/lib/modelsDevSync.ts");
-
-function buildCapability(overrides = {}) {
-  return {
-    tool_call: null,
-    reasoning: null,
-    attachment: null,
-    structured_output: null,
-    temperature: null,
-    modalities_input: "[]",
-    modalities_output: "[]",
-    knowledge_cutoff: null,
-    release_date: null,
-    last_updated: null,
-    status: null,
-    family: null,
-    open_weights: null,
-    limit_context: null,
-    limit_input: null,
-    limit_output: null,
-    interleaved_field: null,
-    ...overrides,
-  };
-}
 
 const originalMathRandom = Math.random;
 

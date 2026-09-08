@@ -1,3 +1,12 @@
+import {
+  createLog,
+  okResponse,
+  errorResponse,
+  waitForBackgroundWork,
+  providerBreakerOpenResponse,
+  streamResponse,
+  capabilityEntry,
+} from "../fixtures/combo-routing.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -34,83 +43,6 @@ const { acquire: acquireSemaphore, resetAll: resetAllSemaphores } =
   await import("../../open-sse/services/rateLimitSemaphore.ts");
 const { _resetAllDecks } = await import("../../src/shared/utils/shuffleDeck.ts");
 const { _setSecureRandomFloatSource } = await import("../../src/shared/utils/secureRandom.ts");
-
-function createLog() {
-  const entries: any[] = [];
-  return {
-    info: (tag: any, msg: any) => entries.push({ level: "info", tag, msg }),
-    warn: (tag: any, msg: any) => entries.push({ level: "warn", tag, msg }),
-    error: (tag: any, msg: any) => entries.push({ level: "error", tag, msg }),
-    debug: (tag: any, msg: any) => entries.push({ level: "debug", tag, msg }),
-    entries,
-  };
-}
-
-function okResponse(body: any = { choices: [{ message: { content: "ok" } }] }) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-function errorResponse(status: number, message: string = `Error ${status}`) {
-  return new Response(JSON.stringify({ error: { message } }), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-function waitForBackgroundWork() {
-  return new Promise((resolve) => setTimeout(resolve, 25));
-}
-
-function providerBreakerOpenResponse() {
-  return new Response(
-    JSON.stringify({
-      error: {
-        message: "Provider circuit breaker is open",
-        code: "provider_circuit_open",
-      },
-    }),
-    {
-      status: 503,
-      headers: {
-        "content-type": "application/json",
-        "x-omniroute-provider-breaker": "open",
-      },
-    }
-  );
-}
-
-function streamResponse(chunks: any[]) {
-  return new Response(chunks.join(""), {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
-  });
-}
-
-function capabilityEntry(limitContext: unknown, overrides: Record<string, unknown> = {}) {
-  return {
-    tool_call: true,
-    reasoning: false,
-    attachment: false,
-    structured_output: true,
-    temperature: true,
-    modalities_input: JSON.stringify(["text"]),
-    modalities_output: JSON.stringify(["text"]),
-    knowledge_cutoff: null,
-    release_date: null,
-    last_updated: null,
-    status: null,
-    family: null,
-    open_weights: false,
-    limit_context: limitContext,
-    limit_input: limitContext,
-    limit_output: 4096,
-    interleaved_field: null,
-    ...overrides,
-  };
-}
 
 function getComboTargetExecutionKey(comboName: string, index: number, stepInput: any) {
   const step = normalizeComboStep(stepInput, { comboName, index });
