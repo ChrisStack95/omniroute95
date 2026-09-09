@@ -257,6 +257,15 @@ export const AUDIO_SPEECH_PROVIDERS: Record<string, AudioProvider> = {
     ],
   },
 
+  "inference-sh": {
+    id: "inference-sh",
+    baseUrl: "https://api.inference.sh/v1",
+    authType: "apikey",
+    authHeader: "bearer",
+    format: "inference-sh-omnivoice",
+    models: [{ id: "omnivoice@0yb22kbj", name: "OmniVoice (Inference.sh)" }],
+  },
+
   huggingface: {
     id: "huggingface",
     baseUrl: "https://api-inference.huggingface.co/models",

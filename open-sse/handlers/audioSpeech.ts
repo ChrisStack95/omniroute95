@@ -30,6 +30,7 @@ import {
   parseKieResultJson,
 } from "../utils/kieTask.ts";
 import { signAwsRequest } from "../utils/awsSigV4.ts";
+import { safeOutboundFetch } from "@/shared/network/safeOutboundFetch";
 
 /**
  * Return a CORS error response from an upstream fetch failure
@@ -176,6 +177,42 @@ function isValidPathSegment(segment: string): boolean {
 
 function getStringValue(value): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function getInferenceShAudioUrl(task: unknown): string | null {
+  if (!isJsonObject(task) || !isJsonObject(task.output)) return null;
+  const audio = task.output.audio;
+  if (typeof audio !== "string" || !audio.trim()) return null;
+
+  try {
+    const url = new URL(audio);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function isInferenceShTaskTerminal(task: unknown): boolean {
+  if (!isJsonObject(task)) return true;
+  const status = task.status;
+  return (
+    status === "completed" ||
+    status === "failed" ||
+    status === "cancelled" ||
+    status === 10 ||
+    status === 11 ||
+    status === 12
+  );
+}
+
+function getInferenceShTask(taskEnvelope: unknown): Record<string, unknown> | null {
+  const task =
+    isJsonObject(taskEnvelope) && "data" in taskEnvelope ? taskEnvelope.data : taskEnvelope;
+  return isJsonObject(task) ? task : null;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function getAwsPollyProviderData(credentials) {
@@ -375,6 +412,83 @@ async function handleElevenLabsSpeech(providerConfig, body, modelId, token) {
   }
 
   return audioStreamResponse(res);
+}
+
+async function handleInferenceShOmniVoiceSpeech(providerConfig, body, modelId, token) {
+  const voice = getStringValue(body.voice);
+  const input: Record<string, unknown> = { text: body.input };
+  if (voice && voice.toLowerCase() !== "alloy") input.instruct = voice;
+
+  const speed = Number(body.speed);
+  if (Number.isFinite(speed) && speed >= 0.25 && speed <= 4) input.speed = speed;
+
+  const taskResponse = await safeOutboundFetch(`${providerConfig.baseUrl}/apps/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAuthHeaders(providerConfig, token),
+    },
+    body: JSON.stringify({
+      app: `infsh/${modelId}`,
+      input,
+    }),
+    allowRedirect: false,
+    guard: "public-only",
+    retry: false,
+    timeoutMs: 120000,
+  });
+
+  if (!taskResponse.ok) {
+    return upstreamErrorResponse(taskResponse, await taskResponse.text());
+  }
+
+  let task = getInferenceShTask(await taskResponse.json());
+  for (
+    let attempt = 0;
+    task && !getInferenceShAudioUrl(task) && !isInferenceShTaskTerminal(task);
+    attempt++
+  ) {
+    const taskId = getStringValue(task.id);
+    if (!taskId || attempt >= 240) break;
+
+    if (attempt > 0) await wait(500);
+    const pollResponse = await safeOutboundFetch(
+      `${providerConfig.baseUrl}/tasks/${encodeURIComponent(taskId)}`,
+      {
+        method: "GET",
+        headers: buildAuthHeaders(providerConfig, token),
+        allowRedirect: false,
+        guard: "public-only",
+        retry: false,
+        timeoutMs: 120000,
+      }
+    );
+
+    if (!pollResponse.ok) {
+      return upstreamErrorResponse(pollResponse, await pollResponse.text());
+    }
+    task = getInferenceShTask(await pollResponse.json());
+  }
+
+  const audioUrl = getInferenceShAudioUrl(task);
+  if (!audioUrl) {
+    return errorResponse(502, "Inference.sh did not return generated audio");
+  }
+
+  // The hosted artifact URL is public. Never forward the provider API key to it.
+  const audioResponse = await safeOutboundFetch(audioUrl, {
+    method: "GET",
+    allowRedirect: false,
+    guard: "public-only",
+    retry: false,
+    timeoutMs: 120000,
+  });
+
+  if (!audioResponse.ok) {
+    return upstreamErrorResponse(audioResponse, await audioResponse.text());
+  }
+
+  return audioStreamResponse(audioResponse, "audio/wav");
 }
 
 /**
@@ -952,7 +1066,7 @@ export async function handleAudioSpeech({
   if (!providerConfig) {
     return errorResponse(
       400,
-      `No speech provider found for model "${body.model}". Use format provider/model. Available: openai, hyperbolic, deepgram, nvidia, elevenlabs, huggingface, inworld, cartesia, playht, kie, aws-polly, xiaomi-mimo, coqui, tortoise, qwen`
+      `No speech provider found for model "${body.model}". Use format provider/model. Available: openai, hyperbolic, deepgram, nvidia, elevenlabs, inference-sh, huggingface, inworld, cartesia, playht, kie, aws-polly, xiaomi-mimo, coqui, tortoise, qwen`
     );
   }
 
@@ -987,6 +1101,10 @@ export async function handleAudioSpeech({
 
     if (providerConfig.format === "elevenlabs") {
       return handleElevenLabsSpeech(providerConfig, body, modelId, token);
+    }
+
+    if (providerConfig.format === "inference-sh-omnivoice") {
+      return handleInferenceShOmniVoiceSpeech(providerConfig, body, modelId, token);
     }
 
     if (providerConfig.format === "nvidia-tts") {

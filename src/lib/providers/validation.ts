@@ -18,10 +18,7 @@ import { validateQoderCliPat } from "@omniroute/open-sse/services/qoderCli.ts";
 import { validateImageProviderApiKey } from "@/lib/providers/imageValidation";
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { usesCcWireImage } from "@omniroute/open-sse/services/ccWireImageBuiltins.ts";
-import {
-  buildProviderHeaders,
-  buildProviderUrl,
-} from "@omniroute/open-sse/services/provider.ts";
+import { buildProviderHeaders, buildProviderUrl } from "@omniroute/open-sse/services/provider.ts";
 
 import {
   OPENAI_LIKE_FORMATS,
@@ -69,6 +66,7 @@ import {
   validateDeepgramProvider,
   validateAssemblyAIProvider,
   validateElevenLabsProvider,
+  validateInferenceShProvider,
   validateInworldProvider,
   validateKieProvider,
   validateAwsPollyProvider,
@@ -489,6 +487,7 @@ export async function validateProviderApiKey({ provider, apiKey, providerSpecifi
     topaz: ({ apiKey, providerSpecificData }: any) =>
       validateImageProviderApiKey({ provider: "topaz", apiKey, providerSpecificData }),
     elevenlabs: validateElevenLabsProvider,
+    "inference-sh": validateInferenceShProvider,
     inworld: validateInworldProvider,
     kie: validateKieProvider,
     "aws-polly": validateAwsPollyProvider,

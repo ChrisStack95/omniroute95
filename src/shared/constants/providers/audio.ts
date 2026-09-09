@@ -30,6 +30,16 @@ export const AUDIO_ONLY_PROVIDERS = {
     textIcon: "EL",
     website: "https://elevenlabs.io",
   },
+  "inference-sh": {
+    id: "inference-sh",
+    alias: "inference",
+    name: "Inference.sh",
+    icon: "record_voice_over",
+    color: "#2563EB",
+    textIcon: "IS",
+    website: "https://inference.sh/apps/infsh/omnivoice",
+    authHint: "Create an Inference.sh API key. This provider uses infsh/omnivoice for TTS.",
+  },
   cartesia: {
     id: "cartesia",
     alias: "cartesia",

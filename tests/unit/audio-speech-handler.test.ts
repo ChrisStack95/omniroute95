@@ -69,6 +69,139 @@ test("handleAudioSpeech proxies OpenAI-compatible providers with defaults", asyn
   }
 });
 
+test("handleAudioSpeech runs OmniVoice on Inference.sh and fetches its audio without credentials", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ url: string; options: RequestInit }> = [];
+
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url: String(url), options });
+    if (String(url) === "https://api.inference.sh/v1/apps/run") {
+      return new Response(
+        JSON.stringify({
+          data: { output: { audio: "https://cloud.inference.sh/files/omnivoice.wav" } },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    if (String(url) === "https://cloud.inference.sh/files/omnivoice.wav") {
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "content-type": "audio/wav" },
+      });
+    }
+    throw new Error(`Unexpected URL: ${String(url)}`);
+  };
+
+  try {
+    const response = await handleAudioSpeech({
+      body: {
+        model: "inference-sh/omnivoice@0yb22kbj",
+        input: "Hello from OmniVoice",
+        voice: "female, low pitch, British accent",
+        speed: 1.25,
+      },
+      credentials: { apiKey: "inference-key" },
+    });
+
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].url, "https://api.inference.sh/v1/apps/run");
+    assert.equal(
+      (requests[0].options.headers as Record<string, string>).Authorization,
+      "Bearer inference-key"
+    );
+    assert.deepEqual(JSON.parse(String(requests[0].options.body)), {
+      app: "infsh/omnivoice@0yb22kbj",
+      input: {
+        text: "Hello from OmniVoice",
+        instruct: "female, low pitch, British accent",
+        speed: 1.25,
+      },
+    });
+    assert.equal(requests[1].url, "https://cloud.inference.sh/files/omnivoice.wav");
+    assert.equal(
+      (requests[1].options.headers as Record<string, string> | undefined)?.Authorization,
+      undefined
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "audio/wav");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("handleAudioSpeech rejects an Inference.sh task without an HTTPS audio artifact", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ data: { output: { audio: "http://invalid.test/audio.wav" } } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+  try {
+    const response = await handleAudioSpeech({
+      body: { model: "inference-sh/omnivoice@0yb22kbj", input: "test" },
+      credentials: { apiKey: "inference-key" },
+    });
+    const payload = (await response.json()) as { error: { message: string } };
+
+    assert.equal(response.status, 502);
+    assert.equal(payload.error.message, "Inference.sh did not return generated audio");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("handleAudioSpeech polls an Inference.sh task until OmniVoice audio is ready", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = async (url) => {
+    const requestUrl = String(url);
+    requests.push(requestUrl);
+    if (requestUrl === "https://api.inference.sh/v1/apps/run") {
+      return new Response(JSON.stringify({ data: { id: "task-1", status: "queued" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (requestUrl === "https://api.inference.sh/v1/tasks/task-1") {
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: "task-1",
+            status: "completed",
+            output: { audio: "https://cloud.inference.sh/files/ready.wav" },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    if (requestUrl === "https://cloud.inference.sh/files/ready.wav") {
+      return new Response(new Uint8Array([4, 5, 6]), {
+        status: 200,
+        headers: { "content-type": "audio/wav" },
+      });
+    }
+    throw new Error(`Unexpected URL: ${requestUrl}`);
+  };
+
+  try {
+    const response = await handleAudioSpeech({
+      body: { model: "inference-sh/omnivoice@0yb22kbj", input: "wait for audio" },
+      credentials: { apiKey: "inference-key" },
+    });
+
+    assert.deepEqual(requests, [
+      "https://api.inference.sh/v1/apps/run",
+      "https://api.inference.sh/v1/tasks/task-1",
+      "https://cloud.inference.sh/files/ready.wav",
+    ]);
+    assert.equal(response.status, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("handleAudioSpeech routes Deepgram with Token auth and model query parameter", async () => {
   const originalFetch = globalThis.fetch;
   let capturedUrl;
