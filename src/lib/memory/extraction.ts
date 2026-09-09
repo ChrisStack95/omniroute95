@@ -49,6 +49,105 @@ const MAX_FACT_LENGTH = 500;
 // Minimum content length to avoid noise
 const MIN_FACT_LENGTH = 3;
 const MAX_EXTRACTION_TEXT_LENGTH = 64 * 1024;
+const DEFAULT_EXTRACTION_CONCURRENCY = 1;
+const DEFAULT_EXTRACTION_QUEUE_MAX = 100;
+const MAX_EXTRACTION_CONCURRENCY = 4;
+const MAX_EXTRACTION_QUEUE_MAX = 1_000;
+
+type ExtractionJob = () => Promise<void>;
+
+function readBoundedInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return fallback;
+  return Math.min(Math.max(parsed, minimum), maximum);
+}
+
+const extractionConcurrency = readBoundedInteger(
+  process.env.OMNIROUTE_MEMORY_EXTRACTION_CONCURRENCY,
+  DEFAULT_EXTRACTION_CONCURRENCY,
+  1,
+  MAX_EXTRACTION_CONCURRENCY
+);
+const extractionQueueMax = readBoundedInteger(
+  process.env.OMNIROUTE_MEMORY_EXTRACTION_QUEUE_MAX,
+  DEFAULT_EXTRACTION_QUEUE_MAX,
+  1,
+  MAX_EXTRACTION_QUEUE_MAX
+);
+
+export interface MemoryExtractionQueueStats {
+  active: number;
+  queued: number;
+  concurrency: number;
+  maxQueue: number;
+}
+
+export class MemoryExtractionQueue {
+  private readonly pending: ExtractionJob[] = [];
+  private active = 0;
+  private drainScheduled = false;
+
+  constructor(
+    private readonly concurrency: number,
+    private readonly maxQueue: number,
+    private readonly schedule: (callback: () => void) => void = setImmediate
+  ) {}
+
+  enqueue(job: ExtractionJob): boolean {
+    if (this.pending.length >= this.maxQueue) return false;
+
+    this.pending.push(job);
+    this.scheduleDrain();
+    return true;
+  }
+
+  stats(): MemoryExtractionQueueStats {
+    return {
+      active: this.active,
+      queued: this.pending.length,
+      concurrency: this.concurrency,
+      maxQueue: this.maxQueue,
+    };
+  }
+
+  private scheduleDrain(): void {
+    if (this.drainScheduled || this.active >= this.concurrency || this.pending.length === 0) return;
+
+    this.drainScheduled = true;
+    this.schedule(() => {
+      this.drainScheduled = false;
+      this.drain();
+    });
+  }
+
+  private drain(): void {
+    while (this.active < this.concurrency && this.pending.length > 0) {
+      const job = this.pending.shift();
+      if (!job) return;
+
+      this.active += 1;
+      void job()
+        .catch((error) => {
+          log.error("memory.extraction.background.failed", { err: error?.message });
+        })
+        .finally(() => {
+          this.active -= 1;
+          this.scheduleDrain();
+        });
+    }
+  }
+}
+
+const extractionQueue = new MemoryExtractionQueue(extractionConcurrency, extractionQueueMax);
+
+export function getMemoryExtractionQueueStats(): MemoryExtractionQueueStats {
+  return extractionQueue.stats();
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -162,34 +261,44 @@ export function extractFacts(response: string, apiKeyId: string, sessionId: stri
   if (!response || !apiKeyId || !sessionId) return;
 
   const cappedResponse = capExtractionText(response);
+  const accepted = extractionQueue.enqueue(async () => {
+    log.info("memory.extraction.start", { apiKeyId });
 
-  log.info("memory.extraction.start", { apiKeyId });
-
-  // Non-blocking: schedule after current event loop tick
-  setImmediate(() => {
     const facts = extractFactsFromText(cappedResponse);
-    if (facts.length === 0) return;
+    if (facts.length === 0) {
+      log.info("memory.extraction.complete", { apiKeyId, factCount: 0 });
+      return;
+    }
 
     for (const fact of facts) {
       log.debug("memory.extraction.fact_found", { key: fact.key, category: fact.category });
 
-      createMemory({
-        apiKeyId,
-        sessionId,
-        type: fact.type,
-        key: fact.key,
-        content: fact.content,
-        metadata: {
-          category: fact.category,
-          extractedAt: new Date().toISOString(),
-          source: "llm_response",
-        },
-        expiresAt: null,
-      }).catch((err) => {
-        log.error("memory.extraction.background.failed", { err: err?.message, apiKeyId });
-      });
+      try {
+        await createMemory({
+          apiKeyId,
+          sessionId,
+          type: fact.type,
+          key: fact.key,
+          content: fact.content,
+          metadata: {
+            category: fact.category,
+            extractedAt: new Date().toISOString(),
+            source: "llm_response",
+          },
+          expiresAt: null,
+        });
+      } catch (error) {
+        log.error("memory.extraction.background.failed", { err: error?.message, apiKeyId });
+      }
     }
 
     log.info("memory.extraction.complete", { apiKeyId, factCount: facts.length });
   });
+
+  if (!accepted) {
+    log.warn("memory.extraction.dropped", {
+      apiKeyId,
+      ...extractionQueue.stats(),
+    });
+  }
 }

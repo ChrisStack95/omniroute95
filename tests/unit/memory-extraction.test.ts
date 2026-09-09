@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { extractFactsFromText, extractFacts } = await import("../../src/lib/memory/extraction.ts");
+const { extractFactsFromText, extractFacts, MemoryExtractionQueue } =
+  await import("../../src/lib/memory/extraction.ts");
 
 // ─── extractFactsFromText: Preferences ─────────────────────────────────────
 
@@ -166,6 +167,65 @@ test("extractFacts: does not throw on empty inputs", () => {
   assert.doesNotThrow(() => extractFacts("I prefer vim.", "", "session-456"));
   assert.doesNotThrow(() => extractFacts("I prefer vim.", "key-123", ""));
   assert.doesNotThrow(() => extractFacts(null, "key-123", "session-456"));
+});
+
+test("MemoryExtractionQueue: limits concurrent extraction jobs", async () => {
+  const scheduled: Array<() => void> = [];
+  const queue = new MemoryExtractionQueue(1, 10, (callback) => scheduled.push(callback));
+  let active = 0;
+  let peakActive = 0;
+  const releases: Array<() => void> = [];
+
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(
+      queue.enqueue(
+        () =>
+          new Promise<void>((resolve) => {
+            active += 1;
+            peakActive = Math.max(peakActive, active);
+            releases.push(() => {
+              active -= 1;
+              resolve();
+            });
+          })
+      ),
+      true
+    );
+  }
+
+  scheduled.shift()?.();
+  assert.deepEqual(queue.stats(), { active: 1, queued: 2, concurrency: 1, maxQueue: 10 });
+  assert.equal(peakActive, 1);
+
+  releases.shift()?.();
+  await new Promise((resolve) => setImmediate(resolve));
+  scheduled.shift()?.();
+  assert.deepEqual(queue.stats(), { active: 1, queued: 1, concurrency: 1, maxQueue: 10 });
+  assert.equal(peakActive, 1);
+
+  releases.shift()?.();
+  await new Promise((resolve) => setImmediate(resolve));
+  scheduled.shift()?.();
+  assert.deepEqual(queue.stats(), { active: 1, queued: 0, concurrency: 1, maxQueue: 10 });
+  assert.equal(peakActive, 1);
+
+  releases.shift()?.();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(queue.stats(), { active: 0, queued: 0, concurrency: 1, maxQueue: 10 });
+});
+
+test("MemoryExtractionQueue: rejects jobs above its bounded backlog", () => {
+  const queue = new MemoryExtractionQueue(1, 1, () => undefined);
+
+  assert.equal(
+    queue.enqueue(async () => undefined),
+    true
+  );
+  assert.equal(
+    queue.enqueue(async () => undefined),
+    false
+  );
+  assert.deepEqual(queue.stats(), { active: 0, queued: 1, concurrency: 1, maxQueue: 1 });
 });
 
 test("extractFactsFromText scans only the bounded tail of very large text", () => {
