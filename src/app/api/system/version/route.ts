@@ -1,9 +1,9 @@
 /**
- * GET  /api/system/version  — Returns current version and latest available on npm
+ * GET  /api/system/version  — Checks published fork builds or upstream npm releases
  * POST /api/system/version  — Triggers a deployment-aware background update
  *
  * Security: Requires admin authentication (same as other management routes).
- * Safety: Update only runs if a newer version is available on npm.
+ * Safety: Fork builds require Docker deployment; the npm updater is upstream-only.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
@@ -18,6 +18,11 @@ import {
 } from "@/lib/system/autoUpdate";
 import { NEWS_JSON_URL, parseActiveNewsPayload } from "@/shared/utils/releaseNotes";
 import { isNewer, resolveLatestVersion } from "@/lib/system/versionCheck";
+import {
+  FORK_UPDATE_MESSAGE,
+  getForkBuildVersion,
+  resolveForkVersionInfo,
+} from "@/lib/system/forkVersionCheck";
 import { resolveGlobalOmniroutePath } from "@/lib/system/globalPackagePath";
 // #5542 — On Windows npm is `npm.cmd`; Node ≥24 refuses to execFile a `.cmd` without
 // a shell (nodejs/node#52554 → "spawn npm ENOENT"). buildNpmExecOptions enables the
@@ -52,6 +57,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const forkVersion = getForkBuildVersion();
+  if (forkVersion) {
+    return NextResponse.json(await resolveForkVersionInfo(forkVersion));
+  }
+
   const current = getCurrentVersion();
   const config = getAutoUpdateConfig();
 
@@ -77,6 +87,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!(await isAuthenticated(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (getForkBuildVersion()) {
+    return NextResponse.json(
+      { success: false, channel: "fork", error: FORK_UPDATE_MESSAGE },
+      { status: 409 }
+    );
   }
 
   const current = getCurrentVersion();
@@ -301,11 +318,11 @@ export async function POST(req: NextRequest) {
           return;
         }
         send({ step: "install", status: "running", message: `Installing omniroute@${latest}...` });
-          await execFileAsync(
-            "npm",
-            ["install", "-g", `omniroute@${latest}`, "--ignore-scripts", "--legacy-peer-deps"],
-            buildNpmExecOptions(process.platform, { cwd: PROJECT_ROOT, timeoutMs: 300_000 })
-          );
+        await execFileAsync(
+          "npm",
+          ["install", "-g", `omniroute@${latest}`, "--ignore-scripts", "--legacy-peer-deps"],
+          buildNpmExecOptions(process.platform, { cwd: PROJECT_ROOT, timeoutMs: 300_000 })
+        );
         send({ step: "install", status: "done", message: `Installed omniroute@${latest}` });
 
         // Step 2: Rebuild native modules (critical for better-sqlite3)
@@ -324,20 +341,20 @@ export async function POST(req: NextRequest) {
 
         // Step 3: Restart PM2
         send({ step: "restart", status: "running", message: "Restarting service via PM2..." });
-          try {
-            await execFileAsync("pm2", ["restart", "omniroute", "--update-env"], {
-              timeout: 30000,
-              cwd: PROJECT_ROOT,
-            });
-            send({ step: "restart", status: "done", message: "Service restarted" });
-          } catch {
-            // PM2 may not be available (Docker/manual setups)
-            send({
-              step: "restart",
-              status: "skipped",
-              message: "PM2 not available — manual restart needed",
-            });
-          }
+        try {
+          await execFileAsync("pm2", ["restart", "omniroute", "--update-env"], {
+            timeout: 30000,
+            cwd: PROJECT_ROOT,
+          });
+          send({ step: "restart", status: "done", message: "Service restarted" });
+        } catch {
+          // PM2 may not be available (Docker/manual setups)
+          send({
+            step: "restart",
+            status: "skipped",
+            message: "PM2 not available — manual restart needed",
+          });
+        }
 
         send({
           step: "complete",

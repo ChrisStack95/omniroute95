@@ -29,6 +29,8 @@ type UpdateStep = {
 type VersionInfo = {
   current: string;
   latest: string;
+  latestLabel?: string;
+  releaseUrl?: string;
   updateAvailable: boolean;
   channel: string;
   autoUpdateSupported: boolean;
@@ -158,7 +160,7 @@ export default function HomePageClient({ machineId }: HomePageClientProps) {
       url: `https://github.com/diegosouzapw/OmniRoute/releases/tag/v${cleanLatest}`,
       desc: `A new version of the OmniRoute desktop app is available. Please download the respective app format for your system to update (current: v${versionInfo?.current || ""}).`,
     };
-  }, [platform, versionInfo?.latest, versionInfo?.current]);
+  }, [platform, versionInfo]);
 
   // Electron internal auto-updater state and listeners
   const [electronUpdateStatus, setElectronUpdateStatus] = useState<{
@@ -896,10 +898,16 @@ export default function HomePageClient({ machineId }: HomePageClientProps) {
                 </span>
                 <div>
                   <p className="font-semibold text-sm">
-                    Update Available: v{versionInfo.latest} {isElectron && "(Desktop App)"}
+                    {versionInfo.channel === "fork"
+                      ? "Fork Update Available:"
+                      : "Update Available:"}{" "}
+                    {versionInfo.latestLabel || `v${versionInfo.latest}`}{" "}
+                    {isElectron && versionInfo.channel !== "fork" && "(Desktop App)"}
                   </p>
                   <p className="text-xs opacity-80 mt-0.5">
-                    {isElectron ? (
+                    {versionInfo.channel === "fork" ? (
+                      versionInfo.autoUpdateError
+                    ) : isElectron ? (
                       <>
                         {electronUpdateStatus.status === "checking" && "Checking for updates..."}
                         {electronUpdateStatus.status === "available" &&
@@ -925,7 +933,15 @@ export default function HomePageClient({ machineId }: HomePageClientProps) {
                 </div>
               </div>
 
-              {isElectron ? (
+              {versionInfo.channel === "fork" && versionInfo.releaseUrl ? (
+                <Button
+                  size="sm"
+                  onClick={() => openExternal(versionInfo.releaseUrl!)}
+                  className="ml-4 shrink-0 font-semibold"
+                >
+                  View Build
+                </Button>
+              ) : isElectron ? (
                 <div className="flex gap-2 shrink-0 ml-4">
                   {electronUpdateStatus.status === "available" && (
                     <Button
@@ -989,6 +1005,7 @@ export default function HomePageClient({ machineId }: HomePageClientProps) {
 
             {/* Direct download fallback links shown if in Electron and auto-updater has failed, is idle, or has completed check */}
             {isElectron &&
+              versionInfo.channel !== "fork" &&
               (electronUpdateStatus.status === "error" ||
                 electronUpdateStatus.status === "idle" ||
                 electronUpdateStatus.status === "available" ||

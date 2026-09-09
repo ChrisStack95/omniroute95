@@ -179,11 +179,6 @@
       "count": 5
     }
   },
-  "src/app/(dashboard)/dashboard/HomePageClient.tsx": {
-    "react-hooks/exhaustive-deps": {
-      "count": 1
-    }
-  },
   "src/app/(dashboard)/dashboard/agent-skills/AgentSkillsPageClient.tsx": {
     "no-restricted-syntax": {
       "count": 3
