@@ -4,6 +4,10 @@ import { describe, it } from "node:test";
 import { formatAppVersion } from "../../src/shared/constants/appConfig.ts";
 
 describe("formatAppVersion", () => {
+  it("identifies branch builds by fork and commit", () => {
+    assert.equal(formatAppVersion("3.8.48", "fork · sha-7d05c4f"), "v3.8.48 · fork · sha-7d05c4f");
+  });
+
   it("keeps the upstream version label for ordinary builds", () => {
     assert.equal(formatAppVersion("3.8.48"), "v3.8.48");
   });

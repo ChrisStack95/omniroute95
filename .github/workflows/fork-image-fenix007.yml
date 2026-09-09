@@ -44,6 +44,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve fork version label
+        id: fork-version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            printf 'version=%s\n' "$REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            printf 'version=fork · sha-%s\n' "${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -66,7 +78,7 @@ jobs:
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
           tags: ${{ env.IMAGE_NAME }}
           build-args: |
-            OMNIROUTE_FORK_VERSION=${{ github.ref_type == 'tag' && github.ref_name || '' }}
+            OMNIROUTE_FORK_VERSION=${{ steps.fork-version.outputs.version }}
           cache-from: type=gha,scope=fork-${{ matrix.arch }}
           cache-to: type=gha,scope=fork-${{ matrix.arch }},mode=max
 
