@@ -19,7 +19,12 @@ import {
 } from "@omniroute/open-sse/services/accountFallback.ts";
 import { getModelInfo, getComboForModel } from "../services/model";
 import { resolveBareModelToConnectionDefault } from "@omniroute/open-sse/services/model.ts";
-import { errorResponse } from "@omniroute/open-sse/utils/error.ts";
+import { errorResponse, createErrorResult } from "@omniroute/open-sse/utils/error.ts";
+import {
+  EmptyResponseRetryBudget,
+  EMPTY_RESPONSE_ATTEMPT_LIMIT,
+  EMPTY_RESPONSE_RETRY_EXHAUSTED,
+} from "@omniroute/open-sse/services/combo/emptyResponseRetryBudget.ts";
 import { getImageModelEntry } from "@omniroute/open-sse/config/imageRegistry.ts";
 import { acceptHeaderForcesStream } from "@omniroute/open-sse/utils/aiSdkCompat.ts";
 import { applyNoThinkingAlias } from "@omniroute/open-sse/utils/noThinkingAlias.ts";
@@ -236,6 +241,7 @@ export async function handleChat(
   // Pipeline: Start request telemetry
   const reqId = correlationId || generateRequestId();
   const telemetry = new RequestTelemetry(reqId);
+  const emptyResponseBudget = new EmptyResponseRetryBudget();
 
   const backpressure = checkConnectionCapacity();
   if (backpressure.shouldReject) {
@@ -854,6 +860,7 @@ export async function handleChat(
             cachedSettings: settings,
             providerId: target?.providerId ?? null,
             correlationId: reqId,
+            emptyResponseBudget,
             modelPinned: (target as any)?.modelPinned ?? false,
             modelAbortSignal: target?.modelAbortSignal ?? null,
           },
@@ -968,6 +975,7 @@ export async function handleChat(
       forceLiveComboTest: isComboLiveTest,
       forcedConnectionId: requestedConnectionId,
       correlationId: reqId,
+      emptyResponseBudget,
     },
     null,
     false
@@ -1002,6 +1010,7 @@ async function handleSingleModelChat(
   apiKeyInfo: any = null,
   telemetry: any = null,
   runtimeOptions: {
+    emptyResponseBudget?: EmptyResponseRetryBudget;
     emergencyFallbackTried?: boolean;
     forceLiveComboTest?: boolean;
     sessionId?: string | null;
@@ -1021,6 +1030,8 @@ async function handleSingleModelChat(
   comboStrategy: string | null = null,
   isCombo: boolean = false
 ) {
+  const emptyResponseBudget = runtimeOptions.emptyResponseBudget ?? new EmptyResponseRetryBudget();
+
   // 1. Resolve model → provider/model
   const resolved = await resolveModelOrError(
     modelStr,
@@ -1076,6 +1087,7 @@ async function handleSingleModelChat(
             allowRateLimitedConnection: target?.allowRateLimitedConnection === true,
             providerId: target?.providerId ?? null,
             correlationId: runtimeOptions?.correlationId ?? null,
+            emptyResponseBudget,
           },
           target?.effectiveComboStrategy ?? redirectCombo.strategy ?? "priority",
           false
@@ -1117,6 +1129,15 @@ async function handleSingleModelChat(
     // Intentional override (e.g. providerId points to a different credential pool).
     return runtimeOptions.providerId;
   })();
+  const emptyResponseLimitResponse = () =>
+    createErrorResult(
+      HTTP_STATUS.BAD_GATEWAY,
+      `[${provider}/${model}] returned empty output on ${EMPTY_RESPONSE_ATTEMPT_LIMIT} attempts; stopping retries for this provider/model`,
+      null,
+      EMPTY_RESPONSE_RETRY_EXHAUSTED
+    ).response;
+  if (emptyResponseBudget.isExhausted(provider, model)) return emptyResponseLimitResponse();
+
   const forceLiveComboTest = runtimeOptions.forceLiveComboTest === true;
   const bypassProviderQuotaPolicy = hasProviderQuotaBypassScope(apiKeyInfo?.scopes);
   const hasForcedConnection =
@@ -1243,6 +1264,7 @@ async function handleSingleModelChat(
     let preselectedCredentials = runtimeOptions.preselectedCredentials;
 
     while (true) {
+      if (emptyResponseBudget.isExhausted(provider, model)) return emptyResponseLimitResponse();
       const credentials =
         preselectedCredentials && excludedConnectionIds.size === 0
           ? preselectedCredentials
@@ -1479,6 +1501,19 @@ async function handleSingleModelChat(
         if (telemetry) telemetry.startPhase("finalize");
         if (telemetry) telemetry.endPhase();
         return result.response;
+      }
+
+      // Empty model output is request-specific: do not fan it out across the whole
+      // account pool and then reset that budget on the next combo retry.
+      if (emptyResponseBudget.recordFailure(provider, model, result)) {
+        log.warn(
+          "RETRY",
+          `${provider}/${model} reached the empty-response attempt limit (${EMPTY_RESPONSE_ATTEMPT_LIMIT})`
+        );
+        return withSelectedConnectionHeader(
+          emptyResponseLimitResponse(),
+          credentials?.connectionId
+        );
       }
 
       const isAntigravityStreamReadinessFailure =

@@ -43,11 +43,11 @@ test("known client-abort shapes are local lifecycle errors", () => {
   });
   assert.deepEqual(classifyLocalAbortFailure(new Error("combo-per-model-timeout"), true), {
     status: 499,
-    message: "Request aborted",
+    message: "Model timeout: combo-per-model-timeout",
   });
   assert.deepEqual(classifyLocalAbortFailure(new Error("hedge-cancelled"), true), {
     status: 499,
-    message: "Request aborted",
+    message: "Request cancelled: hedge-cancelled",
   });
   assert.equal(classifyLocalAbortFailure(new Error("combo-per-model-timeout"), false), null);
   assert.equal(classifyLocalAbortFailure("request_signal_aborted", false), null);
@@ -112,4 +112,18 @@ test("manual single-model and combo breaker paths exclude normalized 499 but cou
     }),
     true
   );
+});
+
+test("generic AbortError retains the trusted local timeout reason", () => {
+  const error = new Error("The operation was aborted");
+  error.name = "AbortError";
+  assert.deepEqual(classifyLocalAbortFailure(error, true, new Error("combo-per-model-timeout")), {
+    status: 499,
+    message: "Model timeout: combo-per-model-timeout",
+  });
+  assert.deepEqual(classifyLocalAbortFailure(error, true, "request_signal_aborted"), {
+    status: 499,
+    message: "Request aborted",
+  });
+  assert.equal(classifyLocalAbortFailure(new Error("502"), false, "combo-per-model-timeout"), null);
 });

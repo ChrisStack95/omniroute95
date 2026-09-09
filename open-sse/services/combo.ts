@@ -5,6 +5,7 @@
  * context-optimized, context-relay, and fusion strategies
  */
 
+import { EMPTY_RESPONSE_RETRY_EXHAUSTED } from "./combo/emptyResponseRetryBudget.ts";
 import {
   checkFallbackError,
   classifyLockoutReason,
@@ -2193,6 +2194,7 @@ export async function handleComboChat({
           if (
             retry < maxRetries &&
             isTransient &&
+            structuredError?.code !== EMPTY_RESPONSE_RETRY_EXHAUSTED &&
             !providerExhausted &&
             (!config.failoverBeforeRetry || !nextTarget)
           ) {
@@ -3163,6 +3165,7 @@ async function handleRoundRobinCombo({
         if (
           retry < maxRetries &&
           isTransient &&
+          structuredError?.code !== EMPTY_RESPONSE_RETRY_EXHAUSTED &&
           !providerExhausted &&
           (!config.failoverBeforeRetry || !hasNextRrTarget)
         ) {

@@ -8,8 +8,9 @@ export const PROVIDER_BREAKER_FAILURE_STATUSES = new Set([408, 500, 502, 503, 50
 
 export function classifyLocalAbortFailure(
   error: unknown,
-  requestSignalAborted = false
-): { status: 499; message: "Request aborted" } | null {
+  requestSignalAborted = false,
+  abortReason?: unknown
+): { status: 499; message: string } | null {
   const message =
     typeof error === "string"
       ? error
@@ -18,6 +19,21 @@ export function classifyLocalAbortFailure(
           typeof (error as { message?: unknown }).message === "string"
         ? (error as { message: string }).message
         : "";
+  // Fetch may throw a generic AbortError; the local signal retains the actual
+  // orchestration reason. Keep the 499 control flow while preserving diagnostics.
+  const localReason = abortReason ?? error;
+  const reasonMessage =
+    typeof localReason === "string"
+      ? localReason
+      : localReason && typeof localReason === "object" && "message" in localReason
+        ? String(localReason.message)
+        : "";
+  if (requestSignalAborted && reasonMessage === COMBO_PER_MODEL_TIMEOUT_REASON) {
+    return { status: 499, message: "Model timeout: combo-per-model-timeout" };
+  }
+  if (requestSignalAborted && reasonMessage === COMBO_HEDGE_CANCELLED_REASON) {
+    return { status: 499, message: "Request cancelled: hedge-cancelled" };
+  }
   const isSignalAbortReason =
     requestSignalAborted &&
     (/request_signal_aborted|client disconnected|operation was aborted/i.test(message) ||

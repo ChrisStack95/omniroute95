@@ -2957,7 +2957,11 @@ export async function handleChatCore({
         errorCode: error.code,
       };
     }
-    const localAbortFailure = classifyLocalAbortFailure(error, streamController.signal.aborted);
+    const localAbortFailure = classifyLocalAbortFailure(
+      error,
+      streamController.signal.aborted,
+      streamController.signal.reason
+    );
     const failureStatus = localAbortFailure
       ? localAbortFailure.status
       : error.name === "TimeoutError" || error.name === "BodyTimeoutError"
@@ -2998,7 +3002,7 @@ export async function handleChatCore({
     });
     if (localAbortFailure) {
       streamController.handleError(error);
-      return createErrorResult(499, "Request aborted");
+      return createErrorResult(499, localAbortFailure.message);
     }
     persistFailureUsage(
       failureStatus,
@@ -4095,6 +4099,7 @@ export async function handleChatCore({
       const malformedMessage = `[${provider}/${model}] returned an empty response (no usable choices/output)`;
       persistAttemptLogs({
         status: HTTP_STATUS.BAD_GATEWAY,
+        error: malformedMessage,
         tokens: usage,
         responseBody,
         providerRequest: finalBody || translatedBody,
@@ -4108,7 +4113,7 @@ export async function handleChatCore({
       });
       persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "malformed_translated_response");
       trackPendingRequest(model, provider, pendingConnId, false);
-      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, malformedMessage);
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, malformedMessage, null, "empty_response");
     }
 
     // ── Phase 9.1: Cache store (non-streaming, temp=0) ──
