@@ -375,6 +375,72 @@ image publication after local validation, as documented by
 [GitHub Actions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs).
 No workflow configuration, release tag or deployment is part of this change.
 
+## Upstream review — 2026-09-09
+
+Reviewed from current `origin/stable` at
+`e5ed4b10b4f7f88a8dfa8f71650a4ecbee8732e9` after fetching origin and upstream.
+`gh` discovery returned 632 PRs updated since 2026-09-02 and 302 open PRs.
+These are discovery counts, not full code-review counts. Production candidates
+were compared with the previous review, exact PR heads, diffs, available tests,
+bodies and discussion/review records. No discussion or submitted review existed
+on #13059 at inspection time; its checks did not establish full upstream CI success.
+
+Adapted [#13059](https://github.com/diegosouzapw/OmniRoute/pull/13059)
+(OPEN; reviewed head and functional commit
+`a596e5543b5ee43bbe49544d0cc7d0466ecf1e0b`): preserve user-defined property names
+when traversing Gemini tool and response schemas.
+
+- Applicability: this base lacks the newer `injectObjectType` / `ensureArrayItems`
+  phases implicated by the upstream reproduction. However, its existing
+  `convertConstToEnum` and `normalizeAdditionalProperties` visitors already treat
+  property maps as schema nodes. A required argument named `const` becomes an
+  invalid `enum` / `type` entry in the property map; an argument named
+  `additionalProperties` disappears, potentially replaced with a required
+  placeholder `reason`. No equivalent fix existed in the reviewed stable code.
+- Minimal adaptation: apply the PR's schema-map-aware traversal to the existing
+  sanitizer phases only. Keep their constraint transformations, numeric enum
+  handling, required-field cleanup, local references and empty-object placeholders.
+  Do not introduce newer sanitizer phases or change the unsupported-keyword set.
+- Risk is confined to request schema normalization shared by Gemini and the
+  existing Cloud Code path, including OpenAI JSON response schemas. Authentication,
+  account rotation, quota policy and stream/error handling are unchanged.
+- New regression suite: `tests/unit/gemini-schema-keyword-properties.test.ts`.
+  Twelve tests cover keyword arguments, nested objects/arrays, actual constraints,
+  composition/reference expansion, placeholders, input immutability,
+  `buildGeminiTools`, and OpenAI/Anthropic request translation with both stream flags.
+  The original code reproduced argument corruption before the fix; upstream's
+  type-injection tests alone would not reproduce this older-base defect.
+- Validation: 115/115 tests across ten relevant schema/helper/request-translator
+  suites; scoped ESLint with existing suppressions, `npm run typecheck:core`,
+  production/test file-size gates, Prettier and `git diff --check` pass.
+  No live provider call or full application build is claimed.
+
+Other candidate decisions (heads/statuses observed during this run):
+
+| PR                                                             | Status / head         | Decision for v3.8.48                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [#12931](https://github.com/diegosouzapw/OmniRoute/pull/12931) | OPEN `c0b5f751c56c`   | Its `injectObjectType` phase is absent. The broader existing-phase collision is addressed through #13059 above.                                                                                                                                                          |
+| [#12872](https://github.com/diegosouzapw/OmniRoute/pull/12872) | OPEN `27aef816af5d`   | Defer: stripping tuple keywords relies on `ensureArrayItems`, absent here; copying only the two keys can still emit invalid bare arrays.                                                                                                                                 |
+| [#13073](https://github.com/diegosouzapw/OmniRoute/pull/13073) | OPEN `02c30a85e906`   | Defer: changes concurrent Codex cooldown persistence and requires later `providers/codexAccountState.ts`, absent here. The draft itself identifies pending concurrency/current-release review.                                                                           |
+| [#13069](https://github.com/diegosouzapw/OmniRoute/pull/13069) | OPEN `05cc73e3978e`   | Not applicable literally: repairs the later `runNonStreamingProviderLeg` split, which this fork does not contain. Do not import that pipeline refactor.                                                                                                                  |
+| [#13072](https://github.com/diegosouzapw/OmniRoute/pull/13072) | OPEN `dc3e47702d7d`   | The old semantic passthrough already calls `extractSystemRoleMessages`; the newer mid-conversation/directive-only path is absent. No matching regression on this base.                                                                                                   |
+| [#13050](https://github.com/diegosouzapw/OmniRoute/pull/13050) | OPEN `6cac8d211036`   | Its web-search branch forces `stream:false`; this base's fallback preparation does not contain that forced-non-streaming branch. Do not import the newer pipeline or file-size rebaseline.                                                                               |
+| [#13052](https://github.com/diegosouzapw/OmniRoute/pull/13052) | OPEN `2a3771cb52a7`   | Defer: security-sensitive combo/alias authority redesign also carries #12899 semantics previously rejected here. Requires independent old-base policy/cache integration coverage.                                                                                        |
+| [#13047](https://github.com/diegosouzapw/OmniRoute/pull/13047) | OPEN `39bce7bb099c`   | Defer: changes the meaning of configured `minContentLength` for tool-only responses; helper tests do not verify interaction with this fork's empty-output/fallback guards.                                                                                               |
+| [#13038](https://github.com/diegosouzapw/OmniRoute/pull/13038) | OPEN `d1e5c39e5aca`   | Defer: diagnostics span later dispatch gates/runtime units and response-header seams. A separate adaptation must establish attempt-count semantics on the old combo loop.                                                                                                |
+| [#13008](https://github.com/diegosouzapw/OmniRoute/pull/13008) | OPEN `c5bb91c4b07f`   | Defer: missing quota error-text forwarding exists, but this changes account-wide quota poisoning for API-key providers. Verify the old dispatch/cache recovery path before a separate port; the upstream call-site test inspects source rather than exercising dispatch. |
+| [#13083](https://github.com/diegosouzapw/OmniRoute/pull/13083) | OPEN `28488e54e20d`   | Not applicable: the affected custom-node `dailyQuotaResetTimezone` schema is absent on this base.                                                                                                                                                                        |
+| [#12964](https://github.com/diegosouzapw/OmniRoute/pull/12964) | MERGED `0b7be09f44fe` | Status advanced to merged; functional head unchanged. The previous old-sanitizer-boundary deferral still applies (`credentialPatterns.ts` absent).                                                                                                                       |
+| [#12863](https://github.com/diegosouzapw/OmniRoute/pull/12863) | OPEN `5002c412819b`   | Already adapted by `e5ed4b10b`; no new functional head.                                                                                                                                                                                                                  |
+
+The open heads for #12585, #12644, #12827, #12785, #12737, #12818,
+#12391, #12982, #12997 and #12935 still match the previous review, so its
+ported/equivalent/deferred decisions stand. Unrelated UI, Electron, i18n, A2A,
+MCP and out-of-scope provider work was excluded from the port.
+
+This maintenance uses the `[skip ci]` publication policy documented above.
+No tag, publish dispatch or deployment is part of this change.
+
 ## Releasing an image
 
 ```bash

@@ -371,6 +371,26 @@ function inlineLocalSchemaRefs(
   );
 }
 
+// Visit schema-map entries without treating user-defined names as schema keywords (#13059).
+function forEachSubschema(record: JsonRecord, visitor: (sub: unknown) => void): void {
+  for (const [key, value] of Object.entries(record)) {
+    if (!value || typeof value !== "object") continue;
+    if (
+      (key === "properties" ||
+        key === "patternProperties" ||
+        key === "$defs" ||
+        key === "definitions") &&
+      !Array.isArray(value)
+    ) {
+      for (const subSchema of Object.values(value as JsonRecord)) {
+        visitor(subSchema);
+      }
+    } else {
+      visitor(value);
+    }
+  }
+}
+
 // Helper: Remove unsupported keywords recursively from object/array
 function removeUnsupportedKeywords(obj: unknown, keywords: Set<string>): void {
   if (!obj || typeof obj !== "object") return;
@@ -389,21 +409,7 @@ function removeUnsupportedKeywords(obj: unknown, keywords: Set<string>): void {
       delete record[key];
     }
   }
-  // Recurse into remaining values. `properties` is a map keyed by arbitrary,
-  // user-defined property NAMES — a tool may legitimately declare a property
-  // called `pattern`, `enum`, `minLength`, etc. Descend into each property's
-  // subschema, but never run keyword-deletion against the property names
-  // themselves, or glob/grep-style tools lose their `pattern` argument (#1368).
-  for (const [key, value] of Object.entries(record)) {
-    if (!value || typeof value !== "object") continue;
-    if (key === "properties" && !Array.isArray(value)) {
-      for (const subSchema of Object.values(value as JsonRecord)) {
-        removeUnsupportedKeywords(subSchema, keywords);
-      }
-    } else {
-      removeUnsupportedKeywords(value, keywords);
-    }
-  }
+  forEachSubschema(record, (sub) => removeUnsupportedKeywords(sub, keywords));
 }
 
 function normalizeAdditionalProperties(obj: unknown): void {
@@ -425,16 +431,19 @@ function normalizeAdditionalProperties(obj: unknown): void {
     delete record.additionalProperties;
   }
 
-  for (const value of Object.values(record)) {
-    if (value && typeof value === "object") {
-      normalizeAdditionalProperties(value);
-    }
-  }
+  forEachSubschema(record, normalizeAdditionalProperties);
 }
 
 // Convert const to enum
 function convertConstToEnum(obj: unknown): void {
   if (!obj || typeof obj !== "object") return;
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      convertConstToEnum(item);
+    }
+    return;
+  }
 
   const record = obj as JsonRecord;
   if (record.const !== undefined && !record.enum) {
@@ -442,17 +451,20 @@ function convertConstToEnum(obj: unknown): void {
     delete record.const;
   }
 
-  for (const value of Object.values(record)) {
-    if (value && typeof value === "object") {
-      convertConstToEnum(value);
-    }
-  }
+  forEachSubschema(record, convertConstToEnum);
 }
 
 // Convert enum values to strings (Gemini requires string enum values)
 // For integer types, remove enum entirely as Gemini doesn't support it
 function convertEnumValuesToStrings(obj: unknown): void {
   if (!obj || typeof obj !== "object") return;
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      convertEnumValuesToStrings(item);
+    }
+    return;
+  }
 
   const record = obj as JsonRecord;
   if (record.enum && Array.isArray(record.enum)) {
@@ -467,16 +479,19 @@ function convertEnumValuesToStrings(obj: unknown): void {
     }
   }
 
-  for (const value of Object.values(record)) {
-    if (value && typeof value === "object") {
-      convertEnumValuesToStrings(value);
-    }
-  }
+  forEachSubschema(record, convertEnumValuesToStrings);
 }
 
 // Merge allOf schemas
 function mergeAllOf(obj: unknown): void {
   if (!obj || typeof obj !== "object") return;
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      mergeAllOf(item);
+    }
+    return;
+  }
 
   const record = obj as JsonRecord;
   if (record.allOf && Array.isArray(record.allOf)) {
@@ -510,11 +525,7 @@ function mergeAllOf(obj: unknown): void {
     }
   }
 
-  for (const value of Object.values(record)) {
-    if (value && typeof value === "object") {
-      mergeAllOf(value);
-    }
-  }
+  forEachSubschema(record, mergeAllOf);
 }
 
 // Select best schema from anyOf/oneOf
@@ -548,6 +559,13 @@ function selectBest(items: unknown[]): number {
 function flattenAnyOfOneOf(obj: unknown): void {
   if (!obj || typeof obj !== "object") return;
 
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      flattenAnyOfOneOf(item);
+    }
+    return;
+  }
+
   const record = obj as JsonRecord;
   if (record.anyOf && Array.isArray(record.anyOf) && record.anyOf.length > 0) {
     const nonNullSchemas = record.anyOf.filter((s) => s && toRecord(s).type !== "null");
@@ -569,16 +587,19 @@ function flattenAnyOfOneOf(obj: unknown): void {
     }
   }
 
-  for (const value of Object.values(record)) {
-    if (value && typeof value === "object") {
-      flattenAnyOfOneOf(value);
-    }
-  }
+  forEachSubschema(record, flattenAnyOfOneOf);
 }
 
 // Flatten type arrays
 function flattenTypeArrays(obj: unknown): void {
   if (!obj || typeof obj !== "object") return;
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      flattenTypeArrays(item);
+    }
+    return;
+  }
 
   const record = obj as JsonRecord;
   if (record.type && Array.isArray(record.type)) {
@@ -586,11 +607,7 @@ function flattenTypeArrays(obj: unknown): void {
     record.type = nonNullTypes.length > 0 ? nonNullTypes[0] : "string";
   }
 
-  for (const value of Object.values(record)) {
-    if (value && typeof value === "object") {
-      flattenTypeArrays(value);
-    }
-  }
+  forEachSubschema(record, flattenTypeArrays);
 }
 
 // Clean JSON Schema for Antigravity API compatibility - removes unsupported keywords recursively
@@ -620,6 +637,13 @@ export function cleanJSONSchemaForAntigravity(schema: unknown): unknown {
   function cleanupRequired(obj: unknown): void {
     if (!obj || typeof obj !== "object") return;
 
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        cleanupRequired(item);
+      }
+      return;
+    }
+
     const record = obj as JsonRecord;
     if (record.required && Array.isArray(record.required) && record.properties) {
       const properties = toRecord(record.properties);
@@ -635,11 +659,7 @@ export function cleanJSONSchemaForAntigravity(schema: unknown): unknown {
     }
 
     // Recurse into nested objects
-    for (const value of Object.values(record)) {
-      if (value && typeof value === "object") {
-        cleanupRequired(value);
-      }
-    }
+    forEachSubschema(record, cleanupRequired);
   }
 
   cleanupRequired(cleaned);
@@ -647,6 +667,13 @@ export function cleanJSONSchemaForAntigravity(schema: unknown): unknown {
   // Phase 6: Add placeholder for empty object schemas (Antigravity requirement).
   function addPlaceholders(obj: unknown): void {
     if (!obj || typeof obj !== "object") return;
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        addPlaceholders(item);
+      }
+      return;
+    }
 
     const record = obj as JsonRecord;
     if (record.type === "object") {
@@ -662,11 +689,7 @@ export function cleanJSONSchemaForAntigravity(schema: unknown): unknown {
     }
 
     // Recurse into nested objects
-    for (const value of Object.values(record)) {
-      if (value && typeof value === "object") {
-        addPlaceholders(value);
-      }
-    }
+    forEachSubschema(record, addPlaceholders);
   }
 
   addPlaceholders(cleaned);
