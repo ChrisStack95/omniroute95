@@ -40,7 +40,10 @@ test("#3273 /v1/images/edits forwards model as real multipart (undici-patched fe
     await handleOpenAIImageEdit({
       model: "gpt-image-2",
       provider: "customopenai",
-      credentials: { apiKey: "sk-test", providerSpecificData: { baseUrl: `http://127.0.0.1:${port}` } },
+      credentials: {
+        apiKey: "sk-test",
+        providerSpecificData: { baseUrl: `http://127.0.0.1:${port}` },
+      },
       prompt: "make it blue",
       imageBytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
       imageMime: "image/png",
@@ -59,6 +62,38 @@ test("#3273 /v1/images/edits forwards model as real multipart (undici-patched fe
   assert.ok(captured.body.includes("gpt-image-2"), "model value must reach upstream (not empty)");
   assert.ok(captured.body.includes('name="prompt"'), "prompt field must be present");
   assert.ok(captured.body.includes('name="image"'), "image part must be present");
+});
+
+test("built-in OpenAI image edits use the official endpoint and preserve GPT Image 2.5 model IDs", async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedUrl = "";
+  let capturedBody = "";
+  globalThis.fetch = async (url, options = {}) => {
+    capturedUrl = String(url);
+    capturedBody = Buffer.from(options.body as Uint8Array).toString("utf8");
+    return new Response(JSON.stringify({ data: [{ b64_json: "ZmFrZQ==" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    const result = await handleOpenAIImageEdit({
+      model: "gpt-image-2.5-sunburst",
+      provider: "openai",
+      credentials: { apiKey: "sk-test" },
+      prompt: "make it blue",
+      imageBytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      imageMime: "image/png",
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(capturedUrl, "https://api.openai.com/v1/images/edits");
+    assert.ok(capturedBody.includes('name="model"'));
+    assert.ok(capturedBody.includes("gpt-image-2.5-sunburst"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test.after(() => {

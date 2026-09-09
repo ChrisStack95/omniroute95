@@ -131,6 +131,19 @@ export const IMAGE_PROVIDERS: Record<string, ImageProviderConfig> = {
     authHeader: "bearer",
     format: "openai", // native OpenAI format
     models: [
+      {
+        id: "gpt-image-2.5-sunburst",
+        name: "GPT Image 2.5 Sunburst",
+        inputModalities: ["text", "image"],
+        description: "OpenAI's most capable GPT Image 2.5 model for image generation and editing.",
+      },
+      {
+        id: "gpt-image-2.5-flare",
+        name: "GPT Image 2.5 Flare",
+        inputModalities: ["text", "image"],
+        description:
+          "OpenAI's fast GPT Image 2.5 model for high-quality everyday image generation and editing.",
+      },
       { id: "gpt-image-2", name: "GPT Image 2" },
       { id: "gpt-image-1.5", name: "GPT Image 1.5" },
       { id: "gpt-image-1-mini", name: "GPT Image 1 Mini" },

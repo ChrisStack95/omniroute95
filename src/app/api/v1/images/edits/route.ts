@@ -223,6 +223,51 @@ async function postHandler(request: Request, context) {
     );
   }
 
+  if (providerConfig?.id === "openai") {
+    const credentials = await getProviderCredentialsWithQuotaPreflight(
+      parsed.provider,
+      null,
+      allowedConnections,
+      resolvedModel
+    );
+    if (!credentials) {
+      return errorResponse(
+        HTTP_STATUS.UNAUTHORIZED,
+        `No credentials for provider: ${parsed.provider}`
+      );
+    }
+    if (credentials.allRateLimited) {
+      return unavailableResponse(
+        HTTP_STATUS.RATE_LIMITED,
+        `[${parsed.provider}] All accounts rate limited`,
+        credentials.retryAfter,
+        credentials.retryAfterHuman
+      );
+    }
+
+    const result = await handleOpenAIImageEdit({
+      provider: parsed.provider,
+      model: parsed.model,
+      credentials,
+      prompt,
+      imageBytes,
+      imageMime,
+      size,
+      responseFormat,
+      n: 1,
+      log,
+    });
+
+    if (result.success) {
+      await clearRecoveredProviderState(credentials);
+      return jsonResponse((result as any).data);
+    }
+    return jsonResponse(
+      toJsonErrorPayload((result as any).error, "Image edit provider error"),
+      (result as any).status
+    );
+  }
+
   // Built-in non-chatgpt-web providers do not expose an OpenAI-compatible edit endpoint.
   if (providerConfig) {
     return errorResponse(

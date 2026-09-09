@@ -201,6 +201,38 @@ test("v1 image edit POST enforces disabled API key policy", async () => {
   assert.match(body.error.message, /disabled/);
 });
 
+test("v1 image edit POST routes GPT Image 2.5 Sunburst to OpenAI", async () => {
+  await seedConnection("openai", { apiKey: "sunburst-image-key" });
+  let capturedUrl = "";
+  let capturedBody = "";
+
+  globalThis.fetch = async (url, options: RequestInit = {}) => {
+    capturedUrl = String(url);
+    capturedBody = Buffer.from(options.body as Uint8Array).toString("utf8");
+    return new Response(JSON.stringify({ data: [{ b64_json: "ZmFrZQ==" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const formData = new FormData();
+  formData.set("prompt", "make the background lighter");
+  formData.set("model", "openai/gpt-image-2.5-sunburst");
+  formData.set("image", new File([new Uint8Array([1, 2, 3])], "source.png", { type: "image/png" }));
+
+  const response = await imageEditRoute.POST(
+    new Request("http://localhost/api/v1/images/edits", {
+      method: "POST",
+      body: formData,
+    })
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(capturedUrl, "https://api.openai.com/v1/images/edits");
+  assert.ok(capturedBody.includes("gpt-image-2.5-sunburst"));
+  assert.deepEqual((await response.json()).data, [{ b64_json: "ZmFrZQ==" }]);
+});
+
 test("v1 image generation POST resolves proxy and executes with proxy context when credentials.connectionId exists", async () => {
   // Create a connection — it gets an auto-generated id used as credentials.connectionId
   const connection = await seedConnection("openai", { apiKey: "image-proxy-key" });

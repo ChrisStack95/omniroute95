@@ -950,7 +950,7 @@ async function handleOpenAIImageGeneration({
   if (body.style !== undefined) upstreamBody.style = body.style;
 
   const { imageUrl } = extractImageInputs(body);
-  if (imageUrl && OPENAI_IMAGE_TO_IMAGE_MODELS.has(model)) {
+  if (imageUrl && OPENAI_IMAGE_TO_IMAGE_MODELS.has(`${provider}/${model}`)) {
     upstreamBody.image_url = imageUrl;
   }
 
@@ -1070,7 +1070,9 @@ export async function handleOpenAIImageEdit({
   const startTime = Date.now();
   const url = resolveImageBaseUrl(
     credentials,
-    `https://generativelanguage.googleapis.com/v1beta/openai/images/edits`,
+    provider === "openai"
+      ? "https://api.openai.com/v1/images/edits"
+      : "https://generativelanguage.googleapis.com/v1beta/openai/images/edits",
     "edits"
   );
 

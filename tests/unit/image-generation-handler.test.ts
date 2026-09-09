@@ -362,6 +362,59 @@ test("image registry resolves flux aliases and exposes planned catalog aliases",
   assert.deepEqual(fluxKontext?.inputModalities, ["text", "image"]);
 });
 
+test("image registry exposes GPT Image 2.5 models and forwards Sunburst generation requests to OpenAI", async () => {
+  const originalFetch = globalThis.fetch;
+  let captured;
+
+  globalThis.fetch = async (url, options = {}) => {
+    captured = {
+      url: String(url),
+      body: JSON.parse(String(options.body || "{}")),
+    };
+    return new Response(JSON.stringify({ data: [{ b64_json: "ZmFrZQ==" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    const catalog = new Map(getAllImageModels().map((model) => [model.id, model]));
+    assert.deepEqual(parseImageModel("openai/gpt-image-2.5-sunburst"), {
+      provider: "openai",
+      model: "gpt-image-2.5-sunburst",
+    });
+    assert.deepEqual(parseImageModel("gpt-image-2.5-flare"), {
+      provider: "openai",
+      model: "gpt-image-2.5-flare",
+    });
+    assert.deepEqual(catalog.get("openai/gpt-image-2.5-sunburst")?.inputModalities, [
+      "text",
+      "image",
+    ]);
+    assert.deepEqual(catalog.get("openai/gpt-image-2.5-flare")?.inputModalities, ["text", "image"]);
+
+    const result = await handleImageGeneration({
+      body: {
+        model: "openai/gpt-image-2.5-sunburst",
+        prompt: "A watercolor landscape with a lake at sunrise.",
+        size: "1024x1024",
+      },
+      credentials: { apiKey: "image-key" },
+      log: null,
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(captured.url, "https://api.openai.com/v1/images/generations");
+    assert.deepEqual(captured.body, {
+      model: "gpt-image-2.5-sunburst",
+      prompt: "A watercolor landscape with a lake at sunrise.",
+      size: "1024x1024",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("handleImageGeneration calls Fal AI with Key auth and normalizes URL results to base64", async () => {
   const originalFetch = globalThis.fetch;
   let requestCapture;
