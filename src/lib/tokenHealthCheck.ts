@@ -586,6 +586,7 @@ export async function checkConnection(conn) {
     expiresAt?: string;
     expiresIn?: number;
     providerSpecificData?: Record<string, unknown>;
+    providerSpecificDataPatch?: Record<string, unknown>;
   };
   type ConnectionUpdate = Parameters<typeof updateProviderConnection>[1];
 
@@ -621,15 +622,18 @@ export async function checkConnection(conn) {
         updateData.tokenExpiresAt = expiresAt;
       }
       // Merge new providerSpecificData and ALWAYS clear the refresh circuit
-      // breaker streak on a successful refresh.
+      // breaker streak on a successful refresh. A patch (e.g. the Codex plan
+      // tier re-derived from the refreshed id_token) carries only the keys the
+      // refresh corrected and is applied last.
       const mergedProviderData = {
         ...(conn.providerSpecificData || {}),
         ...(refreshResult.providerSpecificData || {}),
+        ...(refreshResult.providerSpecificDataPatch || {}),
       };
       const clearedProviderData = clearRefreshCircuit(mergedProviderData);
       if (clearedProviderData !== undefined) {
         updateData.providerSpecificData = clearedProviderData;
-      } else if (refreshResult.providerSpecificData) {
+      } else if (refreshResult.providerSpecificData || refreshResult.providerSpecificDataPatch) {
         updateData.providerSpecificData = mergedProviderData;
       }
       await updateProviderConnection(conn.id, updateData);

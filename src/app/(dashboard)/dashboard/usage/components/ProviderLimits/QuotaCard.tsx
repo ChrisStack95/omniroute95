@@ -62,13 +62,22 @@ export default function QuotaCard({
   const tierMeta = useMemo(
     () =>
       normalizePlanTier(
-        resolvePlanValue(quota?.plan ?? null, connection.providerSpecificData ?? null)
+        resolvePlanValue(
+          quota?.plan ?? null,
+          connection.providerSpecificData ?? null,
+          connection.provider ?? null
+        )
       ),
-    [quota?.plan, connection.providerSpecificData]
+    [quota?.plan, connection.providerSpecificData, connection.provider]
   );
   const resolvedPlan = useMemo(
-    () => resolvePlanValue(quota?.plan ?? null, connection.providerSpecificData ?? null),
-    [quota?.plan, connection.providerSpecificData]
+    () =>
+      resolvePlanValue(
+        quota?.plan ?? null,
+        connection.providerSpecificData ?? null,
+        connection.provider ?? null
+      ),
+    [quota?.plan, connection.providerSpecificData, connection.provider]
   );
   const accountLabel = useMemo(
     () =>

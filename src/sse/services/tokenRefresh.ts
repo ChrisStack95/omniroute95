@@ -2,6 +2,7 @@
 import * as log from "../utils/logger";
 import {
   updateProviderConnection,
+  getProviderConnectionById,
   resolveProxyForConnection,
   resolveProxyForProvider,
 } from "@/lib/localDb";
@@ -152,6 +153,20 @@ export async function updateProviderCredentials(connectionId: string, newCredent
     }
     if (newCredentials.providerSpecificData) {
       updates.providerSpecificData = newCredentials.providerSpecificData;
+    }
+    // A patch carries only the keys the refresh itself re-derived (Codex plan
+    // tier). Merge it instead of replacing, so unrelated state living in the
+    // same column — rate-limit windows, refresh circuit breaker, proxy hints —
+    // survives a refresh that only wanted to correct one field.
+    if (newCredentials.providerSpecificDataPatch) {
+      const base =
+        updates.providerSpecificData ??
+        (await getProviderConnectionById(connectionId))?.providerSpecificData ??
+        {};
+      updates.providerSpecificData = {
+        ...base,
+        ...newCredentials.providerSpecificDataPatch,
+      };
     }
     // Cookie/session providers (chatgpt-web, ...) refresh by rotating the
     // stored apiKey blob — propagate that here too so DB credentials don't

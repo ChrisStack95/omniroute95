@@ -176,12 +176,28 @@ export function calculatePercentage(used, total) {
 }
 
 /**
+ * Providers whose live usage payload falls back to "Free" when the tier could
+ * not be read at all — antigravity's mapCodeAssistSubscriptionToPlanLabel ends
+ * in `return "Free"`, and its error path returns a literal Free plan. For those
+ * a live "free" is ambiguous, so persisted metadata still wins.
+ *
+ * Every other provider reports free because the account really is free. Most
+ * importantly Codex, where the usage API returns "unknown" when it cannot tell:
+ * a live "free" there means the ChatGPT subscription lapsed, and it must beat
+ * the workspacePlanType captured when the account was first connected.
+ */
+const PROVIDERS_WITH_AMBIGUOUS_FREE_PLAN = new Set(["antigravity", "agy"]);
+
+/**
  * Resolve the best available plan label using live usage first, then persisted
  * provider-specific connection metadata.
  */
-export function resolvePlanValue(plan, providerSpecificData) {
+export function resolvePlanValue(plan, providerSpecificData, provider = null) {
   const psd = toRecord(providerSpecificData);
   const livePlan = normalizePlanCandidate(plan);
+  const freeIsAmbiguous =
+    typeof provider === "string" &&
+    PROVIDERS_WITH_AMBIGUOUS_FREE_PLAN.has(provider.trim().toLowerCase());
   const persistedCandidates = [
     psd.workspacePlanType,
     psd.plan,
@@ -195,7 +211,7 @@ export function resolvePlanValue(plan, providerSpecificData) {
     psd.organizationType,
   ];
 
-  if (livePlan && normalizePlanTier(livePlan).key !== "free") {
+  if (livePlan && !(freeIsAmbiguous && normalizePlanTier(livePlan).key === "free")) {
     return livePlan;
   }
 

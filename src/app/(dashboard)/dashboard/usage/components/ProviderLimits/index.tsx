@@ -532,7 +532,11 @@ export default function ProviderLimits({
   const resolvedPlanByConnection = useMemo(() => {
     const out: Record<string, string | null> = {};
     for (const conn of sortedConnections) {
-      out[conn.id] = resolvePlanValue(quotaData[conn.id]?.plan, conn.providerSpecificData);
+      out[conn.id] = resolvePlanValue(
+        quotaData[conn.id]?.plan,
+        conn.providerSpecificData,
+        conn.provider
+      );
     }
     return out;
   }, [sortedConnections, quotaData]);

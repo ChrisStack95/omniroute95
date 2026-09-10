@@ -50,6 +50,39 @@ test("Codex workspacePlanType is used when live plan is missing or unknown", () 
   assert.equal(tier.variant, "success");
 });
 
+test("a lapsed Codex subscription beats the plan captured at connect time", () => {
+  const resolvedPlan = providerLimitUtils.resolvePlanValue(
+    "free",
+    { workspacePlanType: "plus" },
+    "codex"
+  );
+
+  assert.equal(resolvedPlan, "free");
+  assert.equal(providerLimitUtils.normalizePlanTier(resolvedPlan).key, "free");
+});
+
+test("antigravity keeps the persisted tier when its live plan falls back to Free", () => {
+  for (const provider of ["antigravity", "agy"]) {
+    const resolvedPlan = providerLimitUtils.resolvePlanValue(
+      "Free",
+      { subscriptionTier: "Pro" },
+      provider
+    );
+
+    assert.equal(resolvedPlan, "Pro", `${provider} must prefer the persisted tier`);
+  }
+});
+
+test("antigravity still prefers a live paid tier over persisted metadata", () => {
+  const resolvedPlan = providerLimitUtils.resolvePlanValue(
+    "Ultra",
+    { subscriptionTier: "Pro" },
+    "antigravity"
+  );
+
+  assert.equal(resolvedPlan, "Ultra");
+});
+
 test("Claude providerSpecificData plan is used when live plan is missing", () => {
   const resolvedPlan = providerLimitUtils.resolvePlanValue(null, {
     plan: "Pro",

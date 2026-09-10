@@ -5,12 +5,10 @@ import { getGitHubCopilotRefreshHeaders } from "../config/providerHeaderProfiles
 import { pbkdf2Sync } from "node:crypto";
 import { runWithProxyContext } from "../utils/proxyFetch.ts";
 import { serializeRefresh, wasRefreshTokenRotated } from "./refreshSerializer.ts";
-import {
-  buildExternalIdpRefreshParams,
-  isExternalIdpAuthMethod,
-} from "./kiroExternalIdp.ts";
+import { buildExternalIdpRefreshParams, isExternalIdpAuthMethod } from "./kiroExternalIdp.ts";
 import { WINDSURF_CONFIG } from "@/lib/oauth/constants/oauth";
 import { buildGitLabOAuthEndpoints, resolveGitLabOAuthBaseUrl } from "@/lib/oauth/gitlab";
+import { deriveCodexWorkspaceInfo } from "@/lib/oauth/providers/codex";
 
 // Default token expiry buffer (refresh if expires within 5 minutes).
 // Used as fallback for providers without an explicit lead time in
@@ -1186,10 +1184,22 @@ export async function refreshCodexToken(refreshToken, log, proxyConfig: unknown 
       expiresIn: tokens.expires_in,
     });
 
+    // A ChatGPT subscription that lapsed after the account was connected only
+    // shows up in the refreshed id_token's plan claim. Re-derive the tier so a
+    // stale "plus" captured at OAuth time cannot outlive the subscription that
+    // paid for it. Only the plan is patched: the workspace binding stays as the
+    // user selected it during OAuth, because re-running the team-vs-personal
+    // heuristic here could silently re-point an established connection.
+    const workspaceInfo = deriveCodexWorkspaceInfo(tokens.id_token);
+    const refreshedPlanType = workspaceInfo?.workspacePlanType;
+
     return {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || refreshToken,
       expiresIn: tokens.expires_in,
+      ...(refreshedPlanType
+        ? { providerSpecificDataPatch: { workspacePlanType: refreshedPlanType } }
+        : {}),
     };
   } catch (error) {
     log?.error?.("TOKEN_REFRESH", `Network error refreshing Codex token: ${error.message}`);

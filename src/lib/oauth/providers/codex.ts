@@ -77,6 +77,86 @@ function parseIdToken(idToken: string): { email: string | null; authInfo: CodexA
   }
 }
 
+/**
+ * Workspace binding and plan tier carried by a Codex id_token.
+ */
+export interface CodexWorkspaceInfo {
+  workspaceId: string | null;
+  workspacePlanType: string;
+  chatgptUserId: string | null;
+  organizations: CodexAuthInfo["organizations"] | null;
+}
+
+/**
+ * Build the persisted workspace record from the id_token auth claim.
+ *
+ * IMPORTANT: A user can have both Team and Personal workspaces.
+ * The JWT's chatgpt_account_id may not always reflect the workspace
+ * the user selected during OAuth. We need to be smart about selection.
+ *
+ * Selection logic:
+ * 1. If plan_type indicates team/business, use chatgpt_account_id
+ * 2. If plan_type is "free" but organizations has team workspace, use team
+ * 3. Otherwise use chatgpt_account_id as fallback
+ */
+function buildWorkspaceInfo(authInfo: CodexAuthInfo | null): CodexWorkspaceInfo {
+  let workspaceId = authInfo?.chatgpt_account_id || null;
+  let planType = (authInfo?.chatgpt_plan_type || "").toLowerCase();
+
+  // Check if we should use a team workspace instead
+  const organizations = authInfo?.organizations || [];
+  if (organizations.length > 0) {
+    // Find team/business workspace (non-default usually means team)
+    const teamOrg = organizations.find((org) => {
+      const title = (org.title || "").toLowerCase();
+      const role = (org.role || "").toLowerCase();
+      // Team workspaces typically have role like "member" or "admin" and non-personal titles
+      return (
+        !org.is_default &&
+        (title.includes("team") ||
+          title.includes("business") ||
+          title.includes("workspace") ||
+          title.includes("org") ||
+          role === "admin" ||
+          role === "member")
+      );
+    });
+
+    // If user's plan_type is "team" or we found a team org, prefer it
+    if (planType.includes("team") || planType.includes("chatgptteam")) {
+      // User authenticated via Team, use the chatgpt_account_id from JWT
+    } else if (teamOrg && (planType === "free" || planType === "")) {
+      // User has a team org but plan_type shows free - use team org instead
+      workspaceId = teamOrg.id;
+      planType = "team";
+    }
+  }
+
+  return {
+    workspaceId,
+    workspacePlanType: planType,
+    // Also store the full authInfo for future reference
+    chatgptUserId: authInfo?.chatgpt_user_id || null,
+    organizations: organizations.length > 0 ? organizations : null,
+  };
+}
+
+/**
+ * Re-derive workspace info from an id_token handed back by a later grant
+ * (notably the refresh_token grant, whose response carries a fresh id_token).
+ *
+ * Returns null when the token carries no usable auth claim, so callers keep the
+ * record they already persisted instead of overwriting it with empty defaults.
+ */
+export function deriveCodexWorkspaceInfo(
+  idToken: string | null | undefined
+): CodexWorkspaceInfo | null {
+  if (!idToken) return null;
+  const { authInfo } = parseIdToken(idToken);
+  if (!authInfo) return null;
+  return buildWorkspaceInfo(authInfo);
+}
+
 export const codex = {
   config: CODEX_CONFIG,
   flowType: "authorization_code_pkce",
@@ -139,8 +219,8 @@ export const codex = {
 
   mapTokens: (tokens, extra) => {
     // Parse id_token for email and auth info
-    let email = null;
-    let authInfo = extra?.authInfo || null;
+    let email: string | null = null;
+    let authInfo: CodexAuthInfo | null = extra?.authInfo || null;
 
     if (tokens.id_token) {
       const parsed = parseIdToken(tokens.id_token);
@@ -151,55 +231,7 @@ export const codex = {
       }
     }
 
-    // Determine the correct workspace to use
-    //
-    // IMPORTANT: A user can have both Team and Personal workspaces.
-    // The JWT's chatgpt_account_id may not always reflect the workspace
-    // the user selected during OAuth. We need to be smart about selection.
-    //
-    // Selection logic:
-    // 1. If plan_type indicates team/business, use chatgpt_account_id
-    // 2. If plan_type is "free" but organizations has team workspace, use team
-    // 3. Otherwise use chatgpt_account_id as fallback
-    let workspaceId = authInfo?.chatgpt_account_id || null;
-    let planType = (authInfo?.chatgpt_plan_type || "").toLowerCase();
-
-    // Check if we should use a team workspace instead
-    const organizations = authInfo?.organizations || [];
-    if (organizations.length > 0) {
-      // Find team/business workspace (non-default usually means team)
-      const teamOrg = organizations.find((org) => {
-        const title = (org.title || "").toLowerCase();
-        const role = (org.role || "").toLowerCase();
-        // Team workspaces typically have role like "member" or "admin" and non-personal titles
-        return (
-          !org.is_default &&
-          (title.includes("team") ||
-            title.includes("business") ||
-            title.includes("workspace") ||
-            title.includes("org") ||
-            role === "admin" ||
-            role === "member")
-        );
-      });
-
-      // If user's plan_type is "team" or we found a team org, prefer it
-      if (planType.includes("team") || planType.includes("chatgptteam")) {
-        // User authenticated via Team, use the chatgpt_account_id from JWT
-      } else if (teamOrg && (planType === "free" || planType === "")) {
-        // User has a team org but plan_type shows free - use team org instead
-        workspaceId = teamOrg.id;
-        planType = "team";
-      }
-    }
-
-    const providerSpecificData = {
-      workspaceId,
-      workspacePlanType: planType,
-      // Also store the full authInfo for future reference
-      chatgptUserId: authInfo?.chatgpt_user_id || null,
-      organizations: organizations.length > 0 ? organizations : null,
-    };
+    const providerSpecificData = buildWorkspaceInfo(authInfo);
 
     return {
       accessToken: tokens.access_token,
