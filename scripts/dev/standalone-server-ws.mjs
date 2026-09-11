@@ -64,9 +64,32 @@ function deriveLiveWsPath() {
 }
 
 const LIVE_WS_PATH = deriveLiveWsPath();
+const LIVE_STT_PATH = "/v1/audio/transcriptions/live";
 
 function proxyLiveWs(req, socket, head) {
   const targetPort = parseInt(process.env.LIVE_WS_PORT || "20132", 10);
+  const targetSocket = net.connect(targetPort, "127.0.0.1", () => {
+    let rawRequest = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+    for (const [key, val] of Object.entries(req.headers)) {
+      if (Array.isArray(val)) {
+        for (const v of val) rawRequest += `${key}: ${v}\r\n`;
+      } else {
+        rawRequest += `${key}: ${val}\r\n`;
+      }
+    }
+    rawRequest += "\r\n";
+    targetSocket.write(rawRequest);
+    if (head && head.length > 0) targetSocket.write(head);
+    targetSocket.pipe(socket);
+    socket.pipe(targetSocket);
+  });
+
+  targetSocket.on("error", () => !socket.destroyed && socket.destroy());
+  socket.on("error", () => !targetSocket.destroyed && targetSocket.destroy());
+}
+
+function proxyLiveSttWs(req, socket, head) {
+  const targetPort = parseInt(process.env.LIVE_STT_PORT || "20133", 10);
   const targetSocket = net.connect(targetPort, "127.0.0.1", () => {
     let rawRequest = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
     for (const [key, val] of Object.entries(req.headers)) {
@@ -99,6 +122,10 @@ function wrapUpgradeListener(server, listener) {
       }
 
       const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+      if (url.pathname === LIVE_STT_PATH) {
+        proxyLiveSttWs(req, socket, head);
+        return;
+      }
       if (url.pathname === LIVE_WS_PATH || url.pathname.startsWith(LIVE_WS_PATH + "/")) {
         proxyLiveWs(req, socket, head);
         return;

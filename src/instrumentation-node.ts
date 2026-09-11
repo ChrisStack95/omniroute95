@@ -457,5 +457,16 @@ export async function registerNodejs(): Promise<void> {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[STARTUP] Live dashboard WebSocket daemon failed to start (non-fatal):", msg);
     }
+
+    try {
+      await import("@/server/liveStt/server");
+      console.log("[STARTUP] Live SaluteSpeech STT WebSocket daemon bootstrap invoked");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        "[STARTUP] Live SaluteSpeech STT WebSocket daemon failed to start (non-fatal):",
+        msg
+      );
+    }
   }
 }
