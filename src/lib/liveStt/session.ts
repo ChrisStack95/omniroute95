@@ -21,7 +21,7 @@ export type VerifiedLiveSttSession = LiveSttSessionInput & {
 const consumedSessions = new Map<string, number>();
 
 function getSecret(): Uint8Array {
-  const value = process.env.LIVE_STT_TOKEN_SECRET?.trim() || process.env.JWT_SECRET?.trim();
+  const value = process.env.LIVE_STT_TOKEN_SECRET?.trim();
   if (!value) throw new Error("Live STT session signing secret is not configured");
   return new TextEncoder().encode(value);
 }
