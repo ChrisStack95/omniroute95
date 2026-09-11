@@ -44,8 +44,11 @@ function get(url: string): Request {
   return new Request(url, { method: "GET" });
 }
 
-test.beforeEach(() => {
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+test.beforeEach(async () => {
+  // #13290: the DB from the previous test is still open here, and on Windows an
+  // open SQLite handle (plus its -wal/-shm) makes rmSync fail with EPERM before
+  // the test body even runs. Close it first, then recreate the directory.
+  await cleanupTempDataDir(TEST_DATA_DIR);
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 });
 
