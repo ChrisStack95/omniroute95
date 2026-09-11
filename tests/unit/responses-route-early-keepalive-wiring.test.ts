@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { cleanupTempDataDir } from "../_setup/tempDataDir.ts";
 
 const routeSource = fs.readFileSync("src/app/api/v1/responses/route.ts", "utf8");
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-responses-route-test-"));
