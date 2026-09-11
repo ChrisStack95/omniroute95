@@ -214,6 +214,16 @@ export function getModelCatalogCacheVersion(): number {
 }
 
 /**
+ * Invalidate the serialized `/v1/models` response cache after a direct catalog
+ * mutation. Model CRUD lives outside the settings/connections/combos caches, so
+ * those writes need an explicit version bump to make the next catalog request
+ * rebuild immediately instead of waiting for its response-cache TTL.
+ */
+export function invalidateModelCatalogCache(): void {
+  modelCatalogCacheVersion++;
+}
+
+/**
  * Invalidate all caches (call after writes to any of: settings, pricing,
  * connections, combos).
  */

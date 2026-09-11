@@ -6,6 +6,7 @@
 
 import { getDbInstance } from "./core";
 import { backupDbFile } from "./backup";
+import { invalidateModelCatalogCache } from "./readCache";
 import { type JsonRecord, asRecord, toNonEmptyString, getKeyValue } from "./models/shared";
 import {
   readCompatList,
@@ -128,6 +129,7 @@ export async function addCustomModel(
     "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('customModels', ?, ?)"
   ).run(providerId, JSON.stringify(models));
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
   return model;
 }
 
@@ -231,6 +233,7 @@ export async function replaceCustomModels(
   }
 
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
   return merged;
 }
 
@@ -262,6 +265,7 @@ export async function removeCustomModel(providerId: string, modelId: string) {
 
   removeModelCompatOverride(providerId, modelId);
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
   return true;
 }
 
@@ -474,6 +478,7 @@ export async function replaceSyncedAvailableModelsForConnection(
     ).run(key, JSON.stringify(normalizedModels));
   }
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
   // Return the full unioned list for the provider
   return getSyncedAvailableModels(providerId);
 }
@@ -528,6 +533,7 @@ export async function removeSyncedAvailableModel(
   });
 
   removeModel();
+  if (removedAny) invalidateModelCatalogCache();
   return removedAny;
 }
 
@@ -545,6 +551,7 @@ export async function deleteSyncedAvailableModelsForConnection(
     key
   );
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
   return getSyncedAvailableModels(providerId);
 }
 
@@ -561,6 +568,7 @@ export async function deleteSyncedAvailableModelsForProvider(providerId: string)
     )
     .run(keyPrefix.length, keyPrefix);
   backupDbFile("pre-write");
+  if (result.changes) invalidateModelCatalogCache();
   return Number(result.changes || 0);
 }
 
@@ -585,6 +593,7 @@ export async function pruneStaleSyncedAvailableModelsForProvider(
     )
     .run(`${keyPrefix}%`, ...allowedKeys);
   backupDbFile("pre-write");
+  if (result.changes) invalidateModelCatalogCache();
   return Number(result.changes || 0);
 }
 
@@ -671,6 +680,7 @@ export async function updateCustomModel(
   );
 
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
   return next;
 }
 
@@ -863,6 +873,7 @@ export function setModelIsHidden(providerId: string, modelId: string, hidden: bo
     if (idx >= 0) list[idx] = next;
     else list.push(next);
     writeCompatList(providerId, list);
+    invalidateModelCatalogCache();
     return;
   }
 
@@ -871,10 +882,12 @@ export function setModelIsHidden(providerId: string, modelId: string, hidden: bo
     // Only `id` left; drop the entry entirely.
     const filtered = list.filter((_, i) => i !== idx);
     writeCompatList(providerId, filtered);
+    invalidateModelCatalogCache();
     return;
   }
   delete list[idx].isHidden;
   writeCompatList(providerId, list);
+  invalidateModelCatalogCache();
 }
 
 function readUpstreamFromJsonRecord(

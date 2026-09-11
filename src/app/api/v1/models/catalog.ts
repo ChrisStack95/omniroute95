@@ -106,7 +106,10 @@ type CachedCatalog = {
   status: number;
   expiresAt: number;
 };
-const CATALOG_CACHE_TTL_MS = 1500; // ~one request-latency window; safe vs SDK bursts
+// The catalog is expensive to serialize and Codex cancels discovery after about
+// five seconds. Catalog-affecting writes bump `modelCatalogCacheVersion`, so a
+// longer TTL keeps routine refreshes fast without delaying model updates.
+const CATALOG_CACHE_TTL_MS = 60_000;
 const catalogCache = new Map<string, CachedCatalog>();
 const catalogInFlight = new Map<string, Promise<CachedCatalog>>();
 

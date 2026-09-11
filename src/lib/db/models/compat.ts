@@ -2,6 +2,7 @@
 
 import { getDbInstance } from "../core";
 import { backupDbFile } from "../backup";
+import { invalidateModelCatalogCache } from "../readCache";
 import {
   MODEL_COMPAT_PROTOCOL_KEYS,
   type ModelCompatProtocolKey,
@@ -150,6 +151,7 @@ export function writeCompatList(providerId: string, list: ModelCompatOverride[])
     );
   }
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
 }
 
 export function getModelCompatOverrides(providerId: string): ModelCompatOverride[] {

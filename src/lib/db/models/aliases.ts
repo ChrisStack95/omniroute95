@@ -2,6 +2,7 @@
 
 import { getDbInstance } from "../core";
 import { backupDbFile } from "../backup";
+import { invalidateModelCatalogCache } from "../readCache";
 import { getKeyValue } from "./shared";
 
 export async function getModelAliases() {
@@ -24,12 +25,14 @@ export async function setModelAlias(alias: string, model: unknown) {
     "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('modelAliases', ?, ?)"
   ).run(alias, JSON.stringify(model));
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
 }
 
 export async function deleteModelAlias(alias: string) {
   const db = getDbInstance();
   db.prepare("DELETE FROM key_value WHERE namespace = 'modelAliases' AND key = ?").run(alias);
   backupDbFile("pre-write");
+  invalidateModelCatalogCache();
 }
 
 /**

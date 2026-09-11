@@ -24,6 +24,7 @@ process.env.API_KEY_SECRET = process.env.API_KEY_SECRET || "catalog-test-secret"
 
 const core = await import("../../src/lib/db/core.ts");
 const apiKeysDb = await import("../../src/lib/db/apiKeys.ts");
+const modelsDb = await import("../../src/lib/db/models.ts");
 const v1ModelsCatalog = await import("../../src/app/api/v1/models/catalog.ts");
 
 async function resetStorage() {
@@ -98,5 +99,25 @@ test("#6408 — requests with different cache keys (prefix param) run the builde
     v1ModelsCatalog.__getCatalogBuilderRunsForTest(),
     2,
     "distinct cache keys must not collapse into each other"
+  );
+});
+
+test("catalog-affecting model updates invalidate the longer response cache immediately", async () => {
+  const request = new Request("http://localhost/v1/models");
+
+  const first = await v1ModelsCatalog.getUnifiedModelsResponse(request);
+  assert.equal(first.status, 200);
+  assert.equal(v1ModelsCatalog.__getCatalogBuilderRunsForTest(), 1);
+
+  await modelsDb.replaceSyncedAvailableModelsForConnection("openai", "catalog-cache-test", [
+    { id: "catalog-cache-test-model", name: "Catalog Cache Test Model" },
+  ]);
+
+  const second = await v1ModelsCatalog.getUnifiedModelsResponse(request);
+  assert.equal(second.status, 200);
+  assert.equal(
+    v1ModelsCatalog.__getCatalogBuilderRunsForTest(),
+    2,
+    "a synced model update must invalidate the catalog cache without waiting for its TTL"
   );
 });
