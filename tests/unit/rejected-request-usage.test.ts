@@ -24,7 +24,10 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 const core = await import("../../src/lib/db/core.ts");
 const usageHistory = await import("../../src/lib/usage/usageHistory.ts");
 const callLogs = await import("../../src/lib/usage/callLogs.ts");
-const { recordRejectedRequestUsage } = await import("../../src/sse/handlers/rejectedRequestUsage.ts");
+const {
+  describeRejectedComboFailure,
+  recordRejectedRequestUsage,
+} = await import("../../src/sse/handlers/rejectedRequestUsage.ts");
 
 test.beforeEach(() => {
   core.resetDbInstance();
@@ -81,4 +84,15 @@ test("combo-exhausted rejection is also counted per api key", async () => {
   const keyRows = rows.filter((r: { apiKeyId?: string | null }) => r.apiKeyId === "key-opencode-mac");
   assert.equal(keyRows.length, 1);
   assert.equal(keyRows[0].success, false);
+});
+
+test("interrupted 499 combo preserves its terminal reason", () => {
+  assert.equal(
+    describeRejectedComboFailure({
+      status: 499,
+      comboName: "coding",
+      reason: "Model timeout: combo-per-model-timeout",
+    }),
+    '[499] Combo "coding" request interrupted: Model timeout: combo-per-model-timeout'
+  );
 });

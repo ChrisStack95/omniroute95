@@ -37,6 +37,27 @@ export interface RejectedRequestUsageInput {
   startTime?: number;
 }
 
+/**
+ * Keep a combo's terminal reason visible when its response is interrupted.
+ * A 499 is not exclusively a client cancellation: it can also represent a
+ * per-target timeout or another local stream lifecycle failure.
+ */
+export function describeRejectedComboFailure({
+  status,
+  comboName,
+  reason,
+}: {
+  status: number;
+  comboName: string;
+  reason?: string | null;
+}): string {
+  const prefix = `[${status}] Combo "${comboName}"`;
+  if (status !== 499) return `${prefix} failed — all targets exhausted`;
+
+  const suffix = reason?.trim() ? `: ${reason.trim()}` : "";
+  return `${prefix} request interrupted${suffix}`;
+}
+
 export async function recordRejectedRequestUsage(input: RejectedRequestUsageInput): Promise<void> {
   const {
     status,

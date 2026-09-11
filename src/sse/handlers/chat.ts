@@ -227,6 +227,23 @@ const comboPromoteDeps = { updateCombo, info: log.info, warn: log.warn };
 
 export { shouldTripProviderBreakerForResult } from "./chatPredicates";
 
+async function readResponseErrorReason(response: Response): Promise<string | null> {
+  try {
+    const payload = (await response.clone().json()) as {
+      error?: { message?: unknown } | unknown;
+    };
+    const message =
+      payload.error &&
+      typeof payload.error === "object" &&
+      typeof (payload.error as { message?: unknown }).message === "string"
+        ? (payload.error as { message: string }).message
+        : null;
+    return message?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Handle chat completion request
  * Supports: OpenAI, Claude, Gemini, OpenAI Responses API formats
@@ -940,14 +957,21 @@ export async function handleChat(
     // (success:false) so gate/breaker-rejected traffic is counted per key — support-mesh 2026-07-08.
     if (!response.ok) {
       try {
-        const { recordRejectedRequestUsage } = await import("./rejectedRequestUsage");
+        const {
+          describeRejectedComboFailure,
+          recordRejectedRequestUsage,
+        } = await import("./rejectedRequestUsage");
         await recordRejectedRequestUsage({
           status: response.status,
           model: body?.model || resolvedModelStr,
           requestedModel: body?.model || resolvedModelStr,
           provider: "-",
           endpoint: clientRawRequest?.endpoint,
-          error: `[${response.status}] Combo "${combo.name}" failed — all targets exhausted`,
+          error: describeRejectedComboFailure({
+            status: response.status,
+            comboName: combo.name,
+            reason: response.status === 499 ? await readResponseErrorReason(response) : null,
+          }),
           comboName: combo.name,
           apiKeyId: apiKeyInfo?.id ?? null,
           apiKeyName: apiKeyInfo?.name ?? null,

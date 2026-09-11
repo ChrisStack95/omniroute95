@@ -1,8 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildTargetTimeoutRunner } from "../../open-sse/services/combo/targetTimeoutRunner.ts";
+import type { SingleModelTarget } from "../../open-sse/services/combo/types.ts";
 
-const noopLog = { warn() {}, info() {}, error() {}, debug() {} } as any;
+const noopLog = { warn() {}, info() {}, error() {}, debug() {} };
+
+function targetAbortSignal(target?: SingleModelTarget): AbortSignal | undefined {
+  return target?.modelAbortSignal ?? undefined;
+}
 
 test("timeout<=0: passthrough direto (sem timer)", async () => {
   let called = false;
@@ -35,9 +40,8 @@ test("excede o limite: aborta e retorna 524 timed out", async () => {
   const runner = buildTargetTimeoutRunner({
     handleSingleModel: (_b, _m, target) =>
       new Promise<Response>((resolve) => {
-        // resolve só se abortado (simula um upstream que respeita o signal)
-        const sig = (target as any)?.modelAbortSignal as AbortSignal | undefined;
-        sig?.addEventListener("abort", () => resolve(new Response(null, { status: 599 })));
+        const signal = targetAbortSignal(target);
+        signal?.addEventListener("abort", () => resolve(new Response(null, { status: 599 })));
       }),
     comboTargetTimeoutMs: 20,
     log: noopLog,
@@ -59,20 +63,19 @@ test("sucesso rápido vence a corrida do timeout", async () => {
   assert.equal(await res.text(), "fast");
 });
 
-test("hedge do parent já abortado propaga o abort ao filho", async () => {
+test("external parent abort preserves its reason on the child", async () => {
   const parent = new AbortController();
-  parent.abort(new Error("hedge-cancelled"));
-  let sawAbort = false;
+  const reason = new Error("request_signal_aborted");
+  parent.abort(reason);
+  let childReason: unknown = null;
   const runner = buildTargetTimeoutRunner({
-    handleSingleModel: (_b, _m, target) =>
-      new Promise<Response>((resolve) => {
-        const sig = (target as any)?.modelAbortSignal as AbortSignal | undefined;
-        if (sig?.aborted) sawAbort = true;
-        resolve(new Response("ok"));
-      }),
+    handleSingleModel: (_b, _m, target) => {
+      childReason = targetAbortSignal(target)?.reason;
+      return Promise.resolve(new Response("ok"));
+    },
     comboTargetTimeoutMs: 1000,
     log: noopLog,
   });
-  await runner({}, "m", { modelAbortSignal: parent.signal } as any);
-  assert.equal(sawAbort, true);
+  await runner({}, "m", { modelAbortSignal: parent.signal });
+  assert.equal(childReason, reason);
 });

@@ -2343,8 +2343,12 @@ export async function handleComboChat({
 
         const abortController = new AbortController();
         abortControllers.set(i, abortController);
-        const onClientAbort = () => abortController.abort();
-        signal?.addEventListener("abort", onClientAbort);
+        const onClientAbort = () => abortController.abort(signal?.reason);
+        if (signal?.aborted) {
+          onClientAbort();
+        } else {
+          signal?.addEventListener("abort", onClientAbort);
+        }
 
         const task = (async () => {
           try {

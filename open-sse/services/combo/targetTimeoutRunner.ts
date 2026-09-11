@@ -11,7 +11,6 @@
  */
 import { errorResponse } from "../../utils/error.ts";
 import {
-  COMBO_HEDGE_CANCELLED_REASON,
   COMBO_PER_MODEL_TIMEOUT_REASON,
 } from "./comboAbortReasons.ts";
 import type { HandleSingleModel, SingleModelTarget, ComboLogger } from "./types.ts";
@@ -64,10 +63,10 @@ export function buildTargetTimeoutRunner(deps: {
     let onParentHedgeAbort: (() => void) | null = null;
     if (parentHedgeSignal) {
       if (parentHedgeSignal.aborted) {
-        timeoutController.abort(new Error(COMBO_HEDGE_CANCELLED_REASON));
+        timeoutController.abort(parentHedgeSignal.reason);
       } else {
         onParentHedgeAbort = () => {
-          timeoutController.abort(new Error(COMBO_HEDGE_CANCELLED_REASON));
+          timeoutController.abort(parentHedgeSignal.reason);
         };
         parentHedgeSignal.addEventListener("abort", onParentHedgeAbort, { once: true });
       }
