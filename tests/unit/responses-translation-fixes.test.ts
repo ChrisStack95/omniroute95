@@ -184,6 +184,38 @@ test("Responses→Chat: null input normalizes to an empty list (not [null])", ()
   assert.deepEqual(normalizeResponsesInputForChat(null), []);
 });
 
+test("Responses→Chat: web_search_call metadata is already ignored while paired tool output remains", () => {
+  const result = openaiResponsesToOpenAIRequest(
+    null,
+    {
+      model: "gpt-4",
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Find docs" }] },
+        {
+          type: "function_call",
+          call_id: "call_search",
+          name: "omniroute_web_search",
+          arguments: '{"query":"OmniRoute docs"}',
+        },
+        {
+          type: "function_call_output",
+          call_id: "call_search",
+          output: '{"success":true}',
+        },
+        { type: "web_search_call", id: "ws_call_search", status: "completed" },
+      ],
+    },
+    null,
+    null
+  ) as { messages: Array<{ role: string; content?: unknown }> };
+
+  assert.deepEqual(
+    result.messages.map((message) => message.role),
+    ["user", "assistant", "tool"]
+  );
+  assert.equal(result.messages[2].content, '{"success":true}');
+});
+
 test("Responses→Chat: input_image without detail omits detail field", () => {
   const body = {
     model: "gpt-4",

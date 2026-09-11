@@ -47,7 +47,8 @@ export function redactPayload(payload: unknown): unknown {
 
   const redacted: JsonRecord = {};
   for (const [key, value] of Object.entries(payload)) {
-    if (SENSITIVE_KEYS.has(key)) {
+    const compactKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (SENSITIVE_KEYS.has(key) || compactKey.includes("apikey")) {
       redacted[key] = "[REDACTED]";
     } else if (typeof value === "string" && value.startsWith("Bearer ")) {
       redacted[key] = "Bearer [REDACTED]";

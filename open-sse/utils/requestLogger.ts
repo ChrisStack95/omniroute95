@@ -77,7 +77,11 @@ function maskSensitiveHeaders(headers: HeaderInput): Record<string, unknown> {
     if (lowerKey.startsWith("x-ratelimit-")) {
       continue;
     }
-    if (!sensitiveKeys.some((candidate) => lowerKey.includes(candidate))) {
+    const compactKey = lowerKey.replace(/[^a-z0-9]/g, "");
+    if (
+      !compactKey.includes("apikey") &&
+      !sensitiveKeys.some((candidate) => lowerKey.includes(candidate))
+    ) {
       continue;
     }
 

@@ -282,6 +282,8 @@ const SCHEMA_SLOT_KEYS = [
   "else",
   "unevaluatedProperties",
   "additionalItems",
+  "contentSchema",
+  "unevaluatedItems",
 ];
 
 function coerceIndexedObjectToArray(value: unknown): unknown[] | null {

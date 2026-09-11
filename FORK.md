@@ -479,3 +479,55 @@ git cherry-pick <patch commits from stable that upstream still lacks>
 
 Keep patches atomic and keep sending them upstream as PRs — every merged PR
 shrinks the set to carry.
+
+## Upstream review — 2026-09-11
+
+Reviewed against `origin/stable` at `a39b546fa0f88e4ee6eac4fe918ac24b8fcdabaa` after
+fetching both remotes. Discovery queried 591 upstream PRs updated from
+2026-09-04 through 2026-09-11 and 394 open PRs; production-scope candidates
+were inspected with their exact head, diff, discussion, tests and checks.
+
+Adapted [#13110](https://github.com/diegosouzapw/OmniRoute/pull/13110)
+(MERGED; reviewed head `3bc27642825e8477d6db32db0dbc41abb0f30167`, functional
+commit `ef69a48c3d372ca3b166ff67e41f8fa5c1e9c184`): add `contentSchema` and
+`unevaluatedItems` to the existing Claude JSON-schema sanitizer's schema-valued
+slots. On this base a depth-truncation marker in either slot reached Anthropic as
+a string and caused a native Messages schema HTTP 400. The minimal two-key
+adaptation recursively replaces only recognized placeholders with `{}`; valid
+boolean schemas, `required`, `additionalProperties`, descriptions and caller
+input retain their values.
+
+Adapted [#13274](https://github.com/diegosouzapw/OmniRoute/pull/13274)
+(OPEN; reviewed head `ad7d4bf9e804e9163daf85315390716f26243b54`, functional
+commit `e0ba8167994807e7d4aee7767b5faf583a488ffe`): redact every normalized
+`*api-key` header spelling in both request-pipeline capture and persisted log
+payloads. Gemini's `x-goog-api-key`, Azure's `api-key`, and ElevenLabs'
+`xi-api-key` were otherwise retained in logs. Rate-limit headers remain readable.
+
+[#13304](https://github.com/diegosouzapw/OmniRoute/pull/13304) (OPEN
+`2b3e63a470d0bc35f608819f9b4480c9fc7b587f`) was reviewed for Responses-to-Chat
+web-search replay. This frozen base already silently ignores the metadata item
+and preserves the paired `function_call_output`; a regression test records that
+equivalent behavior, so no production patch is needed.
+
+Other production-scope candidates were not ported:
+
+| PR                                                             | Status / head       | Decision for v3.8.48                                                                                                                                    |
+| -------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#13285](https://github.com/diegosouzapw/OmniRoute/pull/13285) | OPEN `5eede28fa29d` | Defer: the existing stream terminal guard changes empty-stream ordering; the later Claude lifecycle integration must be adapted and tested as one unit. |
+| [#13278](https://github.com/diegosouzapw/OmniRoute/pull/13278) | OPEN `1430ded91039` | Not applicable: the later native Responses passthrough/context-handoff seam is absent.                                                                  |
+| [#13193](https://github.com/diegosouzapw/OmniRoute/pull/13193) | OPEN `36a2c23e4758` | Defer: Kiro host fallback must be validated against this fork's Builder-ID auth and response-format adaptations.                                        |
+| [#13174](https://github.com/diegosouzapw/OmniRoute/pull/13174) | OPEN `475b75faa373` | Defer: changes Kiro historic tool-call semantics; preserve current parallel-tool grouping until old-base transcript coverage exists.                    |
+| [#13171](https://github.com/diegosouzapw/OmniRoute/pull/13171) | OPEN `994a0258a9a2` | Not applicable: this base lacks the later JSON-to-SSE timeout wrapper seam.                                                                             |
+| [#13141](https://github.com/diegosouzapw/OmniRoute/pull/13141) | OPEN `993203c9d49d` | Already equivalent: current `cooldownUntilMs` normalizes numeric epochs before combo eligibility.                                                       |
+| [#13128](https://github.com/diegosouzapw/OmniRoute/pull/13128) | OPEN `3b5729a2e813` | Defer: custom-tool choice depends on later Responses tool pipeline behavior.                                                                            |
+| [#13059](https://github.com/diegosouzapw/OmniRoute/pull/13059) | OPEN `8e98197411d6` | Already adapted by `fc71f2da9`; no new functional head.                                                                                                 |
+| [#13221](https://github.com/diegosouzapw/OmniRoute/pull/13221) | OPEN `f6569f387481` | Defer: quota-aware candidate expansion is a later routing architecture.                                                                                 |
+| [#13217](https://github.com/diegosouzapw/OmniRoute/pull/13217) | OPEN `462732bfab99` | Defer: alters combo key persistence and live-key filtering together.                                                                                    |
+| [#13224](https://github.com/diegosouzapw/OmniRoute/pull/13224) | OPEN `65c05ca1cb79` | Already equivalent to the current Codex catalog/plan-tier refresh patch.                                                                                |
+| [#13069](https://github.com/diegosouzapw/OmniRoute/pull/13069) | OPEN `84649e928895` | Not applicable: `runNonStreamingProviderLeg` is absent.                                                                                                 |
+| [#13050](https://github.com/diegosouzapw/OmniRoute/pull/13050) | OPEN `5f2f2fab076b` | Still not applicable: no forced-non-streaming web-search branch exists here.                                                                            |
+| [#12818](https://github.com/diegosouzapw/OmniRoute/pull/12818) | OPEN `5bc9f2cb71c7` | Existing deferral stands: 401 pin fallthrough needs old combo pin/failure coverage.                                                                     |
+
+All unrelated UI, Electron, i18n, A2A, MCP and out-of-scope provider PRs were
+excluded. No tag, publish dispatch or deployment is part of this maintenance.
