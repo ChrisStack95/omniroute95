@@ -225,6 +225,8 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "@lobehub/icons": "^5.8.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
@@ -355,7 +357,7 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs}": [
       "prettier --write",
-      "eslint --fix --no-error-on-unmatched-pattern --suppressions-location config/quality/eslint-suppressions.json"
+      "eslint --fix --no-error-on-unmatched-pattern --no-warn-ignored --pass-on-unpruned-suppressions --suppressions-location config/quality/eslint-suppressions.json"
     ],
     "*.{json,md,yml,yaml,css}": [
       "prettier --write"

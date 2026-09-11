@@ -176,6 +176,11 @@ const EXTRA_MODULE_ENTRIES = [
     src: ["scripts", "dev", "healthcheck.mjs"],
     dest: ["healthcheck.mjs"],
   },
+  {
+    label: "SaluteSpeech recognition protocol",
+    src: ["open-sse", "proto", "salutespeech"],
+    dest: ["open-sse", "proto", "salutespeech"],
+  },
   { label: "public directory", src: ["public"], dest: ["public"] },
   {
     label: "playwright-core (dynamic import by gemini-web executor)",

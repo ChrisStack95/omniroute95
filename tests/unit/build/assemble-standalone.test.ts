@@ -50,6 +50,7 @@ function seedSidecarSources(root: string) {
     "scripts/build/runtime-env.mjs",
     "scripts/build/bootstrap-env.mjs",
     "scripts/dev/healthcheck.mjs",
+    "open-sse/proto/salutespeech/recognitionv2.proto",
     "public/logo.svg",
   ];
   for (const rel of files) {
@@ -70,6 +71,11 @@ test("assembleStandalone copies standalone + static + public + sidecars into out
   fs.writeFileSync(path.join(distDir, "static", "x.js"), "x");
   fs.mkdirSync(path.join(tmp, "public"), { recursive: true });
   fs.writeFileSync(path.join(tmp, "public", "logo.svg"), "<svg/>");
+  fs.mkdirSync(path.join(tmp, "open-sse", "proto", "salutespeech"), { recursive: true });
+  fs.writeFileSync(
+    path.join(tmp, "open-sse", "proto", "salutespeech", "recognitionv2.proto"),
+    'syntax = "proto3";'
+  );
 
   assembleStandalone({
     distDir,
@@ -140,6 +146,10 @@ test("async and sync sidecar copy paths produce identical bundle trees", async (
   assert.ok(
     asyncTree.includes("src/mitm/tproxy/native/build/Release/transparent.node"),
     "TPROXY transparent.node copied into the standalone bundle"
+  );
+  assert.ok(
+    asyncTree.includes("open-sse/proto/salutespeech/recognitionv2.proto"),
+    "SaluteSpeech protocol copied into the standalone bundle"
   );
   fs.rmSync(tmp, { recursive: true, force: true });
 });

@@ -23,6 +23,7 @@ import {
   buildMaritalkModelsUrl,
 } from "@omniroute/open-sse/config/maritalk.ts";
 import { signAwsRequest } from "@omniroute/open-sse/utils/awsSigV4.ts";
+import { randomUUID } from "node:crypto";
 
 export async function validateDeepgramProvider({ apiKey, providerSpecificData = {} }: any) {
   try {
@@ -58,6 +59,47 @@ export async function validateAssemblyAIProvider({ apiKey, providerSpecificData 
     }
     return { valid: false, error: `Validation failed: ${response.status}` };
   } catch (error: any) {
+    return toValidationErrorResult(error);
+  }
+}
+
+export async function validateSaluteSpeechProvider({ apiKey, providerSpecificData = {} }: any) {
+  const clientId = getAwsProviderString(providerSpecificData.clientId);
+  if (!clientId) return { valid: false, error: "Missing SaluteSpeech OAuth client ID" };
+  if (!getAwsProviderString(apiKey)) {
+    return { valid: false, error: "Missing SaluteSpeech OAuth client secret" };
+  }
+
+  const oauthUrl = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
+  const oauthScope = "SALUTE_SPEECH_PERS";
+
+  try {
+    const response = await validationWrite(oauthUrl, {
+      method: "POST",
+      headers: applyCustomUserAgent(
+        {
+          Authorization: `Basic ${Buffer.from(`${clientId}:${apiKey}`).toString("base64")}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          RqUID: randomUUID(),
+        },
+        providerSpecificData
+      ),
+      body: new URLSearchParams({ scope: oauthScope }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (
+      response.ok &&
+      payload &&
+      typeof payload === "object" &&
+      typeof (payload as { access_token?: unknown }).access_token === "string"
+    ) {
+      return { valid: true, error: null };
+    }
+    if (response.status === 401 || response.status === 403) {
+      return { valid: false, error: "Invalid SaluteSpeech OAuth credentials" };
+    }
+    return { valid: false, error: `Validation failed: ${response.status}` };
+  } catch (error: unknown) {
     return toValidationErrorResult(error);
   }
 }

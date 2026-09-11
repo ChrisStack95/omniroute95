@@ -65,6 +65,7 @@ import {
 import {
   validateDeepgramProvider,
   validateAssemblyAIProvider,
+  validateSaluteSpeechProvider,
   validateElevenLabsProvider,
   validateInferenceShProvider,
   validateInworldProvider,
@@ -476,6 +477,7 @@ export async function validateProviderApiKey({ provider, apiKey, providerSpecifi
     bytez: validateBytezProvider,
     deepgram: validateDeepgramProvider,
     assemblyai: validateAssemblyAIProvider,
+    salutespeech: validateSaluteSpeechProvider,
     "fal-ai": ({ apiKey, providerSpecificData }: any) =>
       validateImageProviderApiKey({ provider: "fal-ai", apiKey, providerSpecificData }),
     "stability-ai": ({ apiKey, providerSpecificData }: any) =>

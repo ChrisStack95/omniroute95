@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { handleAudioTranscription } = await import("../../open-sse/handlers/audioTranscription.ts");
+const { setSaluteSpeechTranscriptionDependenciesForTests } =
+  await import("../../open-sse/handlers/saluteSpeechTranscription.ts");
+
+type ErrorPayload = { error: { message: string } };
+
+async function readErrorPayload(response: Response): Promise<ErrorPayload> {
+  return (await response.json()) as ErrorPayload;
+}
 
 function buildFile(contents, name, type) {
   return new File([Buffer.from(contents)], name, { type });
@@ -12,12 +20,53 @@ function immediateTimeout(callback, _ms, ...args) {
   return 0;
 }
 
+function createSaluteSpeechClient(onWrite) {
+  const listeners = new Map();
+  return {
+    Recognize(metadata) {
+      const writes = [];
+      return {
+        write(value) {
+          writes.push(value);
+          onWrite?.({ metadata, writes, value });
+          return true;
+        },
+        end() {
+          listeners.get("data")?.({
+            transcription: {
+              eou: false,
+              results: [{ normalized_text: "partial text" }],
+            },
+          });
+          listeners.get("data")?.({
+            transcription: {
+              eou: true,
+              results: [{ normalized_text: "final transcript" }],
+            },
+          });
+          listeners.get("end")?.();
+        },
+        cancel() {},
+        on(event, listener) {
+          listeners.set(event, listener);
+          return this;
+        },
+      };
+    },
+    close() {},
+  };
+}
+
+test.afterEach(() => {
+  setSaluteSpeechTranscriptionDependenciesForTests(null);
+});
+
 test("handleAudioTranscription requires model", async () => {
   const formData = new FormData();
   formData.append("file", buildFile("abc", "audio.wav", "audio/wav"));
 
   const response = await handleAudioTranscription({ formData, credentials: { apiKey: "x" } });
-  const payload = (await response.json()) as any;
+  const payload = await readErrorPayload(response);
 
   assert.equal(response.status, 400);
   assert.equal(payload.error.message, "model is required");
@@ -28,7 +77,7 @@ test("handleAudioTranscription requires a file upload", async () => {
   formData.append("model", "openai/whisper-1");
 
   const response = await handleAudioTranscription({ formData, credentials: { apiKey: "x" } });
-  const payload = (await response.json()) as any;
+  const payload = await readErrorPayload(response);
 
   assert.equal(response.status, 400);
   assert.equal(payload.error.message, "file is required");
@@ -124,7 +173,7 @@ test("handleAudioTranscription routes Deepgram with binary upload and language p
       formData,
       credentials: { apiKey: "dg-key" },
     });
-    const payload = (await response.json()) as any;
+    const payload = await readErrorPayload(response);
 
     const url = new URL(capturedUrl);
     assert.equal(url.origin + url.pathname, "https://api.deepgram.com/v1/listen");
@@ -224,7 +273,7 @@ test("handleAudioTranscription rejects invalid HuggingFace model paths", async (
     formData,
     credentials: { apiKey: "hf-key" },
   });
-  const payload = (await response.json()) as any;
+  const payload = await readErrorPayload(response);
 
   assert.equal(response.status, 400);
   assert.equal(payload.error.message, "Invalid model ID");
@@ -236,7 +285,7 @@ test("handleAudioTranscription requires credentials for authenticated providers"
   formData.append("file", buildFile("abc", "clip.wav", "audio/wav"));
 
   const response = await handleAudioTranscription({ formData, credentials: null });
-  const payload = (await response.json()) as any;
+  const payload = await readErrorPayload(response);
 
   assert.equal(response.status, 401);
   assert.equal(payload.error.message, "No credentials for transcription provider: openai");
@@ -349,7 +398,7 @@ test("handleAudioTranscription returns an error when AssemblyAI reports a termin
       formData,
       credentials: { apiKey: "assembly-key" },
     });
-    const payload = (await response.json()) as any;
+    const payload = await readErrorPayload(response);
 
     assert.equal(response.status, 500);
     assert.equal(payload.error.message, "corrupt audio payload");
@@ -399,6 +448,97 @@ test("handleAudioTranscription routes HuggingFace providers with raw audio uploa
   }
 });
 
+test("handleAudioTranscription exchanges SaluteSpeech OAuth credentials and returns the final transcript", async () => {
+  const oauthCalls = [];
+  const grpcWrites = [];
+  setSaluteSpeechTranscriptionDependenciesForTests({
+    fetch: async (url, options = {}) => {
+      oauthCalls.push({ url: String(url), options });
+      return new Response(JSON.stringify({ access_token: "salute-access-token" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+    createClient: (host) => {
+      assert.equal(host, "smartspeech.sber.ru:443");
+      return createSaluteSpeechClient(({ metadata, writes }) => {
+        grpcWrites.push({
+          authorization: metadata.get("authorization")[0],
+          writes: [...writes],
+        });
+      });
+    },
+  });
+
+  const formData = new FormData();
+  formData.append("model", "salutespeech/general");
+  formData.append("language", "ru-RU");
+  formData.append("file", buildFile("audio-bytes", "clip.mp3", "audio/mpeg"));
+
+  const response = await handleAudioTranscription({
+    formData,
+    credentials: {
+      apiKey: "salute-client-secret",
+      providerSpecificData: { clientId: "salute-client-id" },
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { text: "final transcript" });
+  assert.equal(oauthCalls.length, 1);
+  assert.equal(oauthCalls[0].url, "https://ngw.devices.sberbank.ru:9443/api/v2/oauth");
+  assert.equal(
+    oauthCalls[0].options.headers.Authorization,
+    `Basic ${Buffer.from("salute-client-id:salute-client-secret").toString("base64")}`
+  );
+  assert.equal(oauthCalls[0].options.headers["Content-Type"], "application/x-www-form-urlencoded");
+  assert.equal(String(oauthCalls[0].options.body), "scope=SALUTE_SPEECH_PERS");
+  assert.equal(grpcWrites.at(-1).authorization, "Bearer salute-access-token");
+  assert.deepEqual(grpcWrites[0].writes[0], {
+    options: {
+      audio_encoding: "MP3",
+      sample_rate: undefined,
+      channels_count: 1,
+      language: "ru-RU",
+      model: "general",
+      enable_partial_results: { enable: false },
+      normalization_options: { enable: { enable: true } },
+    },
+  });
+  assert.deepEqual(grpcWrites.at(-1).writes.at(-1), {
+    audio_chunk: Buffer.from("audio-bytes"),
+  });
+});
+
+test("handleAudioTranscription rejects unsupported SaluteSpeech audio formats before authorization", async () => {
+  let called = false;
+  setSaluteSpeechTranscriptionDependenciesForTests({
+    fetch: async () => {
+      called = true;
+      return new Response();
+    },
+  });
+  const formData = new FormData();
+  formData.append("model", "salutespeech/general");
+  formData.append("file", buildFile("audio-bytes", "clip.wav", "audio/wav"));
+
+  const response = await handleAudioTranscription({
+    formData,
+    credentials: {
+      apiKey: "salute-client-secret",
+      providerSpecificData: { clientId: "salute-client-id" },
+    },
+  });
+  const payload = await readErrorPayload(response);
+
+  assert.equal(response.status, 400);
+  assert.equal(
+    payload.error.message,
+    "SaluteSpeech supports MP3, FLAC, Opus, and raw PCM S16LE audio"
+  );
+  assert.equal(called, false);
+});
+
 test("handleAudioTranscription rejects unsupported providers", async () => {
   const formData = new FormData();
   formData.append("model", "unknown/provider");
@@ -408,7 +548,7 @@ test("handleAudioTranscription rejects unsupported providers", async () => {
     formData,
     credentials: { apiKey: "x" },
   });
-  const payload = (await response.json()) as any;
+  const payload = await readErrorPayload(response);
 
   assert.equal(response.status, 400);
   assert.match(
@@ -435,7 +575,7 @@ test("handleAudioTranscription surfaces parsed upstream errors for OpenAI-compat
       formData,
       credentials: { apiKey: "openai-key" },
     });
-    const payload = (await response.json()) as any;
+    const payload = await readErrorPayload(response);
 
     assert.equal(response.status, 429);
     assert.equal(payload.error.message, "too many requests");
@@ -460,7 +600,7 @@ test("handleAudioTranscription returns a 500 when upstream fetch throws", async 
       formData,
       credentials: { apiKey: "openai-key" },
     });
-    const payload = (await response.json()) as any;
+    const payload = await readErrorPayload(response);
 
     assert.equal(response.status, 500);
     assert.equal(payload.error.message, "Transcription request failed: network timeout");

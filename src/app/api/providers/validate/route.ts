@@ -57,6 +57,7 @@ export async function POST(request) {
       baseUrl: bodyBaseUrl,
       region,
       cx,
+      clientId,
     } = validation.data;
 
     let providerSpecificData: any = { validationModelId };
@@ -71,6 +72,9 @@ export async function POST(request) {
     }
     if (cx) {
       providerSpecificData.cx = cx;
+    }
+    if (clientId) {
+      providerSpecificData.clientId = clientId;
     }
 
     if (isOpenAICompatibleProvider(provider) || isAnthropicCompatibleProvider(provider)) {

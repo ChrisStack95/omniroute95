@@ -115,6 +115,15 @@ export const AUDIO_TRANSCRIPTION_PROVIDERS: Record<string, AudioProvider> = {
     ],
   },
 
+  salutespeech: {
+    id: "salutespeech",
+    baseUrl: "smartspeech.sber.ru:443",
+    authType: "oauth-client",
+    authHeader: "none",
+    format: "salutespeech-grpc",
+    models: [{ id: "general", name: "General (Russian speech recognition)" }],
+  },
+
   nvidia: {
     id: "nvidia",
     baseUrl: "https://integrate.api.nvidia.com/v1/audio/transcriptions",

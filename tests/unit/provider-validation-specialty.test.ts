@@ -346,6 +346,30 @@ test("AWS Polly specialty validator requires an access key id", async () => {
   assert.equal(result.error, "Missing AWS accessKeyId");
 });
 
+test("SaluteSpeech specialty validator exchanges OAuth credentials without exposing the secret", async () => {
+  globalThis.fetch = async (url, init = {}) => {
+    assert.equal(String(url), "https://ngw.devices.sberbank.ru:9443/api/v2/oauth");
+    const headers = toPlainHeaders(init.headers);
+    assert.equal(
+      headers.Authorization,
+      `Basic ${Buffer.from("salute-client-id:salute-client-secret").toString("base64")}`
+    );
+    assert.equal(headers["Content-Type"], "application/x-www-form-urlencoded");
+    assert.match(headers.RqUID, /^[0-9a-f-]{36}$/i);
+    assert.equal(String(init.body), "scope=SALUTE_SPEECH_PERS");
+    return new Response(JSON.stringify({ access_token: "salute-access-token" }), { status: 200 });
+  };
+
+  const result = await validateProviderApiKey({
+    provider: "salutespeech",
+    apiKey: "salute-client-secret",
+    providerSpecificData: { clientId: "salute-client-id" },
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.error, null);
+});
+
 test("embedding and rerank specialty validators surface auth failures for Voyage AI and Jina AI", async () => {
   globalThis.fetch = async (url) => {
     const target = String(url);

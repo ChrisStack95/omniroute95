@@ -92,6 +92,7 @@ export default function AddApiKeyModal({
   const localProviderMetadata = getLocalProviderMetadata(provider);
   const isLocalSelfHostedProvider = !!localProviderMetadata;
   const isGooglePse = provider === "google-pse-search";
+  const isSaluteSpeech = provider === "salutespeech";
   const webSessionCredential = getWebSessionCredentialRequirement(provider);
   const isNoAuthWebSessionCredential = webSessionCredential?.kind === "none";
   const isWebSessionCredential = !!webSessionCredential && webSessionCredential.kind !== "none";
@@ -119,6 +120,7 @@ export default function AddApiKeyModal({
   const [formData, setFormData] = useState({
     name: computeConnectionDefaultName(existingConnectionCount),
     apiKey: "",
+    clientId: "",
     tokenSecret: "", // #5446 — Modal Token Secret (joined with apiKey as id:secret)
     defaultModel: "",
     priority: 1,
@@ -158,6 +160,7 @@ export default function AddApiKeyModal({
       ...current,
       name: computeConnectionDefaultName(existingConnectionCount),
       baseUrl: initialBaseUrl || defaultBaseUrl,
+      clientId: "",
     }));
   }, [defaultBaseUrl, initialBaseUrl, isOpen, existingConnectionCount]);
   const bulkSupported = supportsBulkApiKey(provider);
@@ -173,24 +176,28 @@ export default function AddApiKeyModal({
   const [bulkWarnings, setBulkWarnings] = useState<string[]>([]);
   const apiCredentialLabel = isModal
     ? providerText(t, "modalTokenIdLabel", "Token ID")
-    : isQoder
-      ? t("personalAccessTokenLabel")
-      : webSessionCredential
-        ? getWebSessionCredentialLabel(t, webSessionCredential, apiKeyOptional)
-        : apiKeyOptional
-          ? `${t("apiKeyLabel")} (${t("optional").toLowerCase()})`
-          : t("apiKeyLabel");
+    : isSaluteSpeech
+      ? "OAuth Client Secret"
+      : isQoder
+        ? t("personalAccessTokenLabel")
+        : webSessionCredential
+          ? getWebSessionCredentialLabel(t, webSessionCredential, apiKeyOptional)
+          : apiKeyOptional
+            ? `${t("apiKeyLabel")} (${t("optional").toLowerCase()})`
+            : t("apiKeyLabel");
   const apiCredentialPlaceholder = isModal
     ? "ak-xxxxxxxxxxxxxxxx"
-    : isVertex
-      ? t("vertexServiceAccountPlaceholder")
-      : isWebSessionCredential
-        ? webSessionCredential.placeholder
-        : isQoder
-          ? t("qoderPatPlaceholder")
-          : apiKeyOptional
-            ? t("optional")
-            : undefined;
+    : isSaluteSpeech
+      ? "Your SaluteSpeech client secret"
+      : isVertex
+        ? t("vertexServiceAccountPlaceholder")
+        : isWebSessionCredential
+          ? webSessionCredential.placeholder
+          : isQoder
+            ? t("qoderPatPlaceholder")
+            : apiKeyOptional
+              ? t("optional")
+              : undefined;
   const apiCredentialHint = isModal
     ? providerText(
         t,
@@ -235,6 +242,7 @@ export default function AddApiKeyModal({
         body: JSON.stringify({
           provider,
           apiKey: resolveCredentialInput(),
+          clientId: isSaluteSpeech ? formData.clientId.trim() || undefined : undefined,
           validationModelId: formData.validationModelId || undefined,
           customUserAgent: formData.customUserAgent.trim() || undefined,
           baseUrl: formData.baseUrl.trim() || undefined,
@@ -278,6 +286,10 @@ export default function AddApiKeyModal({
         setSaveError(t("searchEngineIdRequired"));
         return;
       }
+      if (isSaluteSpeech && !formData.clientId.trim()) {
+        setSaveError("SaluteSpeech OAuth client ID is required");
+        return;
+      }
 
       let validatedBaseUrl = null;
       if (usesBaseUrl) {
@@ -302,6 +314,7 @@ export default function AddApiKeyModal({
             body: JSON.stringify({
               provider,
               apiKey: credentialInput,
+              clientId: isSaluteSpeech ? formData.clientId.trim() || undefined : undefined,
               validationModelId: formData.validationModelId || undefined,
               customUserAgent: formData.customUserAgent.trim() || undefined,
               baseUrl: formData.baseUrl.trim() || undefined,
@@ -717,6 +730,7 @@ export default function AddApiKeyModal({
                     disabled={
                       (!isCompatible && !apiKeyOptional && !formData.apiKey) ||
                       (isGooglePse && !formData.cx.trim()) ||
+                      (isSaluteSpeech && !formData.clientId.trim()) ||
                       validating ||
                       saving
                     }
@@ -730,6 +744,18 @@ export default function AddApiKeyModal({
                   </Button>
                 </div>
               </div>
+            )}
+            {isSaluteSpeech && (
+              <Input
+                label="OAuth Client ID"
+                value={formData.clientId}
+                onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+                placeholder="Your SaluteSpeech client ID"
+                hint="The API key above is the OAuth client secret."
+                autoComplete="off"
+                spellCheck={false}
+                autoCapitalize="off"
+              />
             )}
             {isModal && (
               <Input
@@ -940,6 +966,7 @@ export default function AddApiKeyModal({
                   (!isCompatible && !apiKeyOptional && !formData.apiKey) ||
                   (isCompatible && !formData.defaultModel.trim()) ||
                   (isGooglePse && !formData.cx.trim()) ||
+                  (isSaluteSpeech && !formData.clientId.trim()) ||
                   saving ||
                   (usesBaseUrl && !formData.baseUrl.trim() && !defaultBaseUrl)
                 }

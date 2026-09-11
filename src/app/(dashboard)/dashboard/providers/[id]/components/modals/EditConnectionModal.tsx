@@ -108,6 +108,7 @@ export default function EditConnectionModal({
     minTime: "",
     rateLimitMaxConcurrent: "",
     apiKey: "",
+    clientId: "",
     healthCheckInterval: 60,
     baseUrl: "",
     cx: "",
@@ -188,6 +189,7 @@ export default function EditConnectionModal({
   const localProviderMetadata = getLocalProviderMetadata(provider);
   const isLocalSelfHostedProvider = !!localProviderMetadata;
   const isGooglePse = provider === "google-pse-search";
+  const isSaluteSpeech = provider === "salutespeech";
   const isM365TierCapable = isM365TierCapableProvider(provider);
   const webSessionCredential = getWebSessionCredentialRequirement(provider);
   const isNoAuthWebSessionCredential = webSessionCredential?.kind === "none";
@@ -205,14 +207,18 @@ export default function EditConnectionModal({
   const defaultRegion = isBedrock ? "eu-west-2" : "us-central1";
   const apiCredentialLabel = webSessionCredential
     ? getWebSessionCredentialLabel(t, webSessionCredential, apiKeyOptional)
-    : apiKeyOptional
-      ? t("apiKeyOptionalLabel")
-      : t("apiKeyLabel");
+    : isSaluteSpeech
+      ? "OAuth Client Secret"
+      : apiKeyOptional
+        ? t("apiKeyOptionalLabel")
+        : t("apiKeyLabel");
   const apiCredentialPlaceholder = isWebSessionCredential
     ? webSessionCredential.placeholder
-    : isVertex
-      ? t("vertexServiceAccountPlaceholder")
-      : t("enterNewApiKey");
+    : isSaluteSpeech
+      ? "Your SaluteSpeech client secret"
+      : isVertex
+        ? t("vertexServiceAccountPlaceholder")
+        : t("enterNewApiKey");
   const apiCredentialHint = isWebSessionCredential
     ? getWebSessionCredentialHint(t, webSessionCredential, providerDisplayName, true)
     : isLocalSelfHostedProvider
@@ -253,6 +259,7 @@ export default function EditConnectionModal({
         connection.providerSpecificData
       );
       const existingConsoleApiKey = stringField(connection.providerSpecificData?.consoleApiKey);
+      const existingClientId = stringField(connection.providerSpecificData?.clientId);
       setFormData({
         name: connection.name || "",
         priority: connection.priority || 1,
@@ -281,6 +288,7 @@ export default function EditConnectionModal({
             ? String(connection.rateLimitOverrides.maxConcurrent)
             : "",
         apiKey: "",
+        clientId: existingClientId,
         healthCheckInterval: connection.healthCheckInterval ?? 60,
         baseUrl: existingBaseUrl || defaultBaseUrl,
         cx: existingCx,
@@ -387,7 +395,8 @@ export default function EditConnectionModal({
     if (
       !provider ||
       isNoAuthWebSessionCredential ||
-      (!isCompatible && !apiKeyOptional && !formData.apiKey)
+      (!isCompatible && !apiKeyOptional && !formData.apiKey) ||
+      (isSaluteSpeech && !formData.clientId.trim())
     ) {
       return;
     }
@@ -400,6 +409,7 @@ export default function EditConnectionModal({
         body: JSON.stringify({
           provider,
           apiKey: formData.apiKey,
+          clientId: isSaluteSpeech ? formData.clientId.trim() || undefined : undefined,
           validationModelId: formData.validationModelId || undefined,
           customUserAgent: formData.customUserAgent.trim() || undefined,
           baseUrl: formData.baseUrl.trim() || undefined,
@@ -467,6 +477,10 @@ export default function EditConnectionModal({
         setSaveError(t("searchEngineIdRequired"));
         return;
       }
+      if (isSaluteSpeech && !formData.clientId.trim()) {
+        setSaveError("SaluteSpeech OAuth client ID is required");
+        return;
+      }
 
       let validatedBaseUrl = null;
       if (usesBaseUrl) {
@@ -497,6 +511,7 @@ export default function EditConnectionModal({
               body: JSON.stringify({
                 provider,
                 apiKey: formData.apiKey,
+                clientId: isSaluteSpeech ? formData.clientId.trim() || undefined : undefined,
                 validationModelId: formData.validationModelId || undefined,
                 customUserAgent: formData.customUserAgent.trim() || undefined,
                 baseUrl: formData.baseUrl.trim() || undefined,
@@ -835,6 +850,7 @@ export default function EditConnectionModal({
                     disabled={
                       (!isCompatible && !apiKeyOptional && !formData.apiKey) ||
                       (isGooglePse && !formData.cx.trim()) ||
+                      (isSaluteSpeech && !formData.clientId.trim()) ||
                       validating ||
                       saving
                     }
@@ -856,6 +872,18 @@ export default function EditConnectionModal({
                 onChange={(e) => setFormData({ ...formData, cx: e.target.value })}
                 placeholder="012345678901234567890:abc123xyz"
                 hint={t("searchEngineIdHint")}
+              />
+            )}
+            {isSaluteSpeech && (
+              <Input
+                label="OAuth Client ID"
+                value={formData.clientId}
+                onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+                placeholder="Your SaluteSpeech client ID"
+                hint="The API key above is the OAuth client secret."
+                autoComplete="off"
+                spellCheck={false}
+                autoCapitalize="off"
               />
             )}
             {validationResult && (
@@ -1255,7 +1283,11 @@ export default function EditConnectionModal({
           <Button
             onClick={handleSubmit}
             fullWidth
-            disabled={saving || (isGooglePse && !formData.cx.trim())}
+            disabled={
+              saving ||
+              (isGooglePse && !formData.cx.trim()) ||
+              (isSaluteSpeech && !formData.clientId.trim())
+            }
           >
             {saving ? t("saving") : t("save")}
           </Button>

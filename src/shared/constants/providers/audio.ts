@@ -21,6 +21,17 @@ export const AUDIO_ONLY_PROVIDERS = {
     textIcon: "AA",
     website: "https://assemblyai.com",
   },
+  salutespeech: {
+    id: "salutespeech",
+    alias: "salute-speech",
+    name: "SaluteSpeech",
+    icon: "mic",
+    color: "#21A038",
+    textIcon: "SS",
+    website: "https://developers.sber.ru/docs/ru/salutespeech/overview",
+    authHint:
+      "Use the SaluteSpeech OAuth client secret as API key and enter its client ID below. Supports MP3, FLAC, Opus, and raw PCM audio.",
+  },
   elevenlabs: {
     id: "elevenlabs",
     alias: "el",

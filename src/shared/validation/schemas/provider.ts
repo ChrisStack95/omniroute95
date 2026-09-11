@@ -459,6 +459,7 @@ export const validateProviderApiKeySchema = z
     baseUrl: z.string().trim().url().optional(),
     region: z.string().trim().max(64).optional(),
     cx: z.string().trim().max(500).optional(),
+    clientId: z.string().trim().max(500).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.provider === "google-pse-search" && !data.cx) {
@@ -466,6 +467,13 @@ export const validateProviderApiKeySchema = z
         code: z.ZodIssueCode.custom,
         message: "Programmable Search Engine ID (cx) is required",
         path: ["cx"],
+      });
+    }
+    if (data.provider === "salutespeech" && !data.clientId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "SaluteSpeech OAuth client ID is required",
+        path: ["clientId"],
       });
     }
   });

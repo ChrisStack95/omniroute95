@@ -23,10 +23,12 @@ import { buildAuthHeaders } from "../config/registryUtils.ts";
 import { kieExecutor } from "../executors/kie.ts";
 import { vertexTranscribe } from "../executors/vertexMedia.ts";
 import { errorResponse } from "../utils/error.ts";
+import { isSaluteSpeechError, transcribeWithSaluteSpeech } from "./saluteSpeechTranscription.ts";
 
 type TranscriptionCredentials = {
   apiKey?: string;
   accessToken?: string;
+  providerSpecificData?: Record<string, unknown>;
 };
 
 /**
@@ -495,6 +497,21 @@ export async function handleAudioTranscription({
 
   if (providerConfig.format === "assemblyai") {
     return handleAssemblyAITranscription(providerConfig, file, modelId, token);
+  }
+
+  if (providerConfig.format === "salutespeech-grpc") {
+    try {
+      const text = await transcribeWithSaluteSpeech({
+        file,
+        formData,
+        modelId,
+        credentials: credentials ?? {},
+      });
+      return Response.json({ text }, { headers: { ...CORS_HEADERS } });
+    } catch (error) {
+      if (isSaluteSpeechError(error)) return errorResponse(error.statusCode, error.message);
+      return errorResponse(502, "SaluteSpeech transcription failed");
+    }
   }
 
   if (providerConfig.format === "nvidia-asr") {

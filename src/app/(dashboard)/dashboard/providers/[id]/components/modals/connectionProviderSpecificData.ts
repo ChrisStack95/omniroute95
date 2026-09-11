@@ -20,6 +20,7 @@ type FormData = QuotaScrapingFieldValues &
     ccCompatibleContext1m: boolean;
     ccCompatibleRedactThinking: boolean;
     ccCompatibleSummarizeThinking: boolean;
+    clientId: string;
     consoleApiKey: string;
     customUserAgent: string;
     cx: string;
@@ -74,6 +75,9 @@ export function buildAddProviderSpecificData(options: {
   if (provider === "bailian-coding-plan" && formData.consoleApiKey.trim()) {
     data.consoleApiKey = formData.consoleApiKey.trim();
   }
+  if (provider === "salutespeech" && formData.clientId.trim()) {
+    data.clientId = formData.clientId.trim();
+  }
   assignQuotaScrapingProviderData(provider, formData, data);
   if (isGooglePse && formData.cx.trim()) data.cx = formData.cx.trim();
   if (usesBaseUrl) data.baseUrl = validatedBaseUrl;
@@ -115,6 +119,9 @@ export function assignEditApiKeyProviderSpecificData(options: {
   });
   if (o.provider === "bailian-coding-plan") {
     o.target.consoleApiKey = o.formData.consoleApiKey.trim() || undefined;
+  }
+  if (o.provider === "salutespeech") {
+    o.target.clientId = o.formData.clientId.trim() || undefined;
   }
   assignQuotaScrapingProviderData(o.provider, o.formData, o.target);
   if (o.formData.validationModelId) o.target.validationModelId = o.formData.validationModelId;
