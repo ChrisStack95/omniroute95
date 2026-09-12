@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCachedSettings } from "../../lib/db/readCache";
 import { isDraining } from "../../lib/gracefulShutdown";
 import { checkBodySize, getBodySizeLimit } from "../../shared/middleware/bodySizeGuard";
-import { verifyDashboardSessionToken } from "@/shared/utils/dashboardSessionToken";
+import { verifyDashboardSessionToken, DASHBOARD_SESSION_COOKIE } from "@/shared/utils/dashboardSessionToken";
 import { generateRequestId } from "../../shared/utils/requestId";
 import { applyCorsHeaders } from "../cors/origins";
 import { validateBrowserMutationOrigin } from "../origin/publicOrigin";
@@ -44,29 +44,6 @@ const POLICIES: Record<RouteClass, RoutePolicy> = {
   CLIENT_API: clientApiPolicy,
   MANAGEMENT: managementPolicy,
 };
-
-let staleDashboardJwtWarningEmitted = false;
-
-function isStaleDashboardJwtError(error: unknown): boolean {
-  const code =
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof (error as { code?: unknown }).code === "string"
-      ? (error as { code: string }).code
-      : "";
-
-  if (
-    code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED" ||
-    code === "ERR_JWT_EXPIRED" ||
-    code === "ERR_JWS_INVALID" ||
-    code === "ERR_JWT_CLAIM_VALIDATION_FAILED"
-  ) {
-    return true;
-  }
-
-  return error instanceof Error && error.message.includes("signature verification failed");
-}
 
 function stampSubject(headers: Headers, subject: AuthSubject): void {
   headers.set(AUTHZ_HEADER_AUTH_KIND, subject.kind);
@@ -150,15 +127,21 @@ async function refreshDashboardSessionIfNeeded(
   const secret = getJwtSecret();
   if (!secret) return;
 
-  const token = getCookieValue(request, "auth_token");
+  const token = getCookieValue(request, DASHBOARD_SESSION_COOKIE);
   if (!token) return;
+
+  let staleDashboardJwtWarningEmitted = false;
 
   try {
     const payload = await verifyDashboardSessionToken(token, secret);
     if (!payload) {
       // Not a dashboard session (foreign/expired/claim-less token): drop it so a
       // Cursor CLI token can never ride along as the cookie (#13298).
-      response.cookies.delete("auth_token");
+      response.cookies.delete(DASHBOARD_SESSION_COOKIE);
+      if (!staleDashboardJwtWarningEmitted) {
+        staleDashboardJwtWarningEmitted = true;
+        console.warn("[Authz] Dropped stale dashboard session cookie during auto-refresh");
+      }
       return;
     }
     const exp = typeof payload.exp === "number" ? payload.exp : null;
@@ -180,22 +163,13 @@ async function refreshDashboardSessionIfNeeded(
       path: "/",
     });
   } catch (error) {
-    if (isStaleDashboardJwtError(error)) {
-      response.cookies.delete("auth_token");
-      if (!staleDashboardJwtWarningEmitted) {
-        staleDashboardJwtWarningEmitted = true;
-        console.warn("[Authz] Dropped stale dashboard session cookie during auto-refresh");
-      }
-      return;
-    }
-
     console.error("[Authz] JWT auto-refresh failed:", error);
   }
 }
 
 function dashboardLoginRedirect(request: NextRequest, requestId: string): NextResponse {
   const response = NextResponse.redirect(new URL(`${request.nextUrl.basePath}/login`, request.url));
-  response.cookies.delete("auth_token");
+  response.cookies.delete(DASHBOARD_SESSION_COOKIE);
   stampRouteResponse(response, requestId, "MANAGEMENT");
   applyCorsHeaders(response, request);
   return response;

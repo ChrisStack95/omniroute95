@@ -10,7 +10,7 @@
 import { cookies } from "next/headers";
 import { getSettings } from "@/lib/db/settings";
 import { isPublicApiRoute } from "@/shared/constants/publicApiRoutes";
-import { verifyDashboardSessionToken } from "@/shared/utils/dashboardSessionToken";
+import { verifyDashboardSessionToken, DASHBOARD_SESSION_COOKIE } from "@/shared/utils/dashboardSessionToken";
 import { extractApiKey } from "@/sse/services/auth";
 
 type RequestLike = {
@@ -225,21 +225,21 @@ export async function isDashboardSessionAuthenticated(
     request &&
     typeof request === "object" &&
     "cookies" in request &&
-    request.cookies?.get?.("auth_token")?.value
-      ? request.cookies.get("auth_token")?.value || null
+    request.cookies?.get?.(DASHBOARD_SESSION_COOKIE)?.value
+      ? request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value || null
       : null;
 
   const requestHeaders =
     request && typeof request === "object" && "headers" in request ? request.headers : undefined;
 
   if (!token) {
-    token = getCookieValueFromHeader(requestHeaders, "auth_token");
+    token = getCookieValueFromHeader(requestHeaders, DASHBOARD_SESSION_COOKIE);
   }
 
   if (!token) {
     try {
       const cookieStore = await cookies();
-      token = cookieStore.get("auth_token")?.value || null;
+      token = cookieStore.get(DASHBOARD_SESSION_COOKIE)?.value || null;
     } catch {
       token = null;
     }
