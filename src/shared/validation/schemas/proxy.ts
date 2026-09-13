@@ -13,6 +13,7 @@ import {
   isForbiddenCustomHeaderName,
 } from "@/shared/constants/upstreamHeaders";
 import { MAX_TIMER_TIMEOUT_MS } from "@/shared/utils/runtimeTimeouts";
+import { PROXY_REGISTRY_STATUS_VALUES } from "@/shared/constants/proxyRegistryStatus";
 
 export const proxyConfigSchema = z
   .object({
@@ -115,7 +116,9 @@ export const proxyRegistryFieldsSchema = z
     password: z.string().optional(),
     region: z.string().trim().max(64).nullable().optional(),
     notes: z.string().trim().max(1000).nullable().optional(),
-    status: z.enum(["active", "inactive", "dead"]).optional().default("active"),
+    // No default: zod 4 applies it under .partial() too, which rewrote the stored status
+    // on every update or import that omitted it. New rows still start active in the DB.
+    status: z.enum(PROXY_REGISTRY_STATUS_VALUES).optional(),
     source: z
       .enum([
         "manual",
