@@ -1,3 +1,7 @@
+---
+title: "Self-Hosted OpenAI-Compatible Entry"
+---
+
 # Self-hosted unified OpenAI-compatible entry
 
 When enabled, OmniRoute's existing `/v1/chat/completions` (and the OpenAI-compatible
@@ -84,5 +88,6 @@ local upstream.
 - Self-hosted models bypass the cloud-only retirement / alias machinery by design:
   the divert happens before those cloud checks, so ids like `local/llama3` never
   trip cloud-peer 410s or alias rewrites.
-- Deterministic routing strategies (fallback / cooldown / cost / latency) are M2's
-  scope (`RIC-740`) and inject into the gateway layer here.
+- Deterministic routing strategies (fallback / cooldown / cost / latency / blacklist)
+  are M2's scope (`RIC-740`) and inject into the gateway layer here. Configure them
+  with a `strategy:` block — see [DETERMINISTIC_ROUTING.md](./DETERMINISTIC_ROUTING.md).

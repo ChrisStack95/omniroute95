@@ -5,14 +5,15 @@
  * gateway: one OpenAI-compatible contract in, auto-route to the runtime-selected
  * provider, standard OpenAI error shape out.
  *
- * Design (KISS / RIC-738):
+ * Design (KISS / RIC-738 + RIC-740):
  *  - Reuses the provider adapters from `providerAdapters.ts` (RIC-737) — no new
  *    abstraction layer. This module only orchestrates: load config → auth → pick
  *    provider → dispatch → normalize response.
  *  - Config is declarative YAML (env string or file path); credentials live in
  *    the file/env at runtime and are never logged or persisted (RIC-737 contract).
- *  - Auto-route = header override -> model-prefix match -> first configured
- *    provider. No predictive routing (M2 owns deterministic strategies).
+ *  - Auto-route = header override -> model-prefix match -> deterministic strategy
+ *    (`routingStrategies.ts`, M2/RIC-740). Every decision is explainable via the
+ *    `x-omniroute-route-decision` response header — no predictive model.
  *  - The API-key check is a scaffold reserved for the D5 quota-key system: when
  *    `OMNIROUTE_SELF_HOSTED_API_KEY` is unset the route is open (loopback /
  *    trusted-network deployment), exactly like the existing self-hosted local
@@ -25,6 +26,14 @@ import { errorResponse, buildErrorBody, parseUpstreamError } from "../utils/erro
 import { stripSensitiveResponseHeaders } from "../utils/upstreamResponseHeaders.ts";
 import type { ChatRequest, ProviderConfig } from "./providerAdapters.ts";
 import { ProviderRouter } from "./providerAdapters.ts";
+import {
+  STRATEGY_ENV,
+  STRATEGY_FILE_ENV,
+  DeterministicRoutingEngine,
+  parseSelfHostedRoutingConfig,
+  parseStrategyConfig,
+  type StrategyConfig,
+} from "./routingStrategies.ts";
 
 /** Env var holding the inline YAML provider config (runtime-only credentials). */
 export const CONFIG_ENV = "OMNIROUTE_SELF_HOSTED_PROVIDERS";
@@ -36,51 +45,80 @@ export const API_KEY_ENV = "OMNIROUTE_SELF_HOSTED_API_KEY";
 export const PROVIDER_SELECTOR_HEADER = "x-omniroute-provider";
 /** Marker header added to responses routed through the unified entry. */
 export const ROUTED_BY_HEADER = "x-omniroute-routed-by";
+/** Explainability header carrying the deterministic route decision one-liner. */
+export const ROUTE_DECISION_HEADER = "x-omniroute-route-decision";
 const ROUTED_BY_VALUE = "self-hosted-openai-compat";
 
-/**
- * Provider id -> model mapping fallback when the request body carries no `model`
- * and the client opted out of the model-prefix convention. Kept empty: with no
- * model and no header the first configured provider is used (deterministic first
- * provider, matching `ProviderRouter.select()`).
- */
 export interface SelfHostedOptions {
   providers?: string;
   providersFile?: string;
   apiKey?: string;
+  /** Inline YAML `strategy:` document (M2/RIC-740, optional). */
+  strategy?: string;
+  /** Path to a YAML file holding the `strategy:` document (optional). */
+  strategyFile?: string;
 }
 
-let cachedRouter: ProviderRouter | null = null;
-let cachedConfigSignature = "";
+export interface SelfHostedRuntime {
+  router: ProviderRouter;
+  engine: DeterministicRoutingEngine;
+}
+
+let cachedRuntime: SelfHostedRuntime | null = null;
+let cachedRuntimeSignature = "";
 let failedConfigLoad: string | null = null;
 
-/** Resolve provider config from env/file; caches by content signature. */
-export async function loadSelfHostedConfig(
-  options: SelfHostedOptions = {}
-): Promise<ProviderRouter | null> {
+/**
+ * Resolve provider config + strategy from env/file; caches by content signature.
+ * Returns `null` when no provider config is present at all.
+ */
+async function loadSelfHostedRuntime(
+  options: SelfHostedOptions
+): Promise<SelfHostedRuntime | null> {
   const providersYaml = options.providers ?? process.env[CONFIG_ENV] ?? undefined;
   const providersFile = options.providersFile ?? process.env[CONFIG_FILE_ENV] ?? undefined;
+  const strategyInline = options.strategy ?? process.env[STRATEGY_ENV] ?? undefined;
+  const strategyFile = options.strategyFile ?? process.env[STRATEGY_FILE_ENV] ?? undefined;
 
   if (!providersYaml && !providersFile) return null;
 
-  let source: string;
+  let providersSource: string;
   if (providersYaml) {
-    source = providersYaml;
+    providersSource = providersYaml;
   } else {
-    source = providersFile ? await readFile(providersFile, "utf8") : "";
+    providersSource = providersFile ? await readFile(providersFile, "utf8") : "";
   }
 
-  const signature = `${providersFile ?? ""}:${source.length}:${source.slice(0, 64)}`;
-  if (cachedRouter && cachedConfigSignature === signature) {
-    return cachedRouter;
+  let strategySource = strategyInline ?? "";
+  if (!strategySource && strategyFile) {
+    strategySource = await readFile(strategyFile, "utf8");
+  }
+
+  const signature = [
+    providersFile ?? "",
+    providersSource.length,
+    providersSource.slice(0, 64),
+    strategySource.length,
+    strategySource.slice(0, 64),
+  ].join(":");
+  if (cachedRuntime && cachedRuntimeSignature === signature) {
+    return cachedRuntime;
   }
 
   try {
-    const parsed = parseProvidersYaml(source);
-    cachedRouter = new ProviderRouter(parsed);
-    cachedConfigSignature = signature;
+    const parsed = parseSelfHostedRoutingConfig(providersSource);
+    // An explicit strategy env/file overrides the inline `strategy:` block per-key.
+    let strategy: StrategyConfig = parsed.strategy;
+    if (strategySource.trim()) {
+      strategy = { ...strategy, ...parseStrategyConfig(yaml.load(strategySource)) };
+    }
+    cachedRuntime = {
+      router: new ProviderRouter({ providers: parsed.providers }),
+      engine: new DeterministicRoutingEngine(parsed.providers, strategy),
+    };
+    cachedRuntimeSignature = signature;
     failedConfigLoad = null;
-    return cachedRouter;
+    return cachedRuntime;
   } catch (error) {
     failedConfigLoad = error instanceof Error ? error.message : String(error);
     return null;
@@ -88,45 +126,23 @@ export async function loadSelfHostedConfig(
 }
 
 /**
+ * Resolve provider config from env/file (back-compat shim — returns the router
+ * only). The strategy-aware runtime is built internally by the dispatch path.
+ */
+export async function loadSelfHostedConfig(
+  options: SelfHostedOptions = {}
+): Promise<ProviderRouter | null> {
+  const runtime = await loadSelfHostedRuntime(options);
+  return runtime?.router ?? null;
+}
+
+/**
  * Parse the providers document. Flat `providers:` list (see providerAdapters).
  * Public because tests seed config through it directly.
  */
 export function parseProvidersYaml(source: string): { providers: ProviderConfig[] } {
-  const document = yaml.load(source) as Record<string, unknown> | undefined;
-  if (!document || typeof document !== "object" || Array.isArray(document)) {
-    throw new Error("Self-hosted providers config must be a mapping");
-  }
-  const providers = document.providers;
-  if (!Array.isArray(providers)) {
-    throw new Error("Self-hosted providers config requires a providers list");
-  }
-  const parsed = providers.map((value, index) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error(`Self-hosted provider ${index} must be a mapping`);
-    }
-    const item = value as Record<string, unknown>;
-    const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : undefined;
-    const kind = item.kind;
-    const baseUrl =
-      typeof item.baseUrl === "string" && item.baseUrl.trim() ? item.baseUrl.trim() : undefined;
-    const model =
-      typeof item.model === "string" && item.model.trim() ? item.model.trim() : undefined;
-    if (!id || !baseUrl || !model) {
-      throw new Error(`Self-hosted provider ${index} requires id/baseUrl/model`);
-    }
-    if (!(kind === "openai" || kind === "anthropic" || kind === "local")) {
-      throw new Error(`Self-hosted provider ${index} kind must be openai/anthropic/local`);
-    }
-    const provider: ProviderConfig = {
-      id,
-      kind,
-      baseUrl,
-      model,
-      ...(typeof item.apiKey === "string" && item.apiKey ? { apiKey: item.apiKey } : {}),
-    };
-    return provider;
-  });
-  return { providers: parsed };
+  const parsed = parseSelfHostedRoutingConfig(source);
+  return { providers: parsed.providers };
 }
 
 /** Runtime-only API key check. `null` = no key configured (open route). */
@@ -155,12 +171,15 @@ export function splitProviderModel(value: unknown): { provider?: string; model?:
 }
 
 /**
- * Select the provider to route a request to.
+ * Select the provider to route a request to (single-attempt, no fallback).
  *
  * Precedence (deterministic, documented in the README):
  *  1. `x-omniroute-provider` header (exact provider id) — remote client control.
  *  2. `model` prefix match (`provider/model` or `provider::model`).
  *  3. First configured provider (`ProviderRouter.select()` default).
+ *
+ * The dispatch path (`completeViaSelfHostedRouter`) uses the strategy engine for
+ * the same selection + fallback; this function is kept for compatibility/tests.
  */
 export function selectSelfHostedProvider(
   router: ProviderRouter,
@@ -186,6 +205,38 @@ export function selectSelfHostedProvider(
   return router.select(undefined);
 }
 
+/**
+ * Resolve the explicitly pinned provider id (header, then model prefix), without
+ * falling through to the first provider. Unknown pins yield `undefined` — the
+ * strategy engine then treats the request as unpinned and applies its full
+ * candidate pipeline.
+ */
+function resolvePinnedProviderId(
+  router: ProviderRouter,
+  request: Request,
+  body: { model?: unknown } | null
+): string | undefined {
+  const headerId = request.headers.get(PROVIDER_SELECTOR_HEADER)?.trim();
+  if (headerId) {
+    try {
+      router.select(headerId);
+      return headerId;
+    } catch {
+      // unknown header id — fall through to model-prefix resolution
+    }
+  }
+  const { provider } = splitProviderModel(body?.model);
+  if (provider) {
+    try {
+      router.select(provider);
+      return provider;
+    } catch {
+      // unknown prefix — no pin
+    }
+  }
+  return undefined;
+}
+
 function buildErrorResponse(statusCode: number, message: string): Response {
   return errorResponse(statusCode, message, { type: "invalid_request_error" });
 }
@@ -204,9 +255,14 @@ function passthroughHeaders(upstream: Headers): Headers {
  * Normalize an upstream Response into the OpenAI-compatible unified response.
  * Non-2xx upstream bodies are parsed through `parseUpstreamError` + `buildErrorBody`
  * so the client always receives a valid OpenAI-shaped JSON error (Hard Rule #12).
+ * `routeDecision` (when present) is echoed as the explainability header.
  */
-export async function normalizeProviderResponse(upstream: Response): Promise<Response> {
+export async function normalizeProviderResponse(
+  upstream: Response,
+  routeDecision?: string
+): Promise<Response> {
   const headers = passthroughHeaders(upstream.headers);
+  if (routeDecision) headers.set(ROUTE_DECISION_HEADER, routeDecision);
   if (!upstream.ok) {
     const parsed = await parseUpstreamError(upstream, null);
     const errorBody = buildErrorBody(parsed.statusCode, parsed.message, parsed.responseBody);
@@ -221,17 +277,28 @@ export async function normalizeProviderResponse(upstream: Response): Promise<Res
   return new Response(upstream.body, { status: upstream.status, headers });
 }
 
+/** Build the body forwarded to the selected provider (bare model, prefix stripped). */
+function buildForwardedBody(body: Record<string, unknown> | null): ChatRequest {
+  const baseBody = {
+    messages: Array.isArray(body?.messages) ? body.messages : [],
+    ...(body ?? {}),
+  };
+  const { provider, model } = splitProviderModel(body?.model);
+  return provider ? { ...baseBody, model } : baseBody;
+}
+
 /**
- * Dispatch a chat/completions request to the selected provider through the
- * adapter layer and normalize the upstream response.
+ * Dispatch a chat/completions request through the deterministic routing engine:
+ * build the ordered candidate list, walk it as a fallback chain, record
+ * success/failure/latency per candidate, and normalize the final response.
  */
 export async function completeViaSelfHostedRouter(
   config: SelfHostedOptions,
   request: Request,
   body: Record<string, unknown> | null
 ): Promise<Response> {
-  const router = await loadSelfHostedConfig(config);
-  if (!router) {
+  const runtime = await loadSelfHostedRuntime(config);
+  if (!runtime) {
     const detail = failedConfigLoad ? ` (${failedConfigLoad})` : "";
     return buildErrorResponse(
       500,
@@ -239,29 +306,61 @@ export async function completeViaSelfHostedRouter(
     );
   }
 
-  const selected = selectSelfHostedProvider(router, request, body);
-  let upstream: Response;
-  try {
-    // Forward the bare model (provider-prefix stripped) so upstream receives the
-    // model name its own contract expects — the prefix (`claude/...`) is a
-    // routing concern scoped to the unified entry, not an upstream contract.
-    const baseBody = {
-      messages: Array.isArray(body?.messages) ? body.messages : [],
-      ...(body ?? {}),
-    };
-    const forwardedBody: ChatRequest =
-      typeof body?.model === "string" && splitProviderModel(body.model).provider
-        ? { ...baseBody, model: splitProviderModel(body.model).model }
-        : baseBody;
-    upstream = await router.complete(forwardedBody, selected.id);
-  } catch (error) {
-    // Network-level failure (connection refused / DNS / TLS) never yields an HTTP
-    // status to normalize. Surface the standard OpenAI error shape with a stable
-    // message so SDKs fail cleanly instead of throwing on a raw fetch rejection.
-    const detail = error instanceof Error ? error.message : String(error);
-    return buildErrorResponse(502, `Upstream provider unreachable: ${detail}`);
+  const pinnedId = resolvePinnedProviderId(runtime.router, request, body);
+  const decision = runtime.engine.candidates(pinnedId);
+
+  // An explicit pin rejected by a hard filter is an error, not a silent re-route.
+  if (decision.pinBlocked) {
+    return errorResponse(
+      400,
+      `Provider "${decision.pinBlocked.providerId}" is not usable: ${decision.pinBlocked.reason}`,
+      { type: "invalid_request_error" }
+    );
   }
-  return normalizeProviderResponse(upstream);
+
+  if (decision.candidates.length === 0) {
+    const explain = runtime.engine.explainCandidates([], decision.excluded);
+    return errorResponse(503, `No eligible providers for this request (${explain})`, {
+      type: "provider_error",
+      code: "no_eligible_providers",
+    });
+  }
+
+  const routeDecision = runtime.engine.explainCandidates(decision.candidates, decision.excluded);
+  const forwardedBody = buildForwardedBody(body);
+  let lastError: Response | null = null;
+
+  for (const candidate of decision.candidates) {
+    const attemptStart = Date.now();
+    let upstream: Response;
+    try {
+      upstream = await runtime.router.complete(forwardedBody, candidate.provider.id);
+    } catch (error) {
+      // Network-level failure (connection refused / DNS / TLS) never yields an HTTP
+      // status to normalize. Record the failure, keep a stable 502, and fall through
+      // to the next candidate in the chain.
+      runtime.engine.recordFailure(candidate.provider.id, Date.now());
+      const detail = error instanceof Error ? error.message : String(error);
+      lastError = buildErrorResponse(502, `Upstream provider unreachable: ${detail}`);
+      continue;
+    }
+    runtime.engine.recordLatency(candidate.provider.id, Date.now() - attemptStart);
+
+    if (upstream.ok) {
+      runtime.engine.recordSuccess(candidate.provider.id);
+      return normalizeProviderResponse(upstream, routeDecision);
+    }
+
+    // Upstream answered non-2xx — the client must never see a raw provider body,
+    // and the failure feeds the cooldown breaker for the next request.
+    runtime.engine.recordFailure(candidate.provider.id, Date.now());
+    lastError = await normalizeProviderResponse(upstream, routeDecision);
+  }
+
+  // Every candidate exhausted — return the last normalized error.
+  if (lastError) return lastError;
+
+  return buildErrorResponse(503, "No eligible providers for this request");
 }
 
 /**
@@ -285,8 +384,8 @@ export async function handleSelfHostedCompletions(
   );
   if (!isConfigured) return null;
 
-  const router = await loadSelfHostedConfig(options);
-  if (!router) {
+  const runtime = await loadSelfHostedRuntime(options);
+  if (!runtime) {
     const detail = failedConfigLoad ? ` (${failedConfigLoad})` : "";
     return buildErrorResponse(
       500,

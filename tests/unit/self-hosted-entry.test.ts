@@ -330,3 +330,225 @@ describe("selfHostedEntry unified entry (HTTP contract)", () => {
     assert.ok(parsed.error);
   });
 });
+
+/**
+ * Deterministic routing strategies over the real HTTP contract (M2 — RIC-740).
+ *
+ * Fault injection: the primary provider is DOWN (connection refused), so the
+ * fallback chain must select the backup and the client receives a success —
+ * plus an `x-omniroute-route-decision` header explaining the choice.
+ */
+describe("selfHostedEntry deterministic routing (fault injection)", () => {
+  it("falls back to the backup when the primary provider is down", async () => {
+    const okCalls: Array<{ url: string; body: string }> = [];
+    const okServer = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        okCalls.push({ url: req.url ?? "", body });
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            id: "cmpl-backup",
+            object: "chat.completion",
+            choices: [
+              { message: { role: "assistant", content: "backup-pong" }, finish_reason: "stop" },
+            ],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          })
+        );
+      });
+    });
+    await new Promise<void>((resolve) => okServer.listen(0, "127.0.0.1", () => resolve()));
+    const okPort = (okServer.address() as AddressInfo).port;
+
+    try {
+      // Port 1 refuses connections: primary "dead" is unreachable; backup is live.
+      const yaml = `providers:
+  - id: dead
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: d
+  - id: backup
+    kind: openai
+    baseUrl: http://127.0.0.1:${okPort}/v1
+    model: b
+strategy:
+  fallbackChain:
+    - dead
+    - backup
+`;
+      const req = new Request("http://localhost/v1/chat/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+      });
+      const resp = await handleSelfHostedCompletions(
+        req,
+        { messages: [{ role: "user", content: "hi" }] },
+        { providers: yaml }
+      );
+      assert.equal(resp?.status, 200);
+      const parsed = JSON.parse(await resp!.text());
+      assert.equal(parsed.choices[0].message.content, "backup-pong");
+      assert.equal(okCalls.length, 1);
+      assert.match(resp!.headers.get("x-omniroute-route-decision") ?? "", /dead.*backup/);
+    } finally {
+      okServer.close();
+    }
+  });
+
+  it("returns the last fallback error when every candidate is down", async () => {
+    const yaml = `providers:
+  - id: one
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: o
+  - id: two
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: t
+`;
+    const req = new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    });
+    const resp = await handleSelfHostedCompletions(
+      req,
+      { messages: [{ role: "user", content: "hi" }] },
+      { providers: yaml }
+    );
+    assert.equal(resp?.status, 502);
+    const parsed = JSON.parse(await resp!.text());
+    assert.ok(parsed.error);
+    assert.match(parsed.error.message, /Upstream provider unreachable/);
+  });
+
+  it("rejects a pinned provider that was blacklisted (no silent re-route)", async () => {
+    const yaml = `providers:
+  - id: a
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: m
+  - id: b
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: m
+strategy:
+  blacklist:
+    - a
+`;
+    const req = new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "a/m", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const resp = await handleSelfHostedCompletions(
+      req,
+      { model: "a/m", messages: [{ role: "user", content: "hi" }] },
+      { providers: yaml }
+    );
+    assert.equal(resp?.status, 400);
+    const parsed = JSON.parse(await resp!.text());
+    assert.match(parsed.error.message, /blacklist/);
+  });
+
+  it("cooldown breaker excludes a failing provider from the next request", async () => {
+    const okCalls: Array<{ url: string; body: string }> = [];
+    const okServer = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        okCalls.push({ url: req.url ?? "", body });
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            id: "cmpl-ok",
+            object: "chat.completion",
+            choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          })
+        );
+      });
+    });
+    await new Promise<void>((resolve) => okServer.listen(0, "127.0.0.1", () => resolve()));
+    const okPort = (okServer.address() as AddressInfo).port;
+
+    try {
+      const yaml = `providers:
+  - id: dead
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: d
+  - id: backup
+    kind: openai
+    baseUrl: http://127.0.0.1:${okPort}/v1
+    model: b
+strategy:
+  cooldown:
+    consecutiveFailures: 1
+    cooldownMs: 60000
+`;
+      const mkReq = () =>
+        new Request("http://localhost/v1/chat/completions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ model: "dead/d", messages: [{ role: "user", content: "hi" }] }),
+        });
+
+      // First request: "dead" unreachable → fallback hits backup, and the failure
+      // is recorded — the engine pins by model prefix but the cooldown next time
+      // reports "dead" as excluded even when pinned.
+      const first = await handleSelfHostedCompletions(
+        mkReq(),
+        { model: "dead/d", messages: [{ role: "user", content: "hi" }] },
+        { providers: yaml }
+      );
+      assert.equal(first?.status, 200);
+      assert.equal(okCalls.length, 1);
+
+      // Second request: "dead" is now cooling (consecutiveFailures=1) — but it's
+      // pinned, so a hard-filter rejection of the pin is surfaced as 400 rather
+      // than a silent re-route.
+      const second = await handleSelfHostedCompletions(
+        mkReq(),
+        { model: "dead/d", messages: [{ role: "user", content: "hi" }] },
+        { providers: yaml }
+      );
+      assert.equal(second?.status, 400);
+      const parsed = JSON.parse(await second!.text());
+      assert.match(parsed.error.message, /cooldown/);
+      // The backup must NOT have been hit on the excluded-pin request.
+      assert.equal(okCalls.length, 1);
+    } finally {
+      okServer.close();
+    }
+  });
+
+  it("returns 503 with the full explainable decision when no providers are eligible", async () => {
+    const yaml = `providers:
+  - id: a
+    kind: openai
+    baseUrl: http://127.0.0.1:1/v1
+    model: m
+strategy:
+  blacklist:
+    - a
+`;
+    const req = new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    });
+    const resp = await handleSelfHostedCompletions(
+      req,
+      { messages: [{ role: "user", content: "hi" }] },
+      { providers: yaml }
+    );
+    assert.equal(resp?.status, 503);
+    const parsed = JSON.parse(await resp!.text());
+    assert.match(parsed.error.message, /No eligible providers/);
+    assert.match(parsed.error.message, /blacklist/);
+  });
+});
