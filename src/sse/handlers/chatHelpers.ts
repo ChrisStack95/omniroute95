@@ -991,6 +991,27 @@ export function applyExecutorProxyToInfo(
   };
 }
 
+/**
+ * Carry the HTTP status the provider actually returned (captured on the applied-proxy
+ * sink around the patched fetch) into proxyInfo. Nothing received -> info unchanged.
+ * Pure + unit-testable.
+ */
+export function withUpstreamStatus<T extends object>(
+  info: T | null | undefined,
+  sink: { upstreamStatus?: number }
+) {
+  if (typeof sink.upstreamStatus !== "number") return info;
+  return { ...(info || {}), upstreamStatus: sink.upstreamStatus };
+}
+
+/** Merge both things the applied-proxy sink captured: the executor proxy, then the status. */
+export function mergeAppliedProxySink(
+  proxyInfo: { proxy?: unknown; level?: string; levelId?: string | null } | null | undefined,
+  sink: { proxy: unknown; upstreamStatus?: number }
+) {
+  return withUpstreamStatus(applyExecutorProxyToInfo(proxyInfo, sink.proxy), sink);
+}
+
 // Async because the egress-IP lookup lazy-imports proxyEgress; callers treat
 // this as fire-and-forget logging (the internal try/catch swallows everything).
 export async function safeLogEvents({
@@ -1048,6 +1069,7 @@ export async function safeLogEvents({
       comboId: comboName || null,
       account: credentials.connectionId?.slice(0, 8) || null,
       tlsFingerprint: tlsFingerprintUsed,
+      upstreamStatus: proxyInfo?.upstreamStatus ?? null,
     });
   } catch {}
 
