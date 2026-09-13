@@ -1455,6 +1455,8 @@ export async function handleChatCore({
             }),
             enabled: true,
             defaultLanguage: comboDefaultLanguage,
+            autoDetect:
+              comboLanguagePacks.length > 0 ? false : (config.languageConfig?.autoDetect ?? true),
             enabledPacks:
               comboLanguagePacks.length > 0
                 ? comboLanguagePacks
