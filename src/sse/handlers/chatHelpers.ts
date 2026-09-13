@@ -48,6 +48,7 @@ import { classify429FromError, type FailureKind } from "../../shared/utils/class
 import { resolveUseUpstream429BreakerHints } from "../../shared/utils/providerHints";
 
 import { logProxyEvent } from "../../lib/proxyLogger";
+import { noteProxyOutcome } from "./proxyOutcomeMemory";
 import { logTranslationEvent } from "../../lib/translatorEvents";
 import { getRuntimeProviderProfile } from "@omniroute/open-sse/services/accountFallback.ts";
 
@@ -1049,6 +1050,10 @@ export async function safeLogEvents({
     } catch {
       // egress visibility is best-effort; never break the request path
     }
+
+    // Feed the provider's real answer back to proxy selection (never result.status: some
+    // 429s are generated locally). proxyInfo carries the status captured around fetch.
+    noteProxyOutcome(provider, proxyInfo);
 
     logProxyEvent({
       status: result.success

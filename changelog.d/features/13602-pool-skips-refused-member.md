@@ -1,0 +1,1 @@
+- **feat(proxies):** a proxy pool stops re-serving a member the provider just refused through it and tries another member instead, reusing the existing skip cooldown; a later success through the member clears it ([#13602](https://github.com/diegosouzapw/OmniRoute/pull/13602)) — thanks @maxmad64bis
