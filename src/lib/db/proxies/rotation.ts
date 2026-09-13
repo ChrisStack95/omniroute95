@@ -9,6 +9,11 @@
 import { randomInt } from "crypto";
 import { getDbInstance } from "../core";
 import { pickByLatency } from "../proxyLatency";
+import {
+  isProxyAvoided,
+  isProxySkipEnabled,
+  proxyEgressKey,
+} from "@omniroute/open-sse/utils/proxyRefusalMemory.ts";
 import type { JsonRecord, ProxyScope, ProxyRotationStrategy } from "./types";
 import { PROXY_ROTATION_STRATEGIES, DEFAULT_PROXY_ROTATION_STRATEGY } from "./types";
 import {
@@ -129,11 +134,34 @@ function getOrCreateRotationRow(
   };
 }
 
+// Indexes of the members not currently set aside by the proxy refusal memory, or null to
+// keep the plain behavior: switch off, nothing set aside, or every member set aside (an
+// all-failed pool keeps today's selection and its #6246 fail-closed contract).
+function eligibleMemberIndexes(candidates: unknown[]): number[] | null {
+  if (!isProxySkipEnabled()) return null;
+  const eligible: number[] = [];
+  candidates.forEach((row, index) => {
+    if (!isProxyAvoided(proxyEgressKey(row))) eligible.push(index);
+  });
+  return eligible.length === 0 || eligible.length === candidates.length ? null : eligible;
+}
+
+// First eligible index at or after `start`, going round the pool.
+function firstEligibleFrom(start: number, eligible: number[], size: number): number {
+  for (let step = 0; step < size; step++) {
+    const index = (start + step) % size;
+    if (eligible.includes(index)) return index;
+  }
+  return start;
+}
+
 /**
  * Pick one member from an already-alive candidate list according to the scope's
  * rotation strategy. Assumes `candidates` is non-empty and ordered by position.
  * Round-robin uses (and persists) a monotonic cursor; random uses crypto.randomInt;
  * sticky holds the current member until its window elapses, then advances.
+ * Members that just failed (see proxyRefusalMemory) are skipped while another member is
+ * eligible; the cursor then advances past the member actually served.
  */
 function pickFromCandidates<T>(
   db: ReturnType<typeof getDbInstance>,
@@ -144,16 +172,20 @@ function pickFromCandidates<T>(
   if (candidates.length === 1) return candidates[0];
 
   const state = getOrCreateRotationRow(db, normalizedScope, rotationScopeId);
+  const eligible = eligibleMemberIndexes(candidates);
 
   if (state.strategy === "random") {
     // crypto.randomInt (unbiased, uniform in [0, length)) instead of Math.random —
     // CodeQL js/insecure-randomness flags Math.random flowing into the selected proxy's
     // credentials (a "security context"). Load-balancing selection is not a secret, but
     // crypto.randomInt silences the alert at the source and is unbiased (#6365 follow-up).
+    if (eligible) return candidates[eligible[randomInt(eligible.length)]];
     return candidates[randomInt(candidates.length)];
   }
 
-  if (state.strategy === "latency") return pickByLatency(db, candidates);
+  if (state.strategy === "latency") {
+    return pickByLatency(db, eligible ? eligible.map((index) => candidates[index]) : candidates);
+  }
 
   if (state.strategy === "sticky") {
     const windowMs = state.stickyWindowMinutes * 60_000;
@@ -173,15 +205,19 @@ function pickFromCandidates<T>(
       );
     }
     const idx = ((cursor % candidates.length) + candidates.length) % candidates.length;
-    return candidates[idx];
+    // A held member set aside is replaced for this pick only: no extra write.
+    return candidates[eligible ? firstEligibleFrom(idx, eligible, candidates.length) : idx];
   }
 
-  // round-robin (default): pick at the current cursor, then advance it monotonically.
+  // round-robin (default): pick at the current cursor, then advance it monotonically,
+  // past any member skipped so the next pick starts after the one actually served.
   const idx = ((state.cursor % candidates.length) + candidates.length) % candidates.length;
+  const served = eligible ? firstEligibleFrom(idx, eligible, candidates.length) : idx;
+  const skipped = (served - idx + candidates.length) % candidates.length;
   db.prepare(
     "UPDATE proxy_scope_rotation SET cursor = ?, updated_at = ? WHERE scope = ? AND scope_id IS ?"
-  ).run(state.cursor + 1, new Date().toISOString(), normalizedScope, rotationScopeId);
-  return candidates[idx];
+  ).run(state.cursor + skipped + 1, new Date().toISOString(), normalizedScope, rotationScopeId);
+  return candidates[served];
 }
 
 // Fetch the alive, position-ordered candidate rows for a (scope, scope_id) pool.

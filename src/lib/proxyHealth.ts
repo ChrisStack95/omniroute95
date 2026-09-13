@@ -11,6 +11,12 @@
 
 import { createConnection } from "node:net";
 import { stripIpv6Brackets } from "@omniroute/open-sse/utils/proxyFamily";
+import {
+  isProxySkipEnabled,
+  noteProxyRecovered,
+  noteProxyRefusal,
+  proxyEgressKey,
+} from "@omniroute/open-sse/utils/proxyRefusalMemory";
 
 // Configurable via env vars
 const FAST_FAIL_TIMEOUT_MS = parseInt(process.env.PROXY_FAST_FAIL_TIMEOUT_MS ?? "2000", 10);
@@ -32,6 +38,15 @@ const proxyHealthInflight = new Map<string, Promise<boolean>>();
 
 type TcpCheck = (host: string, port: number, timeoutMs: number) => Promise<boolean>;
 let tcpCheckImpl: TcpCheck = tcpCheck;
+
+// Feed a real probe verdict to proxy selection: a proxy that refused the TCP connection is
+// set aside by pools and account rotation, and taken back as soon as it answers again.
+function noteProbeVerdict(proxyUrl: string, healthy: boolean): void {
+  if (!isProxySkipEnabled()) return;
+  const key = proxyEgressKey(proxyUrl);
+  if (healthy) noteProxyRecovered(key, "proxy_unreachable");
+  else noteProxyRefusal(key, "proxy_unreachable");
+}
 
 /**
  * T14: Perform a fast TCP check to see if a proxy host:port is reachable.
@@ -88,6 +103,7 @@ export async function isProxyReachable(
       checkedAt: Date.now(),
       ttlMs: healthy ? cacheTtlMs : Math.min(cacheTtlMs, UNHEALTHY_CACHE_TTL_MS),
     });
+    noteProbeVerdict(proxyUrl, healthy);
     return healthy;
   });
 

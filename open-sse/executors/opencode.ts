@@ -30,6 +30,13 @@ import {
 } from "./accountRotation.ts";
 import { isOpencodeGeoBlocked, proxyKeyOf } from "./opencodeGeoBlock.ts";
 import { isRetriableUpstreamFailure } from "./opencodeTransientFailure.ts";
+import {
+  isProxyAvoided,
+  isProxySkipEnabled,
+  noteProxyRefusal,
+  noteProxyServed,
+  proxyEgressKey,
+} from "../utils/proxyRefusalMemory.ts";
 import { isNetworkRotationSharedEgressGuardEnabled } from "@/shared/utils/featureFlags";
 
 /**
@@ -349,6 +356,8 @@ export class OpencodeExecutor extends BaseExecutor {
 
   private markSuccess(account: OpencodeAccountState): void {
     markAccountSuccess(account);
+    // A response came back through this proxy: it is usable again for every refusal kind.
+    if (isProxySkipEnabled()) noteProxyServed(proxyEgressKey(account.proxy));
   }
 
   /**
@@ -583,6 +592,9 @@ export class OpencodeExecutor extends BaseExecutor {
       // model (geo-blocked, or transient 5xx). Request-local only — nothing
       // persists past execute().
       const geoTriedProxyKeys = new Set<string>();
+      // Members the provider just refused (received refusal or refused TCP probe) are skipped,
+      // unless PROXY_SKIP_RECENTLY_FAILED turns the memory off.
+      const skipRecentlyFailed = isProxySkipEnabled();
       let directTried = false;
 
       for (let attempt = 0; attempt < this.accounts.length + emptyRejectionBudget; attempt++) {
@@ -591,6 +603,7 @@ export class OpencodeExecutor extends BaseExecutor {
           // Without any geo evidence this pass, every cooldown-ready account
           // stays eligible (preserves the plain round-robin first pick).
           if (a.proxy === null) return !directTried || geoTriedProxyKeys.size === 0;
+          if (skipRecentlyFailed && isProxyAvoided(proxyEgressKey(a.proxy))) return false;
           const k = proxyKeyOf(a.proxy);
           return k !== null && !geoTriedProxyKeys.has(k);
         };
@@ -696,9 +709,16 @@ export class OpencodeExecutor extends BaseExecutor {
         const status = result.response.status;
         if (status === 429) {
           this.markCooldown(account);
+          // The provider refused through this member: set it aside beyond the account
+          // cooldown. A direct account has a null key and is never set aside.
+          const setAsideMs = skipRecentlyFailed
+            ? noteProxyRefusal(proxyEgressKey(account.proxy), "ip_quota_429")
+            : null;
           log?.warn?.(
             "OPENCODE",
-            `${cid}Rate limited (429) on account ${masked}, rotating to next…`
+            `${cid}Provider refused (429) on account ${masked}` +
+              (setAsideMs ? `, member set aside for ${Math.round(setAsideMs / 1000)}s` : "") +
+              ", rotating to next…"
           );
           continue;
         }

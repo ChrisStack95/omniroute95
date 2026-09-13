@@ -5,6 +5,11 @@
 import { getDbInstance } from "./core";
 import { backupDbFile } from "./backup";
 import { PROVIDER_ID_TO_ALIAS } from "@omniroute/open-sse/config/providerModels.ts";
+import {
+  isProxyAvoided,
+  isProxySkipEnabled,
+  proxyEgressKey,
+} from "@omniroute/open-sse/utils/proxyRefusalMemory.ts";
 import { invalidateDbCache } from "./readCache";
 import { encrypt, decrypt } from "./encryption";
 import { getProxyRegistryGeneration, resolveProxyForScopeFromRegistry } from "./proxies";
@@ -503,6 +508,14 @@ export async function deleteProxyForLevel(level: string, id: string | null) {
   return setProxyForLevel(level, id, null);
 }
 
+// A pool member that just failed is not re-served from the resolution cache: the cascade
+// runs again so the pool can pick another member. Legacy single-proxy levels have no
+// alternative and stay cached, like a result without a proxy.
+function isCachedPoolMemberSetAside(result: ProxyResolutionResult | null | undefined): boolean {
+  if (!result || result.source !== "registry" || result.proxy == null) return false;
+  return isProxySkipEnabled() && isProxyAvoided(proxyEgressKey(result.proxy));
+}
+
 export async function resolveProxyForConnection(
   connectionId: string,
   apiKeyId?: string,
@@ -519,7 +532,8 @@ export async function resolveProxyForConnection(
   if (
     cached &&
     cached.generation === startGeneration &&
-    cached.registryGeneration === startRegistryGeneration
+    cached.registryGeneration === startRegistryGeneration &&
+    !isCachedPoolMemberSetAside(cached.result)
   ) {
     return cached.result;
   }
