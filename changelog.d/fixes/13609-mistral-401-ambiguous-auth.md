@@ -1,0 +1,1 @@
+- **fix(providers):** stop parking Mistral connections on a bare 401 with no clear auth failure ([#13609](https://github.com/diegosouzapw/OmniRoute/pull/13609)) — thanks @maxmad64bis

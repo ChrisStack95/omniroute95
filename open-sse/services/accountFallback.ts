@@ -5,6 +5,7 @@ import {
   RateLimitReason,
   HTTP_STATUS,
 } from "../config/constants.ts";
+import { isMistralAmbiguous401 } from "./accountFallback/mistralAmbiguousAuth.ts";
 import {
   BACKOFF_CONFIG,
   COOLDOWN_MS,
@@ -2098,10 +2099,7 @@ export function checkFallbackError(
     }
   }
 
-  const configuredRule =
-    isRateLimitStatus && !preserveQuota429
-      ? matchErrorRuleByStatus(status)
-      : findMatchingErrorRule(status, errorStr);
+  const configuredRule = isRateLimitStatus && !preserveQuota429 ? matchErrorRuleByStatus(status) : findMatchingErrorRule(status, errorStr);
   if (configuredRule) {
     if (configuredRule.backoff) {
       // Provider-specific rules in `providerRuleRegistry` are MORE SPECIFIC
@@ -2161,6 +2159,8 @@ export function checkFallbackError(
           resolveRuleMatchBody(provider, structuredError ?? null, errorStr)
         )
       : null;
+    if (status === 401 && !providerMatch && isMistralAmbiguous401(provider, errorStr))
+      return buildRetryableFallback(RateLimitReason.UNKNOWN);
     const cooldownMs = providerMatch?.cooldownMs ?? configuredRule.cooldownMs ?? 0;
     const ruleScope =
       providerMatch && honorsRuleLockScope(provider) ? providerMatch.scope : undefined;

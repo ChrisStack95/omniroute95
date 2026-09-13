@@ -1,4 +1,5 @@
 import { PROVIDER_ERROR_TYPES } from "@omniroute/open-sse/services/errorClassifier.ts";
+import { isMistralAmbiguous401 } from "@omniroute/open-sse/services/accountFallback/mistralAmbiguousAuth.ts";
 import { isCreditsExhausted } from "@omniroute/open-sse/services/accountFallback.ts";
 import { resolveProviderId, WEB_COOKIE_PROVIDERS } from "@/shared/constants/providers";
 
@@ -59,8 +60,10 @@ function isNonTerminalProviderError(providerErrorType: string | null): boolean {
 function isExpiredAuthFailure(
   status: number,
   providerErrorType: string | null,
-  provider: string | null
+  provider: string | null,
+  errorText: string = ""
 ): boolean {
+  if (status === 401 && isMistralAmbiguous401(provider, errorText)) return false;
   return (
     (providerErrorType === PROVIDER_ERROR_TYPES.ACCOUNT_DEACTIVATED ||
       providerErrorType === PROVIDER_ERROR_TYPES.UNAUTHORIZED ||
@@ -86,7 +89,7 @@ export function resolveTerminalConnectionStatus(
   if (result.permanent || providerErrorType === PROVIDER_ERROR_TYPES.FORBIDDEN) {
     return "banned";
   }
-  if (isExpiredAuthFailure(status, providerErrorType, provider)) {
+  if (isExpiredAuthFailure(status, providerErrorType, provider, errorText)) {
     return "expired";
   }
   return null;
