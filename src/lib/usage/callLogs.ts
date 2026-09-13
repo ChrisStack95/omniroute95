@@ -615,6 +615,43 @@ async function saveCallLogOperation(entry: any): Promise<void> {
         @correlationId, @modelPinned, @sessionTag, @responseId, @errorType,
         @videoContentRemoved
       )
+      -- trackPendingRequest() (usageHistory.ts) deliberately reuses one pending
+      -- id across every combo fallback target of a single client request (so a
+      -- dashboard tab's live poll survives a fallback), and persistAttemptLogs()
+      -- calls saveCallLog() once per attempt with that same id. A plain INSERT
+      -- made every attempt after the first fail closed with "UNIQUE constraint
+      -- failed: call_logs.id" -- silently dropping that attempt's row, and, when
+      -- the dropped attempt was the eventual success, its response_id/artifact
+      -- too (breaking resolvePreviousResponseState's continuation lookup for
+      -- it). The latest attempt reflects this request's current/final state, so
+      -- it replaces the row instead of being discarded by it.
+      ON CONFLICT(id) DO UPDATE SET
+        timestamp = excluded.timestamp, method = excluded.method, path = excluded.path,
+        status = excluded.status, model = excluded.model,
+        requested_model = excluded.requested_model, provider = excluded.provider,
+        account = excluded.account, connection_id = excluded.connection_id,
+        duration = excluded.duration, tokens_in = excluded.tokens_in,
+        tokens_out = excluded.tokens_out, tokens_cache_read = excluded.tokens_cache_read,
+        tokens_cache_creation = excluded.tokens_cache_creation,
+        tokens_reasoning = excluded.tokens_reasoning,
+        tokens_compressed = excluded.tokens_compressed,
+        reasoning_source = excluded.reasoning_source, reasoning_chars = excluded.reasoning_chars,
+        cache_source = excluded.cache_source, request_type = excluded.request_type,
+        source_format = excluded.source_format, target_format = excluded.target_format,
+        api_key_id = excluded.api_key_id, api_key_name = excluded.api_key_name,
+        combo_name = excluded.combo_name, combo_step_id = excluded.combo_step_id,
+        combo_execution_key = excluded.combo_execution_key,
+        error_summary = excluded.error_summary, detail_state = excluded.detail_state,
+        artifact_relpath = excluded.artifact_relpath,
+        artifact_size_bytes = excluded.artifact_size_bytes,
+        artifact_sha256 = excluded.artifact_sha256,
+        has_request_body = excluded.has_request_body,
+        has_response_body = excluded.has_response_body,
+        has_pipeline_details = excluded.has_pipeline_details,
+        request_summary = excluded.request_summary,
+        correlation_id = excluded.correlation_id, model_pinned = excluded.model_pinned,
+        session_tag = excluded.session_tag, response_id = excluded.response_id,
+        error_type = excluded.error_type, video_content_removed = excluded.video_content_removed
     `
     ).run({
       ...logEntry,

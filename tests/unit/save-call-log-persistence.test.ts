@@ -3,6 +3,60 @@ import assert from "node:assert/strict";
 import { getDbInstance } from "../../src/lib/db/core.ts";
 import { saveCallLog, getCallLogs } from "../../src/lib/usage/callLogs.ts";
 
+// usageHistory.ts's trackPendingRequest() deliberately reuses one pending id
+// across every combo fallback target of a single client request, so
+// saveCallLog() is called more than once with the SAME id as a request
+// cascades through fallbacks. Before this fix, the second call's plain
+// INSERT died with "UNIQUE constraint failed: call_logs.id" and the row
+// silently kept the FIRST (failed) attempt's data forever -- including, when
+// the second call was the eventual success, permanently losing its
+// response_id and dropping any later continuation lookup for it.
+test("saveCallLog upserts a reused id instead of failing closed on the second write", async () => {
+  const db = getDbInstance();
+  const testId = `test-reused-${Date.now()}`;
+
+  await saveCallLog({
+    id: testId,
+    method: "POST",
+    path: "/v1/chat/completions",
+    status: 429,
+    model: "gemini/gemini-3.8-flash",
+    provider: "gemini",
+    duration: 50,
+    tokens: {},
+    comboName: "default",
+  });
+
+  // Second attempt of the SAME client request, after combo fell back to a
+  // different target -- same reused id, different (successful) outcome.
+  await saveCallLog({
+    id: testId,
+    method: "POST",
+    path: "/v1/chat/completions",
+    status: 200,
+    model: "gemini/gemini-3.1-flash-lite",
+    provider: "gemini",
+    duration: 900,
+    tokens: { in: 12, out: 8 },
+    comboName: "default",
+    responseId: "resp_final_abc",
+  });
+
+  const rows = db.prepare("SELECT * FROM call_logs WHERE id = ?").all(testId) as Array<
+    Record<string, unknown>
+  >;
+  assert.equal(rows.length, 1, "one row per id, not one per attempt");
+  assert.equal(rows[0].status, 200, "the later attempt's data wins");
+  assert.equal(rows[0].model, "gemini/gemini-3.1-flash-lite");
+  assert.equal(
+    rows[0].response_id,
+    "resp_final_abc",
+    "the successful attempt's response_id must survive, not be lost to the id collision"
+  );
+
+  db.prepare("DELETE FROM call_logs WHERE id = ?").run(testId);
+});
+
 test("saveCallLog persists to DB with correlationId", async () => {
   const db = getDbInstance();
   const testId = `test-corr-${Date.now()}`;
