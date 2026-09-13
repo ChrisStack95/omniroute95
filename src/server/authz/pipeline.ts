@@ -3,7 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCachedSettings } from "../../lib/db/readCache";
 import { isDraining } from "../../lib/gracefulShutdown";
 import { checkBodySize, getBodySizeLimit } from "../../shared/middleware/bodySizeGuard";
-import { verifyDashboardSessionToken, DASHBOARD_SESSION_COOKIE } from "@/shared/utils/dashboardSessionToken";
+import {
+  verifyDashboardSessionToken,
+  DASHBOARD_SESSION_COOKIE,
+  getDashboardJwtSecret,
+} from "@/shared/utils/dashboardSessionToken";
 import { generateRequestId } from "../../shared/utils/requestId";
 import { applyCorsHeaders } from "../cors/origins";
 import { validateBrowserMutationOrigin } from "../origin/publicOrigin";
@@ -106,11 +110,6 @@ function getCookieValue(request: NextRequest, name: string): string | null {
   return null;
 }
 
-function getJwtSecret(): Uint8Array | null {
-  const secret = process.env.JWT_SECRET?.trim();
-  return secret ? new TextEncoder().encode(secret) : null;
-}
-
 function shouldUseSecureCookie(request: NextRequest): boolean {
   if (process.env.AUTH_COOKIE_SECURE === "true") return true;
   const forwardedProto = (request.headers.get("x-forwarded-proto") || "")
@@ -124,7 +123,7 @@ async function refreshDashboardSessionIfNeeded(
   response: NextResponse,
   request: NextRequest
 ): Promise<void> {
-  const secret = getJwtSecret();
+  const secret = getDashboardJwtSecret();
   if (!secret) return;
 
   const token = getCookieValue(request, DASHBOARD_SESSION_COOKIE);
@@ -156,7 +155,7 @@ async function refreshDashboardSessionIfNeeded(
       .setExpirationTime("30d")
       .sign(secret);
 
-    response.cookies.set("auth_token", freshToken, {
+    response.cookies.set(DASHBOARD_SESSION_COOKIE, freshToken, {
       httpOnly: true,
       secure: shouldUseSecureCookie(request),
       sameSite: "lax",
