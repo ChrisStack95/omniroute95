@@ -29,7 +29,7 @@ test("muse-code provider routes inference to Meta Responses API", () => {
   assert.equal(muse_codeProvider.baseUrl, "https://api.meta.ai/v1/responses");
   const executor = new MuseCodeExecutor();
   assert.equal(
-    executor.buildUrl("muse-spark-1.3", true, 0, { accessToken: "muse-key" }),
+    executor.buildUrl("muse-spark-1.3", true, 0, { accessToken: "fake-muse-key" }),
     "https://api.meta.ai/v1/responses"
   );
 });
