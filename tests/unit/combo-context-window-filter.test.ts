@@ -4,10 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// Regression tests for the context-aware combo compatibility filter.
-// Unknown context metadata is only safe as a fallback. Once the context filter
-// has rejected known-too-small targets and a known-capacity target remains,
-// unknown-context targets must not survive over it.
+// Context estimates order eligible targets without removing runtime fallbacks.
 
 const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-combo-context-filter-"));
 const ORIGINAL_DATA_DIR = process.env.DATA_DIR;
@@ -97,11 +94,16 @@ test("known compatible context target wins over unknown-context targets", () => 
 
   assert.deepEqual(
     out.map((entry) => entry.modelStr),
-    ["unit-known-context/million"]
+    [
+      "unit-known-context/million",
+      "unit-unknown-context/mystery-a",
+      "unit-known-context/tiny",
+      "unit-unknown-context/mystery-b",
+    ]
   );
 });
 
-test("unknown-context targets keep strategy order when no known limit was rejected", () => {
+test("strategy order is preserved when no known context window is too small", () => {
   saveModelsDevCapabilities({
     "unit-known-context": {
       million: capabilityEntry(1_000_000),
@@ -120,7 +122,7 @@ test("unknown-context targets keep strategy order when no known limit was reject
   );
 });
 
-test("unknown-context targets survive without restoring known-too-small targets", () => {
+test("unknown and known-small targets keep strategy order when none are known to fit", () => {
   saveModelsDevCapabilities({
     "unit-known-context": {
       tiny: capabilityEntry(8_000),
@@ -139,11 +141,11 @@ test("unknown-context targets survive without restoring known-too-small targets"
 
   assert.deepEqual(
     out.map((entry) => entry.modelStr),
-    ["unit-unknown-context/mystery-a", "unit-unknown-context/mystery-b"]
+    ["unit-unknown-context/mystery-a", "unit-known-context/tiny", "unit-unknown-context/mystery-b"]
   );
 });
 
-test("all known-too-small context targets are rejected", () => {
+test("all known-too-small context targets remain eligible for upstream evaluation", () => {
   saveModelsDevCapabilities({
     "unit-known-context": {
       tiny: capabilityEntry(8_000),
@@ -159,7 +161,7 @@ test("all known-too-small context targets are rejected", () => {
 
   assert.deepEqual(
     out.map((entry) => entry.modelStr),
-    []
+    ["unit-known-context/tiny", "unit-known-context/small"]
   );
 });
 
@@ -193,4 +195,118 @@ test("unknown tools and vision metadata survive while explicit false capabilitie
     out.map((entry) => entry.modelStr),
     ["unit-unknown-context/mystery", "unit-known-context/capable"]
   );
+});
+
+for (const scenario of [
+  {
+    name: "input cap excludes the output reserve",
+    input: 256_000,
+    output: 32_000,
+    inputCap: 272_000,
+    window: 400_000,
+    fits: true,
+  },
+  {
+    name: "input cap still constrains input inside a larger total window",
+    input: 280_000,
+    output: 32_000,
+    inputCap: 272_000,
+    window: 400_000,
+    fits: false,
+  },
+  {
+    name: "total window constrains input plus output even when input fits",
+    input: 256_000,
+    output: 64_000,
+    inputCap: 272_000,
+    window: 300_000,
+    fits: false,
+  },
+]) {
+  test(scenario.name, () => {
+    saveModelsDevCapabilities({
+      "unit-input-cap": {
+        model: {
+          ...capabilityEntry(scenario.window),
+          limit_input: scenario.inputCap,
+          limit_output: 128_000,
+        },
+        tiny: { ...capabilityEntry(1), limit_output: 128_000 },
+      },
+    });
+    const unknown = target("unit-unknown-context/mystery");
+    const known = target("unit-input-cap/model");
+    const tiny = target("unit-input-cap/tiny");
+    const out = filterTargetsByRequestCompatibility(
+      [unknown, known, tiny],
+      {
+        messages: [{ role: "user", content: "x".repeat(scenario.input * 4) }],
+        max_output_tokens: scenario.output,
+      },
+      noopLog
+    );
+    assert.deepEqual(out, scenario.fits ? [known, unknown, tiny] : [unknown, known, tiny]);
+  });
+}
+
+test("context preference never restores hard-rejected targets around a sole small survivor", () => {
+  saveModelsDevCapabilities({
+    "unit-hard-context": {
+      small: capabilityEntry(100),
+      noTools: { ...capabilityEntry(1_000_000), tool_call: false },
+      noOutput: { ...capabilityEntry(1_000_000), limit_output: 1 },
+      noStructured: { ...capabilityEntry(1_000_000), structured_output: false },
+    },
+  });
+  const out = filterTargetsByRequestCompatibility(
+    ["noTools", "small", "noOutput", "noStructured"].map((name) =>
+      target(`unit-hard-context/${name}`)
+    ),
+    {
+      ...largeContextBody(),
+      tools: [{ type: "function", function: { name: "lookup" } }],
+      max_output_tokens: 1000,
+      response_format: { type: "json_object" },
+    },
+    noopLog
+  );
+  assert.deepEqual(
+    out.map((entry) => entry.modelStr),
+    ["unit-hard-context/small"]
+  );
+});
+
+test("context overrides replace stale input and total metadata, with exact effort precedence", async () => {
+  const { setModelContextOverride, removeModelContextOverride } =
+    await import("../../src/lib/db/modelContextOverrides.ts");
+  saveModelsDevCapabilities({
+    "unit-override": {
+      "model-high": capabilityEntry(100),
+      model: capabilityEntry(100),
+      tiny: capabilityEntry(1),
+    },
+  });
+  const unknown = target("unit-unknown-context/mystery");
+  const known = target("unit-override/model-high");
+  const tiny = target("unit-override/tiny");
+  const filter = () =>
+    filterTargetsByRequestCompatibility([unknown, known, tiny], largeContextBody(), noopLog);
+  try {
+    assert.deepEqual(filter(), [unknown, known, tiny]);
+    setModelContextOverride("unit-override", "model", 1_000_000);
+    assert.deepEqual(
+      filter(),
+      [known, unknown, tiny],
+      "base override must supersede stale input and total caps"
+    );
+    setModelContextOverride("unit-override", "model-high", 100);
+    assert.deepEqual(
+      filter(),
+      [unknown, known, tiny],
+      "explicit effort override wins but does not reject the target"
+    );
+  } finally {
+    removeModelContextOverride("unit-override", "model");
+    removeModelContextOverride("unit-override", "model-high");
+  }
 });

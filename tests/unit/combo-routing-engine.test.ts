@@ -1773,7 +1773,7 @@ test("handleComboChat skips tool, vision, and structured-output incompatible fal
   assert.deepEqual(calls, ["openai/compatible"]);
 });
 
-test("handleComboChat preserves strategy order when context-aware filtering rejects all targets", async () => {
+test("handleComboChat rejects a pool whose models explicitly lack required tools", async () => {
   saveModelsDevCapabilities({
     openai: {
       "no-tools-a": capabilityEntry(128000, { tool_call: false }),
@@ -1803,8 +1803,9 @@ test("handleComboChat preserves strategy order when context-aware filtering reje
     allCombos: null,
   });
 
-  assert.equal(result.ok, true);
-  assert.deepEqual(calls, ["openai/no-tools-a"]);
+  assert.equal(result.status, 400);
+  assert.equal((await result.json()).error.code, "no_compatible_target");
+  assert.deepEqual(calls, []);
 });
 
 test("handleComboChat eval-driven routing prioritizes higher scoring evaluated targets", async () => {

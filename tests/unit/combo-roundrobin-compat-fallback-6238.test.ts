@@ -12,6 +12,7 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 const { handleComboChat } = await import("../../open-sse/services/combo.ts");
 const core = await import("../../src/lib/db/core.ts");
 const settingsDb = await import("../../src/lib/db/settings.ts");
+const providersDb = await import("../../src/lib/db/providers.ts");
 const { saveModelsDevCapabilities, clearModelsDevCapabilities } =
   await import("../../src/lib/modelsDevSync.ts");
 const { resetAllComboMetrics } = await import("../../open-sse/services/comboMetrics.ts");
@@ -133,7 +134,7 @@ test("round-robin returns 503 without dispatching incompatible targets when comp
 });
 
 for (const strategy of ["priority", "round-robin"]) {
-  for (const requirement of ["context", "output", "tools", "vision"]) {
+  for (const requirement of ["output", "tools", "vision"]) {
     test(`${strategy} rejects all ${requirement}-incompatible targets with 400 before dispatch`, async () => {
       saveModelsDevCapabilities({
         "unit-compat": {
@@ -141,7 +142,6 @@ for (const strategy of ["priority", "round-robin"]) {
         },
       });
       const body: Record<string, unknown> = { messages: [{ role: "user", content: "hello" }] };
-      if (requirement === "context") body.messages = [{ role: "user", content: "x".repeat(80000) }];
       if (requirement === "output") body.max_output_tokens = 6000;
       if (requirement === "tools")
         body.tools = [{ type: "function", function: { name: "lookup" } }];
@@ -266,7 +266,7 @@ test("nested execute mode rejects incompatible direct and child targets before p
   assert.equal(attempts, 0);
 });
 
-test("pipeline checks transformed step body and blocks an oversized intermediate output", async () => {
+test("pipeline dispatches a large intermediate result despite the next model catalog window", async () => {
   saveModelsDevCapabilities({
     "unit-compat": {
       primary: capabilityEntry(128000, { tool_call: false }),
@@ -289,12 +289,21 @@ test("pipeline checks transformed step body and blocks an oversized intermediate
     log: createLog(),
     handleSingleModel: async (body, model) => {
       attempts.push(model);
-      assert.equal(body.tools, undefined, "intermediate pipeline step intentionally strips tools");
-      return okResponse({ choices: [{ message: { content: "x".repeat(80000) } }] });
+      if (model === "unit-compat/primary") {
+        assert.equal(
+          body.tools,
+          undefined,
+          "intermediate pipeline step intentionally strips tools"
+        );
+        return okResponse({ choices: [{ message: { content: "x".repeat(80000) } }] });
+      }
+      assert.ok(JSON.stringify(body.messages).includes("x".repeat(80000)));
+      assert.ok(body.tools, "final step retains tool requirements");
+      return okResponse();
     },
   });
-  assert.equal(result.status, 400);
-  assert.deepEqual(attempts, ["unit-compat/primary"]);
+  assert.equal(result.status, 200);
+  assert.deepEqual(attempts, ["unit-compat/primary", "unit-compat/small"]);
 });
 
 test("a context-cache pin cannot bypass compatibility after the request gains tools", async () => {
@@ -314,6 +323,14 @@ test("a context-cache pin cannot bypass compatibility after the request gains to
     config: { maxRetries: 0 },
   };
   recordSessionModelUsage("compat-session", combo.name, "unit-compat/noTools", "unit-compat");
+  const connection = await providersDb.createProviderConnection({
+    provider: "unit-compat",
+    name: "pin regression",
+    authType: "apikey",
+    apiKey: "test-only-key",
+    isActive: true,
+    testStatus: "active",
+  });
   const attempts: string[] = [];
   try {
     const result = await handleComboChat({
@@ -332,5 +349,87 @@ test("a context-cache pin cannot bypass compatibility after the request gains to
     assert.deepEqual(attempts, ["unit-compat/capable"]);
   } finally {
     clearSessionModelHistoryForCombo(combo.name);
+    await providersDb.deleteProviderConnection(connection.id);
+  }
+});
+
+for (const strategy of ["priority", "round-robin"]) {
+  test(`${strategy} dispatches despite stale context metadata and falls back without changing input`, async () => {
+    saveModelsDevCapabilities({
+      "unit-advisory": { primary: capabilityEntry(100), backup: capabilityEntry(100) },
+    });
+    const body = { messages: [{ role: "user", content: "x".repeat(80_000) }] };
+    const attempts: string[] = [];
+    const result = await handleComboChat({
+      body,
+      combo: {
+        name: `advisory-${strategy}`,
+        strategy,
+        models: ["unit-advisory/primary", "unit-advisory/backup"],
+        config: { maxRetries: 0 },
+      },
+      settings: {},
+      allCombos: [],
+      log: createLog(),
+      handleSingleModel: async (attemptBody, model) => {
+        assert.deepEqual(attemptBody.messages, body.messages);
+        attempts.push(model);
+        if (attempts.length === 1)
+          return new Response(
+            JSON.stringify({
+              error: { code: "context_length_exceeded", message: "context length exceeded" },
+            }),
+            { status: 400, headers: { "content-type": "application/json" } }
+          );
+        return okResponse();
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(attempts.length, 2);
+    assert.equal(new Set(attempts).size, 2);
+  });
+}
+
+test("a context-cache pin survives an approximate context mismatch", async () => {
+  const { recordSessionModelUsage, clearSessionModelHistoryForCombo } =
+    await import("../../src/lib/db/contextHandoffs.ts");
+  saveModelsDevCapabilities({
+    "unit-advisory": { small: capabilityEntry(100), large: capabilityEntry(1_000_000) },
+  });
+  const combo = {
+    name: "advisory-pin",
+    strategy: "priority",
+    context_cache_protection: true,
+    models: ["unit-advisory/large", "unit-advisory/small"],
+    config: { maxRetries: 0 },
+  };
+  recordSessionModelUsage("advisory-session", combo.name, "unit-advisory/small", "unit-advisory");
+  const connection = await providersDb.createProviderConnection({
+    provider: "unit-advisory",
+    name: "pin regression",
+    authType: "apikey",
+    apiKey: "test-only-key",
+    isActive: true,
+    testStatus: "active",
+  });
+  const attempts: string[] = [];
+  try {
+    const result = await handleComboChat({
+      body: { messages: [{ role: "user", content: "x".repeat(80_000) }] },
+      combo,
+      allCombos: [combo],
+      relayOptions: { sessionId: "advisory-session" },
+      settings: {},
+      log: createLog(),
+      handleSingleModel: async (_body, model) => {
+        attempts.push(model);
+        return okResponse();
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(attempts, ["unit-advisory/small"]);
+  } finally {
+    clearSessionModelHistoryForCombo(combo.name);
+    await providersDb.deleteProviderConnection(connection.id);
   }
 });

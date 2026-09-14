@@ -11,7 +11,10 @@
  * No barrel import — depends only on sibling leaves.
  */
 
-import { getModelContextLimit } from "../../../src/lib/modelCapabilities";
+import {
+  getModelContextLimit,
+  getResolvedModelContextOverride,
+} from "../../../src/lib/modelCapabilities";
 import { getComboModelString, normalizeComboStep } from "../../../src/lib/combos/steps.ts";
 import { estimateTokens } from "../contextManager.ts";
 import { getResolvedModelCapabilities } from "../modelCapabilities.ts";
@@ -487,21 +490,19 @@ function exceedsKnownOutputLimit(
   return maxOutputTokens < requestedOutputTokens;
 }
 
-function getKnownContextLimit(capabilities: {
-  maxInputTokens?: number | null;
-  contextWindow?: number | null;
-}): number | null {
-  return capabilities.maxInputTokens ?? capabilities.contextWindow ?? null;
-}
-
-function hasKnownCompatibleContextLimit(
+/** Approximate context fit is a routing preference, never a dispatch prohibition. */
+function getEstimatedContextFit(
   target: ResolvedComboTarget,
-  requiredContextTokens: number
-): boolean {
-  if (requiredContextTokens <= 0) return false;
-  const capabilities = getResolvedModelCapabilities(target.modelStr);
-  const contextLimit = getKnownContextLimit(capabilities);
-  return contextLimit !== null && contextLimit >= requiredContextTokens;
+  requirements: RequestCompatibilityRequirements
+): boolean | null {
+  const override = getResolvedModelContextOverride(target.modelStr);
+  if (override !== null) return override >= requirements.requiredContextTokens;
+  const { maxInputTokens, contextWindow } = getResolvedModelCapabilities(target.modelStr);
+  if (maxInputTokens === null && contextWindow === null) return null;
+  return (
+    (maxInputTokens === null || maxInputTokens >= requirements.estimatedInputTokens) &&
+    (contextWindow === null || contextWindow >= requirements.requiredContextTokens)
+  );
 }
 
 function getTargetCompatibilityFailures(
@@ -526,15 +527,6 @@ function getTargetCompatibilityFailures(
 
   if (exceedsKnownOutputLimit(requirements.requestedOutputTokens, capabilities.maxOutputTokens)) {
     failures.push("output_tokens");
-  }
-
-  const contextLimit = getKnownContextLimit(capabilities);
-  if (
-    requirements.requiredContextTokens > 0 &&
-    contextLimit !== null &&
-    contextLimit < requirements.requiredContextTokens
-  ) {
-    failures.push("context_window");
   }
 
   return failures;
@@ -571,37 +563,21 @@ export function filterTargetsByRequestCompatibility(
     return false;
   });
 
-  // Unknown context limits are safe only as a fallback. If this request already
-  // filtered at least one known-too-small target and known-good targets remain,
-  // prefer the known-good set over unknown metadata gaps. When only unknown
-  // candidates remain, keep them without restoring known-incompatible targets.
-  const rejectedForContextWindow = rejected.some((entry) =>
-    entry.reasons.includes("context_window")
-  );
-  if (requirements.requiredContextTokens > 0 && rejectedForContextWindow) {
-    const knownContextCompatible = compatible.filter((target) =>
-      hasKnownCompatibleContextLimit(target, requirements.requiredContextTokens)
+  // Prefer known-fitting targets, retaining unknown/stale context entries in their
+  // original relative order for runtime fallback. Never restore hard rejections.
+  if (requirements.requiredContextTokens > 0 && compatible.length > 1) {
+    const contextFits = new Map(
+      compatible.map((target) => [target, getEstimatedContextFit(target, requirements)])
     );
-
-    if (knownContextCompatible.length > 0 && knownContextCompatible.length < compatible.length) {
-      const knownContextCompatibleTargets = new Set(knownContextCompatible);
-      for (const target of compatible) {
-        if (!knownContextCompatibleTargets.has(target)) {
-          rejected.push({ target, reasons: ["context_window_unknown"] });
-        }
-      }
-
-      log.info(
-        "COMBO",
-        `${label}: kept ${knownContextCompatible.length}/${targets.length} targets for request requirements`
-      );
+    const knownFits = compatible.filter((target) => contextFits.get(target) === true);
+    // Preserve strategy/composite-tier order unless a known window appears too small.
+    if (knownFits.length > 0 && [...contextFits.values()].includes(false)) {
+      const preferred = new Set(knownFits);
       log.debug?.(
         "COMBO",
-        `${label}: rejected targets ${rejected
-          .map((entry) => `${entry.target.modelStr}(${entry.reasons.join("+")})`)
-          .join(", ")}`
+        `${label}: preferring ${knownFits.length}/${compatible.length} targets by estimated context fit`
       );
-      return knownContextCompatible;
+      return [...knownFits, ...compatible.filter((target) => !preferred.has(target))];
     }
   }
 

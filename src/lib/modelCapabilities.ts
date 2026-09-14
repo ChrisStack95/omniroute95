@@ -510,6 +510,21 @@ export function capThinkingBudget(input: CapabilityInput, budget: number): numbe
   return Math.min(budget, cap);
 }
 
+/** Resolve operator/discovery context overrides without changing catalog capabilities. */
+export function getResolvedModelContextOverride(input: CapabilityInput): number | null {
+  const resolved = resolveCapabilityInput(input);
+  // An exact effort-specific override wins; otherwise inherit the base model's window.
+  const candidates = new Set([resolved.rawModel, resolved.model]);
+  for (const model of [...candidates]) {
+    if (model) candidates.add(model.replace(/-(xhigh|high|medium|low|none|minimal|max)$/i, ""));
+  }
+  for (const model of candidates) {
+    const override = getModelContextOverride(resolved.provider, model);
+    if (override !== null) return override;
+  }
+  return null;
+}
+
 export function getModelContextLimit(
   providerOrInput: CapabilityInput,
   modelId?: string
@@ -521,6 +536,9 @@ export function getModelContextLimit(
   // Feature 5004: a persisted override (operator-set or auto-discovered) wins over the
   // static catalog / models.dev sync. `getResolvedModelCapabilities` stays override-free
   // so the reconciler can compare the catalog value against provider-declared windows.
-  const override = getModelContextOverride(resolved.provider, resolved.model);
+  const override = getResolvedModelContextOverride({
+    provider: resolved.provider,
+    model: resolved.rawModel ?? resolved.model,
+  });
   return override ?? resolved.contextWindow;
 }

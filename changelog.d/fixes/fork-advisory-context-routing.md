@@ -1,0 +1,1 @@
+- **fix(combo):** Keep models with stale or unknown context metadata available for fallback, prefer estimated-fitting targets, and enforce input and total window limits separately when ordering. Honor base and effort-specific context overrides while preserving hard capability checks.

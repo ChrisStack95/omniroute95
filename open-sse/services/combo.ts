@@ -725,7 +725,7 @@ export async function handleComboChat({
       if (!isModelRequestCompatible(modelStr, dispatchBody)) {
         return createErrorResult(
           400,
-          "No combo target supports the request's context, output or capabilities",
+          "No combo target supports the request's output or capabilities",
           null,
           "no_compatible_target"
         ).response;
@@ -1239,7 +1239,7 @@ export async function handleComboChat({
   if (hadRequestTargets && orderedTargets.length === 0) {
     return createErrorResult(
       400,
-      "No combo target supports the request's context, output or capabilities",
+      "No combo target supports the request's output or capabilities",
       null,
       "no_compatible_target"
     ).response;
@@ -2611,7 +2611,7 @@ async function handleRoundRobinCombo({
   if (evalRankedTargets.length > 0 && filteredTargets.length === 0) {
     return createErrorResult(
       400,
-      "No combo target supports the request's context, output or capabilities",
+      "No combo target supports the request's output or capabilities",
       null,
       "no_compatible_target"
     ).response;
