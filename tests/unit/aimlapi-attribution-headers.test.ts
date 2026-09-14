@@ -19,7 +19,7 @@ const SOURCE_PATTERN = /^(web|agent|mcp)\/[a-z0-9-]{1,32}$/;
 
 test("aimlapi declares all four attribution headers", () => {
   const headers = aimlapiProvider.headers ?? {};
-  assert.equal(headers["X-AIMLAPI-Partner-ID"], "part_omniroute");
+  assert.equal(headers["X-AIMLAPI-Partner-ID"], "part_T2iNtMuQ3JBmEPwyOKCLOxaP");
   assert.equal(headers["X-AIMLAPI-Source"], "agent/omniroute");
   assert.equal(headers["HTTP-Referer"], "https://github.com/diegosouzapw/OmniRoute");
   assert.equal(headers["X-Title"], "OmniRoute");
@@ -60,22 +60,22 @@ test("the executor emits the headers without mutating the shared registry consta
   const first = executor.buildHeaders({ apiKey: "test-key" } as never, false);
   const second = executor.buildHeaders({ apiKey: "test-key" } as never, false);
 
-  assert.equal(first["X-AIMLAPI-Partner-ID"], "part_omniroute");
-  assert.equal(second["X-AIMLAPI-Partner-ID"], "part_omniroute");
+  assert.equal(first["X-AIMLAPI-Partner-ID"], "part_T2iNtMuQ3JBmEPwyOKCLOxaP");
+  assert.equal(second["X-AIMLAPI-Partner-ID"], "part_T2iNtMuQ3JBmEPwyOKCLOxaP");
   // A fresh object per request — mutating one built header map must not leak into
   // the next request or back into the registry entry.
   assert.notEqual(first, second);
   first["X-AIMLAPI-Partner-ID"] = "part_tampered";
   assert.equal(
     executor.buildHeaders({ apiKey: "test-key" } as never, false)["X-AIMLAPI-Partner-ID"],
-    "part_omniroute"
+    "part_T2iNtMuQ3JBmEPwyOKCLOxaP"
   );
   assert.equal(JSON.stringify(aimlapiProvider.headers), before);
 });
 
 test("the generated legacy provider map carries the headers through to dispatch", () => {
   const legacy = generateLegacyProviders().aimlapi;
-  assert.equal(legacy.headers?.["X-AIMLAPI-Partner-ID"], "part_omniroute");
+  assert.equal(legacy.headers?.["X-AIMLAPI-Partner-ID"], "part_T2iNtMuQ3JBmEPwyOKCLOxaP");
   assert.equal(legacy.headers?.["X-AIMLAPI-Source"], "agent/omniroute");
 });
 
