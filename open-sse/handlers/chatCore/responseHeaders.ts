@@ -14,6 +14,22 @@ const STREAMING_RESPONSE_HEADER_DENYLIST = new Set([
   "transfer-encoding",
 ]);
 
+const CODEX_ACCOUNT_QUOTA_HEADER_PREFIX = "x-codex-";
+const CODEX_ACCOUNT_QUOTA_HEADER_SUFFIXES = [
+  "-used-percent",
+  "-window-minutes",
+  "-reset-at",
+  "-reset-after-seconds",
+];
+const CODEX_ACCOUNT_QUOTA_HEADER_NAMES = new Set([
+  "x-codex-credits-balance",
+  "x-codex-credits-has-credits",
+  "x-codex-credits-unlimited",
+  "x-codex-limit-name",
+  "x-codex-plan-type",
+  "x-codex-rate-limit-reached-type",
+]);
+
 /**
  * Prefix of Next.js internal middleware control headers.
  *
@@ -97,6 +113,25 @@ export function isNextMiddlewareControlHeader(headerName: string): boolean {
   return headerName.toLowerCase().startsWith(NEXTJS_MIDDLEWARE_HEADER_PREFIX);
 }
 
+export function isCodexAccountQuotaHeader(headerName: string): boolean {
+  const normalized = headerName.toLowerCase();
+  if (!normalized.startsWith(CODEX_ACCOUNT_QUOTA_HEADER_PREFIX)) return false;
+  if (CODEX_ACCOUNT_QUOTA_HEADER_NAMES.has(normalized)) return true;
+  return CODEX_ACCOUNT_QUOTA_HEADER_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+}
+
+export function stripCodexAccountQuotaHeaders(headers: Headers): void {
+  const toDelete: string[] = [];
+  headers.forEach((_value, key) => {
+    if (isCodexAccountQuotaHeader(key)) {
+      toDelete.push(key);
+    }
+  });
+  for (const key of toDelete) {
+    headers.delete(key);
+  }
+}
+
 /**
  * Strip the whole `x-middleware-*` family (see {@link isNextMiddlewareControlHeader})
  * from a `Headers` instance. Used on the non-streaming JSON path alongside
@@ -122,7 +157,8 @@ export function buildStreamingResponseHeaders(
   providerHeaders.forEach((value, key) => {
     if (
       !STREAMING_RESPONSE_HEADER_DENYLIST.has(key.toLowerCase()) &&
-      !isNextMiddlewareControlHeader(key)
+      !isNextMiddlewareControlHeader(key) &&
+      !isCodexAccountQuotaHeader(key)
     ) {
       forwardedHeaders.push([key, value]);
     }

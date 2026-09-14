@@ -46,6 +46,7 @@ import {
   buildStreamingResponseHeaders,
   isReusableDeduplicatedExecutionResult,
   materializeDeduplicatedExecutionResult,
+  stripCodexAccountQuotaHeaders,
   stripNextMiddlewareControlHeaders,
   stripStaleForwardingHeaders,
 } from "./chatCore/responseHeaders.ts";
@@ -2765,6 +2766,7 @@ export async function handleChatCore({
         const responseHeaders = new Headers(headersObj);
         stripStaleForwardingHeaders(responseHeaders);
         stripNextMiddlewareControlHeaders(responseHeaders);
+        stripCodexAccountQuotaHeaders(responseHeaders);
         const contentType = (responseHeaders.get("content-type") || "").toLowerCase();
         const payload = await readNonStreamingResponseBody(
           rawResult.response,

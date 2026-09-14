@@ -3,7 +3,9 @@ import { test } from "node:test";
 
 import {
   buildStreamingResponseHeaders,
+  isCodexAccountQuotaHeader,
   isNextMiddlewareControlHeader,
+  stripCodexAccountQuotaHeaders,
   stripNextMiddlewareControlHeaders,
 } from "@omniroute/open-sse/handlers/chatCore/responseHeaders.ts";
 
@@ -64,4 +66,38 @@ test("non-streaming JSON path: stripNextMiddlewareControlHeaders removes the fam
   }
   assert.equal(headers.get("x-request-id"), "req-456");
   assert.equal(headers.get("content-type"), "application/json");
+});
+
+test("Codex account quota headers are not forwarded to multi-account clients", () => {
+  const quotaHeaders = [
+    "x-codex-primary-used-percent",
+    "x-codex-primary-window-minutes",
+    "x-codex-primary-reset-at",
+    "x-codex-secondary-used-percent",
+    "x-codex-credits-balance",
+    "x-codex-plan-type",
+    "x-codex-rate-limit-reached-type",
+  ];
+  const upstream = new Headers({
+    "x-codex-turn-state": "protocol-state",
+    "x-request-id": "req-codex-quota",
+  });
+  for (const name of quotaHeaders) upstream.set(name, "1");
+
+  const streaming = buildStreamingResponseHeaders(upstream, {});
+  for (const name of quotaHeaders) {
+    assert.equal(isCodexAccountQuotaHeader(name), true, name);
+    assert.equal(
+      Object.keys(streaming).some((key) => key.toLowerCase() === name),
+      false,
+      `${name} must not describe the selected backend account to the client`
+    );
+  }
+  assert.equal(streaming["x-codex-turn-state"], "protocol-state");
+  assert.equal(streaming["x-request-id"], "req-codex-quota");
+
+  stripCodexAccountQuotaHeaders(upstream);
+  for (const name of quotaHeaders) assert.equal(upstream.get(name), null, name);
+  assert.equal(upstream.get("x-codex-turn-state"), "protocol-state");
+  assert.equal(upstream.get("x-request-id"), "req-codex-quota");
 });
