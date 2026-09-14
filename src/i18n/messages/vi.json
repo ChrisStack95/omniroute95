@@ -7470,6 +7470,8 @@
     "clearSyncedPricing": "Xóa giá đã đồng bộ hóa",
     "compressionTitle": "Nén prompt",
     "compressionDesc": "Giảm mức sử dụng token bằng cách nén các prompt trước khi gửi đến các nhà cung cấp",
+    "autoCombosTitle": "Combo tự động",
+    "autoCombosDesc": "Cho phép khóa này sử dụng các combo auto/* tích hợp sẵn, vốn tự động chọn mô hình từ mọi nhà cung cấp đã cấu hình",
     "compressionGuidanceFullGuideLink": "Hướng dẫn nén đầy đủ",
     "compressionGuidanceShow": "Chi tiết",
     "compressionGuidanceHide": "Ẩn chi tiết",

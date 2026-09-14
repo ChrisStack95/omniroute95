@@ -122,6 +122,47 @@ test("R5: the update route forwards allowAutoCombos into the payload", () => {
   );
 });
 
+test("R7: the API Manager wires the toggle and defaults it ON", () => {
+  const client = read("src/app/(dashboard)/dashboard/api-manager/ApiManagerPageClient.tsx");
+
+  assert.ok(
+    client.includes("ApiKeyAutoCombosToggle"),
+    "the permissions modal must render the auto-combos toggle"
+  );
+  assert.ok(
+    client.includes("apiKey?.allowAutoCombos !== false"),
+    "state must default ON via `!== false` — `=== true` would render a key that predates the field as disabled"
+  );
+  // Positional plumbing: the save handler signature, the onSave call and the
+  // PATCH payload must each carry the field, or later arguments shift by one.
+  assert.ok(
+    client.includes("allowAutoCombos: boolean,"),
+    "the save handler and modal prop signatures must declare it"
+  );
+  assert.match(
+    client,
+    /body: JSON\.stringify\(\{[\s\S]*?allowAutoCombos,[\s\S]*?\}\)/,
+    "the PATCH body must include allowAutoCombos"
+  );
+});
+
+test("R8: the toggle's UI strings exist in English and Vietnamese", () => {
+  // en.json is the source of truth; vi is the one locale whose completeness is
+  // asserted by tests/unit/i18n-vi-completeness.test.ts (it bans placeholders).
+  for (const locale of ["en", "vi"]) {
+    const messages = JSON.parse(read(`src/i18n/messages/${locale}.json`));
+    for (const key of ["autoCombosTitle", "autoCombosDesc"]) {
+      const value = messages?.settings?.[key];
+      assert.equal(typeof value, "string", `${locale}.json settings.${key} must exist`);
+      assert.ok(value.trim().length > 0, `${locale}.json settings.${key} must not be empty`);
+      assert.ok(
+        !/__(?:MISSING|TODO)__/i.test(value),
+        `${locale}.json settings.${key} must be translated, not a placeholder`
+      );
+    }
+  }
+});
+
 test("R6: the catalog skips auto/* synthesis for a key that opted out", () => {
   const catalog = read("src/app/api/v1/models/catalog.ts");
   assert.ok(
