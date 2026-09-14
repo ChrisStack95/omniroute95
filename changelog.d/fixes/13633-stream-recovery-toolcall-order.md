@@ -1,0 +1,1 @@
+- **fix(stream-recovery):** resume trailing text from the same upstream connection after a transient mid-stream cut, and stop after a single empty continuation instead of burning the retry budget ([#13633](https://github.com/diegosouzapw/OmniRoute/pull/13633)) — thanks @maxmad64bis

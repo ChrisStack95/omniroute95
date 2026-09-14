@@ -39,7 +39,9 @@ const {
 // OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS bumped it from 53 to 54;
 // the dead ONEPROXY_ENABLED (readerless since the 1proxy purge, #12091)
 // brought it back to 53. UNIVERSAL_CONTEXT_HANDOFF_ENABLED bumped it to 54.
-const EXPECTED_FEATURE_FLAG_COUNT = 55;
+// STREAM_RECOVERY_TOOLCALL_ORDER_FIX (order-aware in-flight detection, ships off)
+// bumps it from 55 to 56.
+const EXPECTED_FEATURE_FLAG_COUNT = 56;
 
 // ──────────────────────────────────────────────────────
 // Test group 1 — Flag definitions registry
@@ -149,6 +151,21 @@ describe("featureFlagDefinitions", () => {
     assert.strictEqual(early.defaultValue, "false");
     assert.strictEqual(early.requiresRestart, false);
     assert.strictEqual(early.warningLevel, "caution");
+
+    const orderFix = FEATURE_FLAG_DEFINITIONS.find(
+      (d) => d.key === "STREAM_RECOVERY_TOOLCALL_ORDER_FIX"
+    );
+
+    assert.ok(orderFix, "STREAM_RECOVERY_TOOLCALL_ORDER_FIX should exist");
+    assert.strictEqual(orderFix.category, "runtime");
+    assert.strictEqual(orderFix.type, "boolean");
+    assert.strictEqual(orderFix.defaultValue, "false");
+    assert.strictEqual(orderFix.requiresRestart, false);
+    assert.strictEqual(orderFix.warningLevel, "info");
+    assert.strictEqual(
+      orderFix.descriptionI18nKey,
+      "featureFlagStreamRecoveryToolcallOrderFixDescription"
+    );
 
     assert.ok(midstream, "STREAM_RECOVERY_MIDSTREAM_ENABLED should exist");
     assert.strictEqual(midstream.category, "runtime");

@@ -450,6 +450,18 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "danger",
   },
   {
+    key: "STREAM_RECOVERY_TOOLCALL_ORDER_FIX",
+    label: "Tool-Call Order Fix",
+    description:
+      "Resume trailing text from the same upstream connection after a transient mid-stream cut once a tool call has completed, using order-aware in-flight detection. Off by default: order-blind detection plus sticky latch.",
+    descriptionI18nKey: "featureFlagStreamRecoveryToolcallOrderFixDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
     key: "MODEL_CATALOG_INCLUDE_NAMES",
     label: "Model Catalog Names",
     description:
