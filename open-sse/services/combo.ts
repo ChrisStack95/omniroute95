@@ -23,6 +23,7 @@ import {
 } from "./accountFallback.ts";
 import {
   errorResponse,
+  createErrorResult,
   unavailableResponse,
   errorResponseWithComboDiagnostics,
 } from "../utils/error.ts";
@@ -153,10 +154,10 @@ import {
   expandProviderWildcardsInCollection,
 } from "./combo/providerWildcard.ts";
 import { resolveShadowTargets, scheduleShadowRouting } from "./combo/shadowRouting.ts";
-import { attemptCompatRejectedFallback } from "./combo/comboCompatFallback.ts";
 import { applyContextRequirements } from "./combo/contextRequirements.ts";
 import {
   filterTargetsByRequestCompatibility,
+  isModelRequestCompatible,
   resolveComboRuntimeUnits,
   resolveComboTargets,
   resolveWeightedTargets,
@@ -718,7 +719,19 @@ export async function handleComboChat({
   body = comboCtx.body;
 
   const handleSingleModelWithTimeout = buildTargetTimeoutRunner({
-    handleSingleModel,
+    // Pins and nested/pipeline/fusion dispatches bypass the ordered-target filter.
+    // Check their actual body immediately before sending it to a provider.
+    handleSingleModel: async (dispatchBody, modelStr, target) => {
+      if (!isModelRequestCompatible(modelStr, dispatchBody)) {
+        return createErrorResult(
+          400,
+          "No combo target supports the request's context, output or capabilities",
+          null,
+          "no_compatible_target"
+        ).response;
+      }
+      return handleSingleModel(dispatchBody, modelStr, target);
+    },
     comboTargetTimeoutMs,
     log,
   });
@@ -748,7 +761,8 @@ export async function handleComboChat({
     // and credits_exhausted accounts never failing over. A transient cooldown is
     // tolerated (pin kept) so an unstable provider does not churn the pin.
     const pinDurablyDown = pinInCombo ? await isPinnedModelDurablyUnhealthy(pinnedModel) : false;
-    if (pinInCombo && !pinDurablyDown) {
+    const pinCompatible = isModelRequestCompatible(pinnedModel, body);
+    if (pinInCombo && !pinDurablyDown && pinCompatible) {
       log.info(
         "COMBO",
         `Bypassing strategy — routing directly to pinned context model: ${pinnedModel}`
@@ -800,9 +814,11 @@ export async function handleComboChat({
     }
     log.warn(
       "COMBO",
-      pinInCombo
-        ? `Context-cache pin "${pinnedModel}" provider durably unhealthy — dropping pin, using strategy`
-        : `Stale context-cache pin "${pinnedModel}" not in combo "${combo.name}" targets — dropping pin, using strategy`
+      !pinCompatible
+        ? `Context-cache pin "${pinnedModel}" is incompatible with this request — using strategy`
+        : pinInCombo
+          ? `Context-cache pin "${pinnedModel}" provider durably unhealthy — dropping pin, using strategy`
+          : `Stale context-cache pin "${pinnedModel}" not in combo "${combo.name}" targets — dropping pin, using strategy`
     );
     // Fall through to the normal target iteration loop below — the pin is
     // dropped, so the combo strategy picks the best available target.
@@ -1218,7 +1234,16 @@ export async function handleComboChat({
       );
   orderedTargets = _sticky.targets;
   orderedTargets = orderTargetsByEvalScores(orderedTargets, config.evalRouting, log);
+  const hadRequestTargets = orderedTargets.length > 0;
   orderedTargets = filterTargetsByRequestCompatibility(orderedTargets, body, log);
+  if (hadRequestTargets && orderedTargets.length === 0) {
+    return createErrorResult(
+      400,
+      "No combo target supports the request's context, output or capabilities",
+      null,
+      "no_compatible_target"
+    ).response;
+  }
   orderedTargets = applyContextRequirements(orderedTargets, config.contextRequirements, log);
 
   // Task-aware reordering: only active for strategies ["smart","task","task-aware","task_aware","auto"].
@@ -2583,13 +2608,14 @@ async function handleRoundRobinCombo({
     log,
     "Context-aware round-robin fallback"
   );
-  // #6238: keep the targets the compat pre-filter rejected so they can serve as a
-  // last-resort fallback tier. The pre-filter drops request-incompatible targets
-  // BEFORE availability is known; if every compat-kept target then turns out to be
-  // runtime-unavailable, we must reconsider these before returning 503, instead of
-  // permanently dropping a compat-rejected-but-healthy provider.
-  const compatKeptSet = new Set(filteredTargets);
-  const compatRejectedTargets = evalRankedTargets.filter((target) => !compatKeptSet.has(target));
+  if (evalRankedTargets.length > 0 && filteredTargets.length === 0) {
+    return createErrorResult(
+      400,
+      "No combo target supports the request's context, output or capabilities",
+      null,
+      "no_compatible_target"
+    ).response;
+  }
   const modelCount = filteredTargets.length;
   if (modelCount === 0) {
     return comboModelNotFoundResponse("Round-robin combo has no executable targets");
@@ -3255,36 +3281,6 @@ async function handleRoundRobinCombo({
 
   // All models exhausted
   const latencyMs = Date.now() - startTime;
-
-  // #6238: every compat-kept target was skipped as unavailable and NONE was ever
-  // attempted (recordedAttempts === 0). Before crystallizing 503, probe the targets
-  // the compat pre-filter rejected — a compat-rejected-but-healthy provider is a
-  // valid last-resort fallback tier, not a permanently dropped target.
-  if (recordedAttempts === 0 && compatRejectedTargets.length > 0) {
-    const compatFallbackResult = await attemptCompatRejectedFallback(compatRejectedTargets, body, {
-      handleSingleModel,
-      isModelAvailable,
-      isProviderInCooldown: (target) =>
-        resilienceSettings.providerCooldown.enabled &&
-        Boolean(target.provider && target.provider !== "unknown") &&
-        isProviderInCooldown(
-          target.provider as string,
-          target.connectionId as string | undefined,
-          resilienceSettings
-        ),
-      log,
-      strategy: "round-robin",
-    });
-    if (compatFallbackResult) {
-      recordComboRequest(combo.name, null, {
-        success: true,
-        latencyMs: Date.now() - startTime,
-        fallbackCount,
-        strategy: "round-robin",
-      });
-      return compatFallbackResult;
-    }
-  }
 
   if (recordedAttempts === 0) {
     recordComboRequest(combo.name, null, {

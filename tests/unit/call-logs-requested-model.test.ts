@@ -154,3 +154,49 @@ test("requestedModel for anthropic-compatible provider with prefix", async () =>
   assert.equal(all.length, 1);
   assert.equal(all[0].requestedModel, "mac/claude-opus-4");
 });
+
+test("call-log summaries expose stable empty-output codes without loading response artifacts", async () => {
+  const cases = [
+    {
+      error: "[codex/gpt-5.5] returned an empty response (no usable choices/output)",
+      status: 502,
+      code: "empty_response",
+    },
+    { error: "Provider returned empty content", status: 502, code: "empty_response" },
+    {
+      error:
+        "[codex/gpt-5.5] returned empty output on 3 attempts; stopping retries for this provider/model",
+      status: 502,
+      code: "empty_response_retry_exhausted",
+    },
+    {
+      error: { code: "empty_response_retry_exhausted", message: "Attempt limit reached" },
+      status: 502,
+      code: "empty_response_retry_exhausted",
+    },
+    {
+      error: { code: "empty_response", message: "No output" },
+      status: 502,
+      code: "empty_response",
+    },
+    { error: "Bad gateway: upstream connection reset", status: 502, code: null },
+    { error: "Provider returned empty content", status: 500, code: null },
+    { error: null, status: 200, code: null },
+  ];
+  for (let i = 0; i < cases.length; i++) {
+    await callLogs.saveCallLog({
+      method: "POST",
+      path: "/v1/responses",
+      model: `model-${i}`,
+      provider: "codex",
+      status: cases[i].status,
+      error: cases[i].error,
+      duration: 100,
+    });
+  }
+  const rows = await callLogs.getCallLogs({ limit: 20 });
+  assert.equal(rows.length, cases.length);
+  for (let i = 0; i < cases.length; i++) {
+    assert.equal(rows.find((row) => row.model === `model-${i}`)?.errorCode, cases[i].code);
+  }
+});

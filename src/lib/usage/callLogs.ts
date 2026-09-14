@@ -7,6 +7,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { getEmptyResponseErrorCode } from "@omniroute/open-sse/services/combo/emptyResponseRetryBudget.ts";
 import type { RequestPipelinePayloads } from "@omniroute/open-sse/utils/requestLogger.ts";
 import { getDbInstance } from "../db/core";
 import { collectReferencedArtifacts, selectCallLogIdsBefore } from "./callLogsBoundedQueries";
@@ -473,6 +474,14 @@ export function trimCallLogsToMaxRows(maxRows = getCallLogsTableMaxRows()) {
 }
 
 function mapSummaryRow(row: CallLogSummaryRow) {
+  const parsedError = parseInlineError(row.error_summary);
+  const structuredError =
+    parsedError && typeof parsedError === "object" ? (parsedError as JsonRecord) : null;
+  const errorCode = getEmptyResponseErrorCode({
+    status: toNumber(row.status),
+    error: row.error_summary ?? undefined,
+    errorCode: typeof structuredError?.code === "string" ? structuredError.code : undefined,
+  });
   const detailState = normalizeDetailState(row.detail_state);
   const provider = row.provider;
   const nodePrefix = row.provider_node_prefix ?? null;
@@ -506,6 +515,7 @@ function mapSummaryRow(row: CallLogSummaryRow) {
     comboStepId: row.combo_step_id,
     comboExecutionKey: row.combo_execution_key,
     error: row.error_summary,
+    errorCode,
     detailState,
     artifactRelPath: row.artifact_relpath,
     artifactSizeBytes: row.artifact_size_bytes,

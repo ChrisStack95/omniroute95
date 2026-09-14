@@ -139,11 +139,11 @@ for (const strategy of ["priority", "round-robin"]) {
         name: `budget-${strategy}`,
         strategy,
         config: { maxRetries: 5, retryDelayMs: 0, failoverBeforeRetry: false },
-        models: ["openai/gpt-4.1", "claude/claude-3-5-sonnet-20241022"],
+        models: ["openai/gpt-4.1", "openai/gpt-4o-mini"],
       },
       handleSingleModel: async (_body, model) => {
         calls.push(model);
-        return model.startsWith("openai/")
+        return model === "openai/gpt-4.1"
           ? createErrorResult(
               502,
               "Empty output attempt limit reached",
@@ -157,7 +157,7 @@ for (const strategy of ["priority", "round-robin"]) {
       allCombos: [],
     });
     assert.equal(response.status, 200);
-    assert.deepEqual(calls, ["openai/gpt-4.1", "claude/claude-3-5-sonnet-20241022"]);
+    assert.deepEqual(calls, ["openai/gpt-4.1", "openai/gpt-4o-mini"]);
   });
 }
 
@@ -194,3 +194,18 @@ test("separate combo steps for the same provider/model share the empty-output bu
   assert.equal(response.status, 200);
   assert.equal(primaryCalls, 3, "the fourth and fifth combo steps must not reset the budget");
 });
+
+for (const failure of [
+  { errorCode: "empty_response_retry_exhausted" },
+  { error: "[codex/gpt-5.5] returned an empty response (no usable choices/output)" },
+  { error: "Provider returned empty content" },
+]) {
+  test(`retry budget shares empty-output classification: ${JSON.stringify(failure)}`, () => {
+    const budget = new EmptyResponseRetryBudget();
+    for (let i = 0; i < 3; i++) {
+      assert.equal(budget.recordFailure("codex", "primary", { status: 502, ...failure }), i === 2);
+      assert.equal(budget.recordFailure("codex", "backup", { status: 500, ...failure }), false);
+    }
+    assert.equal(budget.isExhausted("codex", "backup"), false);
+  });
+}

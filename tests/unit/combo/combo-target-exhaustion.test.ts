@@ -377,3 +377,33 @@ test("synthetic combo target 524 does not exhaust the whole provider without a c
   assert.equal(s.exhaustedProviders.has("codex"), false);
   assert.equal(s.exhaustedConnections.size, 0);
 });
+
+for (const connectionId of [null, "conn-1"]) {
+  for (const code of ["empty_response", "empty_response_retry_exhausted"]) {
+    test(`${code} preserves healthy provider and connection ${connectionId}`, () => {
+      const s = sets();
+      const exhausted = applyComboTargetExhaustion(target({ connectionId }), {
+        ...baseOpts,
+        result: { status: 502 },
+        fallbackResult: {},
+        structuredError: { code },
+        sets: s,
+      });
+      assert.equal(exhausted, false);
+      assert.equal(s.exhaustedProviders.size, 0);
+      assert.equal(s.exhaustedConnections.size, 0);
+    });
+  }
+  test(`legacy empty response preserves healthy provider and connection ${connectionId}`, () => {
+    const s = sets();
+    applyComboTargetExhaustion(target({ connectionId }), {
+      ...baseOpts,
+      result: { status: 502 },
+      fallbackResult: {},
+      sets: s,
+      errorText: "[codex/gpt-5.5] returned an empty response (no usable choices/output)",
+    });
+    assert.equal(s.exhaustedProviders.size, 0);
+    assert.equal(s.exhaustedConnections.size, 0);
+  });
+}

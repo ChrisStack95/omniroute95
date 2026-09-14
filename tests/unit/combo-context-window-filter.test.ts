@@ -120,7 +120,7 @@ test("unknown-context targets keep strategy order when no known limit was reject
   );
 });
 
-test("unknown-context targets do not become the only survivors when no known-compatible context target exists", () => {
+test("unknown-context targets survive without restoring known-too-small targets", () => {
   saveModelsDevCapabilities({
     "unit-known-context": {
       tiny: capabilityEntry(8_000),
@@ -139,11 +139,11 @@ test("unknown-context targets do not become the only survivors when no known-com
 
   assert.deepEqual(
     out.map((entry) => entry.modelStr),
-    ["unit-unknown-context/mystery-a", "unit-known-context/tiny", "unit-unknown-context/mystery-b"]
+    ["unit-unknown-context/mystery-a", "unit-unknown-context/mystery-b"]
   );
 });
 
-test("all known-too-small context targets still fall back to strategy order", () => {
+test("all known-too-small context targets are rejected", () => {
   saveModelsDevCapabilities({
     "unit-known-context": {
       tiny: capabilityEntry(8_000),
@@ -159,6 +159,38 @@ test("all known-too-small context targets still fall back to strategy order", ()
 
   assert.deepEqual(
     out.map((entry) => entry.modelStr),
-    ["unit-known-context/tiny", "unit-known-context/small"]
+    []
+  );
+});
+
+test("unknown tools and vision metadata survive while explicit false capabilities are rejected", () => {
+  saveModelsDevCapabilities({
+    "unit-known-context": {
+      blind: capabilityEntry(1_000_000),
+      noTools: { ...capabilityEntry(1_000_000), tool_call: false, attachment: true },
+      capable: { ...capabilityEntry(1_000_000), attachment: true },
+    },
+  });
+  const out = filterTargetsByRequestCompatibility(
+    [
+      target("unit-known-context/blind"),
+      target("unit-known-context/noTools"),
+      target("unit-unknown-context/mystery"),
+      target("unit-known-context/capable"),
+    ],
+    {
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "image_url", image_url: { url: "https://example.com/image.png" } }],
+        },
+      ],
+      tools: [{ type: "function", function: { name: "describe" } }],
+    },
+    noopLog
+  );
+  assert.deepEqual(
+    out.map((entry) => entry.modelStr),
+    ["unit-unknown-context/mystery", "unit-known-context/capable"]
   );
 });

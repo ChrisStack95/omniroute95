@@ -466,7 +466,8 @@ function deriveRequestCompatibilityRequirements(
   const estimatedInputTokens = estimateRequestInputTokens(body);
   const requestedOutputTokens = Math.max(
     getPositiveTokenCount(body.max_tokens),
-    getPositiveTokenCount(body.max_completion_tokens)
+    getPositiveTokenCount(body.max_completion_tokens),
+    getPositiveTokenCount(body.max_output_tokens)
   );
   return {
     requiresTools: requestRequiresTools(body),
@@ -503,31 +504,19 @@ function hasKnownCompatibleContextLimit(
   return contextLimit !== null && contextLimit >= requiredContextTokens;
 }
 
-function hasOnlyContextWindowFailures(reasons: string[]): boolean {
-  return reasons.length > 0 && reasons.every((reason) => reason === "context_window");
-}
-
 function getTargetCompatibilityFailures(
-  target: ResolvedComboTarget,
+  target: Pick<ResolvedComboTarget, "modelStr">,
   requirements: RequestCompatibilityRequirements
 ): string[] {
   const capabilities = getResolvedModelCapabilities(target.modelStr);
   const failures: string[] = [];
 
-  if (
-    requirements.requiresTools &&
-    (capabilities.supportsTools === false || !capabilities.toolCalling)
-  ) {
+  if (requirements.requiresTools && capabilities.supportsTools === false) {
     failures.push("tools");
   }
 
-  // For a request that carries an image, only route to a target whose vision
-  // support is *confirmed* (`=== true`). Treat `false` AND `null` (unknown) as
-  // incompatible: an unknown-capability model receiving the image is exactly how
-  // a text-only model (e.g. ministral) ended up answering "image not provided".
-  // The caller keeps all targets when none qualify, so combos with no
-  // confirmed-vision member still behave as before.
-  if (requirements.requiresVision && capabilities.supportsVision !== true) {
+  // Missing metadata is unknown, not an explicit denial of a capability.
+  if (requirements.requiresVision && capabilities.supportsVision === false) {
     failures.push("vision");
   }
 
@@ -549,6 +538,14 @@ function getTargetCompatibilityFailures(
   }
 
   return failures;
+}
+
+/** Check the actual dispatch body, including strategy-specific transformations. */
+export function isModelRequestCompatible(modelStr: string, body: Record<string, unknown>): boolean {
+  return (
+    getTargetCompatibilityFailures({ modelStr }, deriveRequestCompatibilityRequirements(body))
+      .length === 0
+  );
 }
 
 export function filterTargetsByRequestCompatibility(
@@ -576,9 +573,8 @@ export function filterTargetsByRequestCompatibility(
 
   // Unknown context limits are safe only as a fallback. If this request already
   // filtered at least one known-too-small target and known-good targets remain,
-  // prefer the known-good set over unknown metadata gaps. If no known-good
-  // context target remains, fall back to the strategy order for context-only
-  // candidates instead of letting unknown metadata be the only survivors.
+  // prefer the known-good set over unknown metadata gaps. When only unknown
+  // candidates remain, keep them without restoring known-incompatible targets.
   const rejectedForContextWindow = rejected.some((entry) =>
     entry.reasons.includes("context_window")
   );
@@ -607,44 +603,9 @@ export function filterTargetsByRequestCompatibility(
       );
       return knownContextCompatible;
     }
-
-    if (knownContextCompatible.length === 0 && compatible.length > 0) {
-      const rejectedByTarget = new Map(rejected.map((entry) => [entry.target, entry.reasons]));
-      const contextOnlyFallback = targets.filter((target) => {
-        const reasons = rejectedByTarget.get(target);
-        return !reasons || hasOnlyContextWindowFailures(reasons);
-      });
-
-      if (contextOnlyFallback.length > compatible.length) {
-        log.warn(
-          "COMBO",
-          `${label}: no known-compatible context target remains; preserving strategy order for context-only candidates`
-        );
-        log.debug?.(
-          "COMBO",
-          `${label}: rejected targets ${rejected
-            .map((entry) => `${entry.target.modelStr}(${entry.reasons.join("+")})`)
-            .join(", ")}`
-        );
-        return contextOnlyFallback;
-      }
-    }
   }
 
   if (compatible.length === targets.length) return targets;
-  if (compatible.length === 0) {
-    log.warn(
-      "COMBO",
-      `${label}: all ${targets.length} targets were filtered by request requirements; preserving strategy order`
-    );
-    log.debug?.(
-      "COMBO",
-      `${label}: rejected targets ${rejected
-        .map((entry) => `${entry.target.modelStr}(${entry.reasons.join("+")})`)
-        .join(", ")}`
-    );
-    return targets;
-  }
 
   log.info(
     "COMBO",

@@ -1,12 +1,4 @@
-// Regression guard for #6238: a round-robin combo returned
-// `503 all upstream accounts are unavailable` immediately when every
-// compatibility-KEPT target was runtime-unavailable, without ever
-// reconsidering a compatibility-REJECTED-but-healthy target. The compat
-// pre-filter (filterTargetsByRequestCompatibility) drops request-incompatible
-// targets BEFORE availability is known, and its `compatible.length === 0`
-// safety net only fires when ALL targets are filtered — not when the kept
-// targets later all turn out unavailable. The fix makes the rejected targets a
-// genuine last-resort fallback tier.
+// Known-incompatible targets must not re-enter the fallback pool on an availability failure.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -88,64 +80,257 @@ test.after(() => {
   }
 });
 
-test(
-  "round-robin falls back to a compat-rejected healthy target instead of 503 " +
-    "when every compat-kept target is unavailable (#6238)",
-  async () => {
-    // rr-a is tool-INCAPABLE → the tools-requiring request makes the compat
-    // pre-filter reject it. rr-b/rr-c are tool-capable → kept, but both are
-    // runtime-unavailable. Only the rejected rr-a is actually healthy.
+test("round-robin returns 503 without dispatching incompatible targets when compatible targets are unavailable", async () => {
+  // rr-a is tool-INCAPABLE → the tools-requiring request makes the compat
+  // pre-filter reject it. rr-b/rr-c are tool-capable → kept, but both are
+  // runtime-unavailable. Only the rejected rr-a is actually healthy.
+  saveModelsDevCapabilities({
+    openai: {
+      "rr-a": capabilityEntry(128000, { tool_call: false }),
+      "rr-b": capabilityEntry(128000),
+      "rr-c": capabilityEntry(128000),
+    },
+  });
+
+  const attempted: string[] = [];
+  const availabilityChecks: string[] = [];
+
+  const result = await handleComboChat({
+    body: {
+      messages: [{ role: "user", content: "Use a tool to look something up" }],
+      tools: [{ type: "function", function: { name: "lookup_weather" } }],
+    },
+    combo: {
+      name: "rr-compat-fallback-6238",
+      strategy: "round-robin",
+      models: ["openai/rr-a", "openai/rr-b", "openai/rr-c"],
+      config: { maxRetries: 0, concurrencyPerModel: 1, queueTimeoutMs: 1000 },
+    },
+    handleSingleModel: async (_body, modelStr) => {
+      attempted.push(modelStr);
+      return okResponse({ choices: [{ message: { content: `served by ${modelStr}` } }] });
+    },
+    // Only the compat-rejected rr-a is healthy; the compat-kept rr-b/rr-c
+    // are all runtime-unavailable.
+    isModelAvailable: async (modelStr) => {
+      availabilityChecks.push(modelStr);
+      return modelStr === "openai/rr-a";
+    },
+    log: createLog(),
+    settings: null,
+    relayOptions: null,
+    allCombos: null,
+  });
+
+  assert.equal(result.status, 503);
+  assert.deepEqual(attempted, [], "known-incompatible targets must never be dispatched");
+  assert.equal(availabilityChecks.includes("openai/rr-a"), false);
+  // Sanity: the compat-kept rr-b/rr-c were probed for availability first.
+  assert.ok(
+    availabilityChecks.includes("openai/rr-b") || availabilityChecks.includes("openai/rr-c"),
+    "compat-kept targets should be probed before the last-resort fallback"
+  );
+});
+
+for (const strategy of ["priority", "round-robin"]) {
+  for (const requirement of ["context", "output", "tools", "vision"]) {
+    test(`${strategy} rejects all ${requirement}-incompatible targets with 400 before dispatch`, async () => {
+      saveModelsDevCapabilities({
+        "unit-compat": {
+          small: capabilityEntry(8000, { tool_call: false, attachment: false }),
+        },
+      });
+      const body: Record<string, unknown> = { messages: [{ role: "user", content: "hello" }] };
+      if (requirement === "context") body.messages = [{ role: "user", content: "x".repeat(80000) }];
+      if (requirement === "output") body.max_output_tokens = 6000;
+      if (requirement === "tools")
+        body.tools = [{ type: "function", function: { name: "lookup" } }];
+      if (requirement === "vision")
+        body.input = [
+          {
+            role: "user",
+            content: [{ type: "input_image", image_url: "https://example.com/image.png" }],
+          },
+        ];
+      let attempts = 0;
+      const result = await handleComboChat({
+        body,
+        combo: {
+          name: `all-incompatible-${strategy}-${requirement}`,
+          strategy,
+          models: ["unit-compat/small"],
+          config: { maxRetries: 0 },
+        },
+        handleSingleModel: async () => {
+          attempts++;
+          return okResponse();
+        },
+        log: createLog(),
+        settings: {},
+        allCombos: [],
+      });
+      assert.equal(result.status, 400);
+      assert.equal((await result.json()).error.code, "no_compatible_target");
+      assert.equal(attempts, 0);
+    });
+  }
+
+  test(`${strategy} keeps tools and native image input intact across same-provider fallback`, async () => {
     saveModelsDevCapabilities({
-      openai: {
-        "rr-a": capabilityEntry(128000, { tool_call: false }),
-        "rr-b": capabilityEntry(128000),
-        "rr-c": capabilityEntry(128000),
+      "unit-compat": {
+        primary: capabilityEntry(128000, { attachment: true }),
+        backup: capabilityEntry(128000, { attachment: true }),
+        blind: capabilityEntry(128000, { attachment: false }),
       },
     });
-
-    const attempted: string[] = [];
-    const availabilityChecks: string[] = [];
-
+    const body = {
+      model: "payload-fallback",
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: "Describe the image using the tool" },
+            { type: "input_image", image_url: "https://example.com/image.png", detail: "high" },
+          ],
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          name: "describe",
+          parameters: { type: "object", properties: { description: { type: "string" } } },
+        },
+      ],
+      max_output_tokens: 2000,
+    };
+    const snapshot = structuredClone(body);
+    const attempts: string[] = [];
     const result = await handleComboChat({
-      body: {
-        messages: [{ role: "user", content: "Use a tool to look something up" }],
-        tools: [{ type: "function", function: { name: "lookup_weather" } }],
-      },
+      body,
       combo: {
-        name: "rr-compat-fallback-6238",
-        strategy: "round-robin",
-        models: ["openai/rr-a", "openai/rr-b", "openai/rr-c"],
-        config: { maxRetries: 0, concurrencyPerModel: 1, queueTimeoutMs: 1000 },
+        name: `payload-fallback-${strategy}`,
+        strategy,
+        models: ["unit-compat/blind", "unit-compat/primary", "unit-compat/backup"],
+        config: { maxRetries: 0, retryDelayMs: 0 },
       },
-      handleSingleModel: async (_body, modelStr) => {
-        attempted.push(modelStr);
-        return okResponse({ choices: [{ message: { content: `served by ${modelStr}` } }] });
-      },
-      // Only the compat-rejected rr-a is healthy; the compat-kept rr-b/rr-c
-      // are all runtime-unavailable.
-      isModelAvailable: async (modelStr) => {
-        availabilityChecks.push(modelStr);
-        return modelStr === "openai/rr-a";
+      handleSingleModel: async (received, model) => {
+        attempts.push(model);
+        assert.deepEqual(received.input, snapshot.input);
+        assert.deepEqual(received.tools, snapshot.tools);
+        assert.equal(received.max_output_tokens, snapshot.max_output_tokens);
+        return model.endsWith("primary")
+          ? Response.json(
+              { error: { code: "empty_response", message: "Empty output" } },
+              { status: 502 }
+            )
+          : okResponse();
       },
       log: createLog(),
-      settings: null,
-      relayOptions: null,
-      allCombos: null,
+      settings: {},
+      allCombos: [],
     });
+    assert.equal(result.status, 200);
+    assert.deepEqual(attempts, ["unit-compat/primary", "unit-compat/backup"]);
+    assert.deepEqual(body, snapshot);
+  });
+}
 
-    // Before the fix this returned 503 ALL_ACCOUNTS_INACTIVE without ever
-    // attempting rr-a. After the fix the compat-rejected-but-healthy rr-a
-    // serves the request.
-    assert.equal(result.status, 200, "expected a 200 from the compat-rejected fallback, not 503");
-    assert.equal(result.ok, true);
-    assert.deepEqual(attempted, ["openai/rr-a"], "only the healthy compat-rejected target is used");
+test("nested execute mode rejects incompatible direct and child targets before provider dispatch", async () => {
+  saveModelsDevCapabilities({
+    "unit-compat": { noTools: capabilityEntry(128000, { tool_call: false }) },
+  });
+  const child = {
+    name: "incompatible-child",
+    strategy: "priority",
+    models: ["unit-compat/noTools"],
+  };
+  const outer = {
+    name: "incompatible-parent",
+    strategy: "priority",
+    models: ["unit-compat/noTools", { kind: "combo-ref", comboName: child.name }],
+    config: { nestedComboMode: "execute", maxRetries: 0 },
+  };
+  let attempts = 0;
+  const result = await handleComboChat({
+    body: { tools: [{ type: "function", function: { name: "lookup" } }] },
+    combo: outer,
+    allCombos: [outer, child],
+    settings: {},
+    log: createLog(),
+    handleSingleModel: async () => {
+      attempts++;
+      return okResponse();
+    },
+  });
+  assert.equal(result.status, 400);
+  assert.equal(attempts, 0);
+});
 
-    const payload = await result.json();
-    assert.equal(payload.choices[0].message.content, "served by openai/rr-a");
-    // Sanity: the compat-kept rr-b/rr-c were probed for availability first.
-    assert.ok(
-      availabilityChecks.includes("openai/rr-b") || availabilityChecks.includes("openai/rr-c"),
-      "compat-kept targets should be probed before the last-resort fallback"
-    );
+test("pipeline checks transformed step body and blocks an oversized intermediate output", async () => {
+  saveModelsDevCapabilities({
+    "unit-compat": {
+      primary: capabilityEntry(128000, { tool_call: false }),
+      small: capabilityEntry(8000),
+    },
+  });
+  const attempts: string[] = [];
+  const result = await handleComboChat({
+    body: {
+      messages: [{ role: "user", content: "hello" }],
+      tools: [{ type: "function", function: { name: "lookup" } }],
+    },
+    combo: {
+      name: "pipeline-compat",
+      strategy: "pipeline",
+      models: ["unit-compat/primary", "unit-compat/small"],
+    },
+    allCombos: [],
+    settings: {},
+    log: createLog(),
+    handleSingleModel: async (body, model) => {
+      attempts.push(model);
+      assert.equal(body.tools, undefined, "intermediate pipeline step intentionally strips tools");
+      return okResponse({ choices: [{ message: { content: "x".repeat(80000) } }] });
+    },
+  });
+  assert.equal(result.status, 400);
+  assert.deepEqual(attempts, ["unit-compat/primary"]);
+});
+
+test("a context-cache pin cannot bypass compatibility after the request gains tools", async () => {
+  const { recordSessionModelUsage, clearSessionModelHistoryForCombo } =
+    await import("../../src/lib/db/contextHandoffs.ts");
+  saveModelsDevCapabilities({
+    "unit-compat": {
+      noTools: capabilityEntry(128000, { tool_call: false }),
+      capable: capabilityEntry(128000),
+    },
+  });
+  const combo = {
+    name: "incompatible-pin",
+    strategy: "priority",
+    context_cache_protection: true,
+    models: ["unit-compat/noTools", "unit-compat/capable"],
+    config: { maxRetries: 0 },
+  };
+  recordSessionModelUsage("compat-session", combo.name, "unit-compat/noTools", "unit-compat");
+  const attempts: string[] = [];
+  try {
+    const result = await handleComboChat({
+      body: { tools: [{ type: "function", function: { name: "lookup" } }] },
+      combo,
+      allCombos: [combo],
+      relayOptions: { sessionId: "compat-session" },
+      settings: {},
+      log: createLog(),
+      handleSingleModel: async (_body, model) => {
+        attempts.push(model);
+        return okResponse();
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(attempts, ["unit-compat/capable"]);
+  } finally {
+    clearSessionModelHistoryForCombo(combo.name);
   }
-);
+});

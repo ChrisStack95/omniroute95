@@ -1,23 +1,4 @@
-/**
- * Regression: combo routing must not send an image request to a model that is
- * not confirmed vision-capable.
- *
- * Root cause: `getResolvedModelCapabilities` returned `supportsVision: null` for
- * every Mistral model — including Pixtral, which IS multimodal — because Mistral
- * ships no models.dev `attachment` flag and the provider registry sets no
- * `supportsVision`. The combo compatibility filter only dropped a target when
- * `supportsVision === false`, so a `null` (unknown) text model like
- * `ministral-14b` slipped through and received the image, replying
- * "IMAGEM_INDISPONIVEL" / "image not provided".
- *
- * Two-part fix, both asserted here:
- *  A) resolveVisionCapability falls back to a conservative model-id heuristic so
- *     known-multimodal families (pixtral, llava, qwen-vl, gpt-4o, …) resolve to
- *     `true` when there is no synced/registry/spec data.
- *  B) the combo filter treats anything that is not confirmed `=== true` as
- *     vision-incompatible for image requests, while the existing
- *     "keep all when none qualify" fallback prevents any regression.
- */
+/** Known vision incompatibility is rejected; absent metadata remains unknown. */
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -84,7 +65,7 @@ const imageBody = {
   ],
 };
 
-test("image request: combo drops the non-vision target, keeps the vision target", () => {
+test("image request retains confirmed and unknown vision targets", () => {
   const out = filterTargetsByRequestCompatibility(
     [target("mistral/pixtral-12b-latest"), target("mistral/ministral-14b-latest")],
     imageBody,
@@ -92,16 +73,22 @@ test("image request: combo drops the non-vision target, keeps the vision target"
   );
   const ids = out.map((t) => t.modelStr);
   assert.ok(ids.includes("mistral/pixtral-12b-latest"), "vision target must be kept");
-  assert.ok(!ids.includes("mistral/ministral-14b-latest"), "non-vision target must be dropped");
+  const capability = getResolvedModelCapabilities("mistral/ministral-14b-latest").supportsVision;
+  assert.equal(ids.includes("mistral/ministral-14b-latest"), capability !== false);
 });
 
-test("image request with NO confirmed-vision target: keep all (fallback, no regression)", () => {
+test("image request rejects known false even without a confirmed-vision target", () => {
   const out = filterTargetsByRequestCompatibility(
     [target("mistral/ministral-14b-latest"), target("groq/llama-3.1-8b-instant")],
     imageBody,
     noopLog
   );
-  assert.equal(out.length, 2, "must not strip every target when none is confirmed vision");
+  assert.deepEqual(
+    out.map((t) => t.modelStr),
+    ["mistral/ministral-14b-latest", "groq/llama-3.1-8b-instant"].filter(
+      (model) => getResolvedModelCapabilities(model).supportsVision !== false
+    )
+  );
 });
 
 test("text-only request: targets are untouched by the vision filter", () => {

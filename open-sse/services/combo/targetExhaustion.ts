@@ -22,21 +22,12 @@ import {
 } from "../accountFallback.ts";
 import { RateLimitReason } from "../../config/constants.ts";
 import { isProviderCircuitOpenResult } from "./comboPredicates.ts";
+import { isModelEmptyResponseFailure } from "./emptyResponseRetryBudget.ts";
 import type { ComboLogger, ResolvedComboTarget } from "./types.ts";
 
 // Connection-level failure statuses: the provider connection itself is likely bad (upstream
 // unreachable, proxy/gateway error), so remaining same-connection targets are skipped.
 const CONNECTION_LEVEL_ERROR_STATUSES = [408, 500, 502, 503, 504, 524];
-
-// #5085: an "empty content" 502 is the synthetic status chatCore assigns to a provider that
-// answered HTTP 200 with no usable completion (isEmptyContentResponse). The connection is
-// HEALTHY — it just returned an empty body — so this must NOT be classified as a connection
-// failure (which would exhaust the whole provider/connection and skip every remaining
-// same-provider leg via #1731v2). It is a model-level transient failure: advance to the next
-// leg, leaving the rest of that provider's legs eligible.
-function isEmptyContentFailure(status: number, errorText: string): boolean {
-  return status === 502 && /empty content/i.test(errorText);
-}
 
 /** A local combo deadline, not an upstream/provider-wide 524 response. */
 function isComboTargetTimeout(status: number, errorText: string): boolean {
@@ -89,6 +80,13 @@ export function applyComboTargetExhaustion(
   const { exhaustedProviders, exhaustedConnections, transientRateLimitedProviders } = sets;
   const provider = target.provider;
 
+  const modelEmptyResponse = isModelEmptyResponseFailure({
+    status: result.status,
+    errorCode: structuredError?.code,
+    error: errorText,
+  });
+  if (modelEmptyResponse) return false;
+
   // #1731: full provider quota exhausted → skip remaining same-provider targets this request.
   // Passthrough/per-model-quota providers multiplex models behind one connection, so a quota
   // 429 for one model must NOT skip fallback targets for another model on the same provider.
@@ -139,10 +137,6 @@ function markConnectionLevelExhaustion(
     // connection. Without a response header we do not know its connection id, so treating it
     // as provider-wide exhaustion would prevent the configured same-model retry/fallback.
     isComboTargetTimeout(result.status, errorText) ||
-    // #5085: empty-content 502 is a healthy connection returning no body — model-level, not
-    // connection-level. Don't exhaust the provider; let the remaining legs (incl. same-provider)
-    // be tried in-request.
-    isEmptyContentFailure(result.status, errorText) ||
     // Per-model-quota providers (gemini, github, passthrough, compatible) multiplex models
     // behind one connection. A model-level 500 (e.g. Gemini "Internal error encountered")
     // must NOT exhaust the connection — other models on the same connection may still succeed.
