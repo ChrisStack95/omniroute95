@@ -158,18 +158,30 @@ export function getProviderUsageSince(since: string): ProviderUsageRow[] {
 // ---------------------------------------------------------------------------
 
 /**
+ * WHERE fragment shared by the three search queries below: only surface
+ * providers with a live row in `provider_connections`, so a deleted
+ * connection stops resurfacing from its retained historical call_logs rows.
+ */
+const LIVE_PROVIDER_GUARD = `c.provider IS NOT NULL AND c.provider != '-'
+          AND EXISTS (
+            SELECT 1 FROM provider_connections pc WHERE pc.provider = c.provider
+          )`;
+
+/**
  * Per-provider request count and average latency for search requests.
+ * Only providers with a live connection are surfaced (see LIVE_PROVIDER_GUARD).
  */
 export function getSearchProviderStats(): SearchProviderStatRow[] {
   const db = getDbInstance();
   return db
     .prepare(
       `
-        SELECT provider, COUNT(*) as requests,
-          CAST(AVG(duration) AS INTEGER) as avg_latency_ms
-        FROM call_logs
-        WHERE request_type = 'search'
-        GROUP BY provider
+        SELECT c.provider, COUNT(*) as requests,
+          CAST(AVG(c.duration) AS INTEGER) as avg_latency_ms
+        FROM call_logs c
+        WHERE c.request_type = 'search'
+          AND ${LIVE_PROVIDER_GUARD}
+        GROUP BY c.provider
       `
     )
     .all() as SearchProviderStatRow[];
@@ -177,16 +189,18 @@ export function getSearchProviderStats(): SearchProviderStatRow[] {
 
 /**
  * Most recent 10 search entries (request_summary + provider + timestamp).
+ * Only rows from providers with a live connection are surfaced.
  */
 export function getRecentSearchLogs(): SearchRecentRow[] {
   const db = getDbInstance();
   return db
     .prepare(
       `
-        SELECT request_summary, provider, timestamp
-        FROM call_logs
-        WHERE request_type = 'search'
-        ORDER BY timestamp DESC
+        SELECT c.request_summary, c.provider, c.timestamp
+        FROM call_logs c
+        WHERE c.request_type = 'search'
+          AND ${LIVE_PROVIDER_GUARD}
+        ORDER BY c.timestamp DESC
         LIMIT 10
       `
     )
@@ -200,6 +214,8 @@ export function getRecentSearchLogs(): SearchRecentRow[] {
 /**
  * Single-pass scalar aggregations for all search entries since `todayIso`.
  * `todayIso` is the ISO-8601 UTC start-of-day string used for the "today" count.
+ * Note: these totals include rows without a live provider connection, so
+ * `total` may exceed the sum of the per-provider breakdown below.
  */
 export function getSearchAggregateStats(todayIso: string): SearchAggregateStats {
   const db = getDbInstance();
@@ -220,14 +236,16 @@ export function getSearchAggregateStats(todayIso: string): SearchAggregateStats 
 
 /**
  * Per-provider request count for search entries, ordered by count descending.
+ * Only providers with a live connection are surfaced (see LIVE_PROVIDER_GUARD).
  */
 export function getSearchProviderCounts(): SearchProviderCountRow[] {
   const db = getDbInstance();
   return db
     .prepare(
-      `SELECT provider, COUNT(*) as cnt
-         FROM call_logs WHERE request_type = 'search'
-         GROUP BY provider ORDER BY cnt DESC`
+      `SELECT c.provider, COUNT(*) as cnt
+         FROM call_logs c WHERE c.request_type = 'search'
+          AND ${LIVE_PROVIDER_GUARD}
+         GROUP BY c.provider ORDER BY cnt DESC`
     )
     .all() as SearchProviderCountRow[];
 }

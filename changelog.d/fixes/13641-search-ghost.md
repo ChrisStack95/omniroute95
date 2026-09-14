@@ -1,0 +1,1 @@
+- **fix(db):** search provider stats and recent search entries no longer surface rows without a live provider connection — providers with `NULL`/`'-'` values or deleted connections are excluded from `/api/search/stats` and `/api/v1/search/analytics` breakdowns ([#13641](https://github.com/diegosouzapw/OmniRoute/pull/13641)) — thanks @maxmad64bis
