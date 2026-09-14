@@ -58,4 +58,8 @@ export const API_KEY_COLUMN_FALLBACKS = [
     name: "compression_enabled",
     definition: "compression_enabled INTEGER NOT NULL DEFAULT 1",
   },
+  {
+    name: "allow_auto_combos",
+    definition: "allow_auto_combos INTEGER NOT NULL DEFAULT 1",
+  },
 ] as const;

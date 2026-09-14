@@ -50,6 +50,7 @@ import {
   parseCacheDefaultMode,
   parseChaosModeEnabled,
   parseCompressionEnabled,
+  parseAllowAutoCombos,
   parseModelAccessMode,
 } from "./apiKeys/rowParsers";
 import {
@@ -123,6 +124,7 @@ interface ApiKeyMetadata {
   weeklyUsageLimitUsd: number | null;
   chaosModeEnabled: boolean;
   compressionEnabled: boolean;
+  allowAutoCombos: boolean;
 }
 
 interface ApiKeyRow extends JsonRecord {
@@ -170,6 +172,8 @@ interface ApiKeyRow extends JsonRecord {
   chaosModeEnabled?: unknown;
   compression_enabled?: unknown;
   compressionEnabled?: unknown;
+  allow_auto_combos?: unknown;
+  allowAutoCombos?: unknown;
 }
 
 interface StatementLike<TRow = unknown> {
@@ -220,6 +224,7 @@ interface ApiKeyView extends JsonRecord {
   weeklyUsageLimitUsd?: number | null;
   chaosModeEnabled?: boolean;
   compressionEnabled: boolean;
+  allowAutoCombos: boolean;
 }
 
 // LRU cache for API key validation (valid keys only)
@@ -441,7 +446,7 @@ function getPreparedStatements(db: ApiKeysDbLike): ApiKeysStatements {
       "SELECT id, expires_at, revoked_at, is_active, is_banned FROM api_keys WHERE key = ? OR key_hash = ?"
     );
     _stmtGetKeyMetadata = db.prepare<ApiKeyRow>(
-      "SELECT id, name, machine_id, model_access_mode, allowed_models, blocked_models, allowed_combos, allowed_connections, allowed_quotas, no_log, auto_resolve, is_active, access_schedule, max_requests_per_day, max_requests_per_minute, throttle_delay_ms, max_sessions, revoked_at, expires_at, ip_allowlist, scopes, rate_limits, is_banned, key_hash, allowed_endpoints, stream_default_mode, cache_default_mode, disable_non_public_models, allow_usage_command, usage_limit_enabled, daily_usage_limit_usd, weekly_usage_limit_usd, chaos_mode_enabled, compression_enabled, proxy_id FROM api_keys WHERE key = ? OR key_hash = ?"
+      "SELECT id, name, machine_id, model_access_mode, allowed_models, blocked_models, allowed_combos, allowed_connections, allowed_quotas, no_log, auto_resolve, is_active, access_schedule, max_requests_per_day, max_requests_per_minute, throttle_delay_ms, max_sessions, revoked_at, expires_at, ip_allowlist, scopes, rate_limits, is_banned, key_hash, allowed_endpoints, stream_default_mode, cache_default_mode, disable_non_public_models, allow_usage_command, usage_limit_enabled, daily_usage_limit_usd, weekly_usage_limit_usd, chaos_mode_enabled, compression_enabled, allow_auto_combos, proxy_id FROM api_keys WHERE key = ? OR key_hash = ?"
     );
     _stmtInsertKey = db.prepare(
       "INSERT INTO api_keys (id, name, key, machine_id, model_access_mode, allowed_models, allowed_combos, allowed_connections, no_log, created_at, key_prefix, key_hash, scopes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -509,6 +514,7 @@ export async function getApiKeys(limit?: number, offset?: number) {
     camelRow.compressionEnabled = parseCompressionEnabled(
       (camelRow as JsonRecord).compressionEnabled
     );
+    camelRow.allowAutoCombos = parseAllowAutoCombos((camelRow as JsonRecord).allowAutoCombos);
     Object.assign(camelRow, parseApiKeyUsageLimitFields(camelRow));
     if (typeof camelRow.id === "string" && camelRow.id.length > 0) {
       setNoLog(camelRow.id, camelRow.noLog === true);
@@ -646,6 +652,7 @@ export async function getApiKeyById(id: string) {
   camelRow.compressionEnabled = parseCompressionEnabled(
     (camelRow as JsonRecord).compressionEnabled
   );
+  camelRow.allowAutoCombos = parseAllowAutoCombos((camelRow as JsonRecord).allowAutoCombos);
   Object.assign(camelRow, parseApiKeyUsageLimitFields(camelRow));
   if (typeof camelRow.id === "string" && camelRow.id.length > 0) {
     setNoLog(camelRow.id, camelRow.noLog === true);
@@ -803,6 +810,7 @@ export async function updateApiKeyPermissions(
     normalized.allowUsageCommand === undefined &&
     normalized.chaosModeEnabled === undefined &&
     normalized.compressionEnabled === undefined &&
+    normalized.allowAutoCombos === undefined &&
     !hasUsageLimitUpdate(normalized as Record<string, unknown>)
   ) {
     return false;
@@ -840,6 +848,7 @@ export async function updateApiKeyPermissions(
     weeklyUsageLimitUsd?: number | null;
     chaosModeEnabled?: number;
     compressionEnabled?: number;
+    allowAutoCombos?: number;
   } = { id };
 
   if (normalized.name !== undefined) {
@@ -954,6 +963,11 @@ export async function updateApiKeyPermissions(
   if (normalized.compressionEnabled !== undefined) {
     updates.push("compression_enabled = @compressionEnabled");
     params.compressionEnabled = normalized.compressionEnabled ? 1 : 0;
+  }
+
+  if (normalized.allowAutoCombos !== undefined) {
+    updates.push("allow_auto_combos = @allowAutoCombos");
+    params.allowAutoCombos = normalized.allowAutoCombos ? 1 : 0;
   }
 
   appendUsageLimitUpdates(normalized as Record<string, unknown>, updates, params);
@@ -1389,6 +1403,7 @@ export async function getApiKeyMetadata(
       weeklyUsageLimitUsd: null,
       chaosModeEnabled: false,
       compressionEnabled: true,
+      allowAutoCombos: true,
     };
   }
 
@@ -1475,6 +1490,9 @@ export async function getApiKeyMetadata(
     ),
     compressionEnabled: parseCompressionEnabled(
       (record as JsonRecord).compression_enabled ?? (record as JsonRecord).compressionEnabled
+    ),
+    allowAutoCombos: parseAllowAutoCombos(
+      (record as JsonRecord).allow_auto_combos ?? (record as JsonRecord).allowAutoCombos
     ),
     ...parseApiKeyUsageLimitFields(record as JsonRecord),
   };

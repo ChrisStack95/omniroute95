@@ -32,6 +32,7 @@ export interface ApiKeyPermissionsUpdate {
   weeklyUsageLimitUsd?: number | null;
   chaosModeEnabled?: boolean;
   compressionEnabled?: boolean;
+  allowAutoCombos?: boolean;
 }
 
 export function normalizeApiKeyPermissionsUpdate(
@@ -73,5 +74,6 @@ export function normalizeApiKeyPermissionsUpdate(
     weeklyUsageLimitUsd: update.weeklyUsageLimitUsd,
     chaosModeEnabled: update.chaosModeEnabled,
     compressionEnabled: update.compressionEnabled,
+    allowAutoCombos: update.allowAutoCombos,
   };
 }

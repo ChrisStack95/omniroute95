@@ -96,6 +96,7 @@ export interface ApiKeyMetadata {
   dailyUsageLimitUsd?: number | null;
   weeklyUsageLimitUsd?: number | null;
   compressionEnabled?: boolean;
+  allowAutoCombos?: boolean;
 }
 
 /**
@@ -516,9 +517,36 @@ async function validateQuotaAccess(context: PolicyContext): Promise<Response | n
   }
 }
 
+/**
+ * Whether this key is barred from the built-in `auto/*` combos.
+ *
+ * `auto/*` ids are virtual, so they resolve to no stored combo and
+ * `isComboAllowedForKey()` fails open on them; `validateModelAccess()` then
+ * returns before the allow/deny model lists are consulted. This flag is the
+ * only per-key gate that reaches them. It defaults to allowed (undefined) so
+ * existing keys are unaffected.
+ */
+export function isAutoComboDeniedForKey(
+  apiKeyInfo: { allowAutoCombos?: boolean } | null | undefined,
+  modelStr: string | null | undefined
+): boolean {
+  if (!modelStr || !modelStr.startsWith("auto/")) return false;
+  return apiKeyInfo?.allowAutoCombos === false;
+}
+
 async function validateModelAccess(context: PolicyContext): Promise<Response | null> {
   const { request, apiKey, apiKeyInfo, modelStr } = context;
   if (!modelStr || apiKeyInfo.allowedQuotas?.length) return null;
+  if (isAutoComboDeniedForKey(apiKeyInfo, modelStr)) {
+    return policyErrorResponse(
+      request,
+      HTTP_STATUS.FORBIDDEN,
+      `Auto combo "${modelStr}" is not allowed for this API key`,
+      `Auto combos are not enabled for this API key. Choose an explicit model or combo.`,
+      "invalid_request_error",
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
   const comboAccess = await validateComboAccess(apiKeyInfo.allowedCombos, modelStr);
   if (comboAccess.rejection) return comboAccess.rejection;
   let requestedComboName = comboAccess.comboName;
