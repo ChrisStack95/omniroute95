@@ -1,0 +1,1 @@
+- **fix(usage):** stop billing locally estimated input tokens and charge provider-reported output only ([#13686](https://github.com/diegosouzapw/OmniRoute/pull/13686)) — thanks @maxmad64bis
