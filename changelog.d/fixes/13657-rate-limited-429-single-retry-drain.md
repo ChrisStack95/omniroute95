@@ -1,0 +1,1 @@
+- **fix(sse):** stop the retry wave on a classified rate-limited 429 and drain 429 once with the relayed `Retry-After` ([#13657](https://github.com/diegosouzapw/OmniRoute/pull/13657) — thanks @maxmad64bis)
