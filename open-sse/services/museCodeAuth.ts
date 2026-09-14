@@ -4,6 +4,8 @@ export const META_MUSE_API_KEY_TTL_SECONDS = 24 * 60 * 60;
 export const META_MUSE_DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 
 export interface MetaMuseApiKeyResponse {
+  // Field name mirrors Meta's upstream `api_key` JSON contract; the value is
+  // only ever read from the live mint response, never embedded in source.
   api_key?: string;
   error?: string;
   error_description?: string;
