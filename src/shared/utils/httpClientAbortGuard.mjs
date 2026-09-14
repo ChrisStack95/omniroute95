@@ -97,6 +97,9 @@ export function isClientAbortError(err) {
  * @returns {boolean}
  */
 export function isRecoverableUpstreamTimeoutError(err) {
+  // Same reason-shape tolerance as isIntentionalComboAbort: a bare string
+  // reason rejects waiters with the string itself, not an Error object.
+  if (err === "DIRECT_RESPONSE_START_TIMEOUT") return true;
   if (!err || typeof err !== "object") return false;
   return /** @type {NodeJS.ErrnoException} */ (err).code === "DIRECT_RESPONSE_START_TIMEOUT";
 }
@@ -119,10 +122,13 @@ export function isRecoverableUpstreamTimeoutError(err) {
  * @returns {boolean}
  */
 export function isIntentionalComboAbort(err) {
+  const reasons = new Set(["hedge-cancelled", "combo-per-model-timeout"]);
+  // AbortSignal.reason is whatever was handed to abort(): a raw string
+  // reason rejects waiters with the string itself, not an Error object.
+  if (typeof err === "string") return reasons.has(err);
   if (!err || typeof err !== "object") return false;
   const e = /** @type {NodeJS.ErrnoException} */ (err);
   if (e.name !== "AbortError") return false;
-  const reasons = new Set(["hedge-cancelled", "combo-per-model-timeout"]);
   if (reasons.has(String(e.message))) return true;
   const cause = /** @type {{ cause?: unknown }} */ (err).cause;
   return typeof cause === "string" && reasons.has(cause);
@@ -239,11 +245,9 @@ export function installProcessCrashGuard(log) {
 
   process.on("uncaughtException", (err, origin) => {
     if (shouldSwallowUncaught(err, origin)) {
-      logger(
-        "warn",
-        "[server] swallowed benign uncaughtException:",
-        err?.code ?? err?.message ?? err
-      );
+      // The warn line is the only evidence a swallowed error ever happened;
+      // pass the full error object so the stack survives.
+      logger("warn", "[server] swallowed benign uncaughtException:", err);
       return;
     }
     throw err;
@@ -251,11 +255,7 @@ export function installProcessCrashGuard(log) {
 
   process.on("unhandledRejection", (reason) => {
     if (shouldSwallowUncaught(reason, "unhandledRejection")) {
-      logger(
-        "warn",
-        "[server] swallowed benign unhandledRejection:",
-        reason?.code ?? reason?.message ?? reason
-      );
+      logger("warn", "[server] swallowed benign unhandledRejection:", reason);
       return;
     }
     throw reason;

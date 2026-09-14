@@ -19,6 +19,8 @@ test("isRecoverableUpstreamTimeoutError recognizes DIRECT_RESPONSE_START_TIMEOUT
     name: "TimeoutError",
   });
   assert.equal(isRecoverableUpstreamTimeoutError(err), true);
+  // A raw string abort reason rejects waiters with the string itself.
+  assert.equal(isRecoverableUpstreamTimeoutError("DIRECT_RESPONSE_START_TIMEOUT"), true);
 });
 
 test("isRecoverableUpstreamTimeoutError rejects unrelated error codes", () => {
@@ -86,6 +88,15 @@ test("isIntentionalComboAbort rejects client aborts with unknown reasons", () =>
   assert.equal(isIntentionalComboAbort(clientGone), false);
   assert.equal(isIntentionalComboAbort(new Error("hedge-cancelled")), false);
   assert.equal(isIntentionalComboAbort(null), false);
+});
+
+test("isIntentionalComboAbort accepts a bare string abort reason", () => {
+  // AbortSignal.reason is whatever was handed to abort(); a raw string reason
+  // rejects waiters with the string itself, not an Error object.
+  assert.equal(isIntentionalComboAbort("hedge-cancelled"), true);
+  assert.equal(isIntentionalComboAbort("combo-per-model-timeout"), true);
+  assert.equal(isIntentionalComboAbort("client-gone"), false);
+  assert.equal(isIntentionalComboAbort(""), false);
 });
 
 test("isUpstreamNetworkError recognizes fetch failures and proxy unreachable", () => {
