@@ -1,0 +1,1 @@
+- **fix(stream-recovery):** log each mid-stream recovery attempt with its attempt number so prod continuations stay correlatable in one search ([#13650](https://github.com/diegosouzapw/OmniRoute/pull/13650)) — thanks @maxmad64bis
