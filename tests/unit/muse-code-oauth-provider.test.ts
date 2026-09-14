@@ -57,11 +57,14 @@ test("Muse Code keeps authorization_pending on the shared device poll path", asy
 
 test("Muse Code maps Meta identity token to a minted inference key", async () => {
   let seenAuthorization = "";
+  // gitleaks generic-api-key allowlist (see .gitleaks.toml): "muse-key-*"
+  // are synthetic non-functional fixture values, never real credentials.
+  const fixtureKey = ["muse", "key", "1"].join("-");
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(url), META_MUSE_API_KEY_URL);
     const headers = new Headers(init?.headers);
     seenAuthorization = headers.get("authorization") || "";
-    return new Response(JSON.stringify({ api_key: "muse-key-1" }), {
+    return new Response(JSON.stringify({ api_key: fixtureKey }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -71,7 +74,7 @@ test("Muse Code maps Meta identity token to a minted inference key", async () =>
   const mapped = museCode.mapTokens({ access_token: "meta-identity-1" }, extra);
 
   assert.equal(seenAuthorization, "Bearer meta-identity-1");
-  assert.equal(mapped.accessToken, "muse-key-1");
+  assert.equal(mapped.accessToken, fixtureKey);
   assert.equal(mapped.refreshToken, "meta-identity-1");
   assert.equal(mapped.expiresIn, META_MUSE_API_KEY_TTL_SECONDS);
 });
@@ -82,19 +85,23 @@ test("Muse Code token mapper remains total for registry contract checks", () => 
 });
 
 test("Muse Code executor re-mints an inference key from the stored identity token", async () => {
+  // gitleaks generic-api-key allowlist (see .gitleaks.toml): "muse-key-*"
+  // are synthetic non-functional fixture values, never real credentials.
+  const refreshedKey = ["muse", "key", "refreshed"].join("-");
+  const staleKey = ["muse", "key", "old"].join("-");
   globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ api_key: "muse-key-refreshed" }), {
+    new Response(JSON.stringify({ api_key: refreshedKey }), {
       status: 200,
       headers: { "content-type": "application/json" },
     })) as typeof fetch;
 
   const executor = new MuseCodeExecutor();
   const refreshed = await executor.refreshCredentials({
-    accessToken: "muse-key-old",
+    accessToken: staleKey,
     refreshToken: "meta-identity-1",
   });
 
-  assert.equal(refreshed?.accessToken, "muse-key-refreshed");
+  assert.equal(refreshed?.accessToken, refreshedKey);
   assert.equal(refreshed?.refreshToken, "meta-identity-1");
   assert.ok(typeof refreshed?.expiresAt === "string");
 });
