@@ -17,7 +17,15 @@
  * connections + a live WebSocket; stray client-side socket closes during
  * navigation/HMR were taking the dev server down.
  *
- * A second, unrelated category was added for #12861: `directFetchWithBoundedResponseStart`'s
+ * Two more categories were added after the 2026-09-14 agnes-cn upstream storm
+ * produced two sibling escapes in production: an intentional combo hedge
+ * cancellation (`AbortError: hedge-cancelled` — the sibling leg already won,
+ * so the cancellation is expected, not a fault) and undici fetch failures
+ * (`TypeError: fetch failed` with a socket-level code) against a flapping
+ * upstream. Both are runtime/environmental conditions the request layer
+ * already handles; neither is a process-fatal logic bug.
+ *
+ * A further, unrelated category covers #12861: `directFetchWithBoundedResponseStart`'s
  * response-start timeout (`DIRECT_RESPONSE_START_TIMEOUT`) is a *recoverable*
  * signal `proxyFetch.ts` already retries on a fresh socket — but a narrow
  * timer/promise-settlement race can still deliver its abort reason to a
@@ -94,6 +102,68 @@ export function isRecoverableUpstreamTimeoutError(err) {
 }
 
 /**
+ * Intentional combo-leg cancellation. When a combo dispatches hedged targets,
+ * the losing legs are aborted with a distinctive reason once a sibling wins
+ * (`hedge-cancelled`) or exceeds its per-model budget (`combo-per-model-timeout`)
+ * — see `COMBO_HEDGE_CANCELLED_REASON` / `COMBO_PER_MODEL_TIMEOUT_REASON` in
+ * `open-sse/services/combo/comboAbortReasons.ts` (bare literals duplicated here
+ * because this file must stay build-free; keep in sync). On 2026-09-14 such a
+ * cancellation escaped its promise chain and killed production with
+ * `Error [AbortError]: hedge-cancelled` — the request it belonged to had
+ * already completed 200 via the winning leg.
+ *
+ * Distinct from a *client* abort: only these exact reasons qualify, so an
+ * AbortError from an unknown subsystem still crashes loudly.
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isIntentionalComboAbort(err) {
+  if (!err || typeof err !== "object") return false;
+  const e = /** @type {NodeJS.ErrnoException} */ (err);
+  if (e.name !== "AbortError") return false;
+  const reasons = new Set(["hedge-cancelled", "combo-per-model-timeout"]);
+  if (reasons.has(String(e.message))) return true;
+  const cause = /** @type {{ cause?: unknown }} */ (err).cause;
+  return typeof cause === "string" && reasons.has(cause);
+}
+
+/**
+ * A network/IO failure against an upstream or its proxy — undici surfaces it
+ * as `TypeError: fetch failed` (fixed message; the syscall code rides on
+ * `cause`) or as an error carrying a `PROXY_UNREACHABLE` / `UND_ERR_*` code.
+ * On 2026-09-14 one of these (`PROXY_UNREACHABLE` / ECONNRESET to
+ * api.agnes-ai.cn) escaped as an uncaughtException and killed production.
+ * The request that triggered the fetch already fails through the normal
+ * error path; the stray copy delivered to nobody must not be process-fatal.
+ *
+ * The "fetch failed" message match is exact on purpose: it is undici's fixed
+ * wrapping message, so arbitrary TypeErrors still crash loudly.
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isUpstreamNetworkError(err) {
+  if (!err || typeof err !== "object") return false;
+  const e = /** @type {NodeJS.ErrnoException} */ (err);
+  if (e.name === "TypeError" && e.message === "fetch failed") return true;
+  switch (e.code) {
+    case "PROXY_UNREACHABLE":
+    case "UND_ERR_SOCKET":
+    case "UND_ERR_CONNECT_TIMEOUT":
+    case "UND_ERR_HEADERS_TIMEOUT":
+    case "UND_ERR_BODY_TIMEOUT":
+    case "ECONNREFUSED":
+    case "EHOSTUNREACH":
+    case "ENETUNREACH":
+    case "EAI_AGAIN":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
  * Decide whether a process-level uncaughtException/unhandledRejection should be
  * swallowed (benign client-abort, or a recoverable upstream timeout that a
  * retry path already handles — #12861) or allowed to surface (genuine bug).
@@ -106,7 +176,14 @@ export function isRecoverableUpstreamTimeoutError(err) {
  * @returns {boolean} true => swallow (log only), false => re-throw / let crash.
  */
 export function shouldSwallowUncaught(err, origin) {
-  if (!isClientAbortError(err) && !isRecoverableUpstreamTimeoutError(err)) return false;
+  if (
+    !isClientAbortError(err) &&
+    !isRecoverableUpstreamTimeoutError(err) &&
+    !isIntentionalComboAbort(err) &&
+    !isUpstreamNetworkError(err)
+  ) {
+    return false;
+  }
   // Only swallow when the origin matches what the guard installed for. If some
   // other subsystem raised it (e.g. a deliberate `throw` in a domain), keep the
   // existing crash semantics.

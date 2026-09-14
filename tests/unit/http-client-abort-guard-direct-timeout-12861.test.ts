@@ -7,7 +7,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   isClientAbortError,
+  isIntentionalComboAbort,
   isRecoverableUpstreamTimeoutError,
+  isUpstreamNetworkError,
   shouldSwallowUncaught,
 } from "../../src/shared/utils/httpClientAbortGuard.mjs";
 
@@ -61,4 +63,71 @@ test("shouldSwallowUncaught still swallows the original client-abort cases (no r
 
   const econnreset = Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
   assert.equal(shouldSwallowUncaught(econnreset, "unhandledRejection"), true);
+});
+
+test("isIntentionalComboAbort recognizes hedge-cancelled aborts (message and cause variants)", () => {
+  const byMessage = Object.assign(new Error("hedge-cancelled"), { name: "AbortError" });
+  assert.equal(isIntentionalComboAbort(byMessage), true);
+
+  const byCause = Object.assign(new Error("This operation was aborted"), {
+    name: "AbortError",
+    cause: "hedge-cancelled",
+  });
+  assert.equal(isIntentionalComboAbort(byCause), true);
+
+  const perModelTimeout = Object.assign(new Error("combo-per-model-timeout"), {
+    name: "AbortError",
+  });
+  assert.equal(isIntentionalComboAbort(perModelTimeout), true);
+});
+
+test("isIntentionalComboAbort rejects client aborts with unknown reasons", () => {
+  const clientGone = Object.assign(new Error("request_signal_aborted"), { name: "AbortError" });
+  assert.equal(isIntentionalComboAbort(clientGone), false);
+  assert.equal(isIntentionalComboAbort(new Error("hedge-cancelled")), false);
+  assert.equal(isIntentionalComboAbort(null), false);
+});
+
+test("isUpstreamNetworkError recognizes fetch failures and proxy unreachable", () => {
+  const fetchFailed = Object.assign(new TypeError("fetch failed"), {
+    cause: Object.assign(new Error("socket disconnected"), { code: "ECONNRESET" }),
+  });
+  assert.equal(isUpstreamNetworkError(fetchFailed), true);
+
+  const proxyUnreachable = Object.assign(new TypeError("fetch failed"), {
+    code: "PROXY_UNREACHABLE",
+  });
+  assert.equal(isUpstreamNetworkError(proxyUnreachable), true);
+
+  const undiciSocket = Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" });
+  assert.equal(isUpstreamNetworkError(undiciSocket), true);
+});
+
+test("isUpstreamNetworkError rejects genuine errors", () => {
+  assert.equal(isUpstreamNetworkError(new TypeError("Cannot read properties of undefined")), false);
+  assert.equal(isUpstreamNetworkError(new Error("fetch failedish")), false);
+  assert.equal(isUpstreamNetworkError(null), false);
+  assert.equal(isUpstreamNetworkError("a string"), false);
+});
+
+test("shouldSwallowUncaught swallows the 2026-09-14 agnes-storm crash shapes", () => {
+  // 06:11:04 exit 7: hedge cancellation escaped while the sibling leg won.
+  const hedge = Object.assign(new Error("hedge-cancelled"), { name: "AbortError" });
+  assert.equal(shouldSwallowUncaught(hedge, "uncaughtException"), true);
+  assert.equal(shouldSwallowUncaught(hedge, "unhandledRejection"), true);
+
+  // 06:27:38 exit 7: undici fetch failure against a flapping upstream.
+  const fetchFailed = Object.assign(new TypeError("fetch failed"), {
+    code: "PROXY_UNREACHABLE",
+  });
+  assert.equal(shouldSwallowUncaught(fetchFailed, "uncaughtException"), true);
+  assert.equal(shouldSwallowUncaught(fetchFailed, "unhandledRejection"), true);
+});
+
+test("shouldSwallowUncaught still surfaces genuine bugs after the extension", () => {
+  const genuineBug = new TypeError("Cannot read properties of undefined");
+  assert.equal(shouldSwallowUncaught(genuineBug, "uncaughtException"), false);
+
+  const unknownAbort = Object.assign(new Error("mystery"), { name: "AbortError" });
+  assert.equal(shouldSwallowUncaught(unknownAbort, "unhandledRejection"), false);
 });
