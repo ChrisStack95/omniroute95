@@ -86,6 +86,27 @@ test("Opus 5 catalog is limited to verified first-party, web, and Copilot provid
     assert.equal(price.input, 5.0, `${providerId} Opus 5 input price`);
     assert.equal(price.output, 25.0, `${providerId} Opus 5 output price`);
   }
+
+  const efforts = ["low", "medium", "high", "xhigh", "max"];
+  for (const providerId of ["claude", "github", "claude-web", "anthropic"]) {
+    const model = getModelsByProviderId(providerId).find((entry) => entry.id === "claude-opus-5");
+    assert.ok(model, `${providerId} must expose claude-opus-5`);
+    assert.deepEqual(
+      model.supportedThinkingEfforts,
+      efforts,
+      `${providerId} opus-5 effort list`,
+    );
+
+  for (const providerId of ["claude", "github", "claude-web", "anthropic"]) {
+    const model = getModelsByProviderId(providerId).find((entry) => entry.id === "claude-fable-5");
+    assert.ok(model, `${providerId} must expose claude-fable-5`);
+    assert.deepEqual(
+      model.supportedThinkingEfforts,
+      efforts,
+      `${providerId} fable-5 effort list`,
+    );
+  }
+  }
 });
 
 test("Sonnet 5 catalog exposes claude-sonnet-5 across cc/kiro/anthropic/blackbox with Sonnet-tier pricing", () => {
