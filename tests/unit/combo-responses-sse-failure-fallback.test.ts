@@ -99,6 +99,48 @@ test("combo advances to the next target after a pre-content Responses SSE failur
   assert.match(await result.text(), /fallback ok/);
 });
 
+test("protected pre-content streaming quality rejection retries the same target once without advancing", async () => {
+  const calls: string[] = [];
+  const failed = failedResponsesSse();
+  const healthy = [
+    "event: response.output_text.delta",
+    `data: ${JSON.stringify({ type: "response.output_text.delta", delta: "retry ok" })}`,
+    "",
+    "",
+  ].join("\n");
+  const combo = {
+    name: "protected-stream-quality-retry",
+    strategy: "priority",
+    models: [
+      {
+        model: "openai/primary",
+        weight: 0,
+        fallbackOnlyOnQuotaExhaustion: true,
+      },
+      { model: "anthropic/backup", weight: 0 },
+    ],
+    config: { maxRetries: 1, retryDelayMs: 0 },
+  };
+
+  const result = await handleComboChat({
+    body: { stream: true, messages: [{ role: "user", content: "hello" }] },
+    combo,
+    handleSingleModel: async (_body: unknown, model: string) => {
+      calls.push(model);
+      return calls.length === 1 ? sseResponse(failed) : sseResponse(healthy);
+    },
+    isModelAvailable: async () => true,
+    log: silentLog(),
+    settings: null,
+    allCombos: [combo],
+    relayOptions: null as never,
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ["openai/primary", "openai/primary"]);
+  assert.match(await result.text(), /retry ok/);
+});
+
 test("combo cancels a discarded upstream stream after a pre-content Responses SSE failure", async () => {
   let resolvePrimaryCancelled: (() => void) | undefined;
   const primaryCancelled = new Promise<void>((resolve) => {
