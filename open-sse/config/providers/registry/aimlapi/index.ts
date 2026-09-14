@@ -18,7 +18,7 @@ export const aimlapiProvider: RegistryEntry = {
     "HTTP-Referer": "https://github.com/diegosouzapw/OmniRoute",
     "X-Title": "OmniRoute",
     "X-AIMLAPI-Source": "agent/omniroute",
-    "X-AIMLAPI-Partner-ID": "part_omniroute",
+    "X-AIMLAPI-Partner-ID": "part_T2iNtMuQ3JBmEPwyOKCLOxaP",
   },
   // Static fallback ONLY — the live catalog (353 chat models) is discovered via
   // PROVIDER_MODELS_CONFIG.aimlapi and supersedes this list whenever the fetch
