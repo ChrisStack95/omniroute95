@@ -8670,7 +8670,9 @@
     "languagePacksList": "Pek bahasa: {packs}",
     "dragToReorder": "Seret untuk menyusun semula langkah",
     "engine": "Enjin",
-    "intensity": "Keamatan"
+    "intensity": "Keamatan",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Tiada larian pemampatan tersedia.",
@@ -8699,6 +8701,7 @@
     "run": "Jalankan",
     "laneRejected": "ditolak: {reason}",
     "error": "ralat",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Aliran gabungan",
     "eachLayer": "Setiap lapisan secara berasingan",
     "diff": "Perbezaan",

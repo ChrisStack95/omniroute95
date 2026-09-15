@@ -7,6 +7,7 @@ import {
   getCachedRawProviderConnections,
   getCachedProviderNodes,
   getCachedSettings,
+  getCachedProviderConnectionById,
 } from "@/lib/db/readCache";
 import {
   getProviderConnections,
@@ -150,6 +151,12 @@ import {
   planSessionAffinityConnection,
   syncSessionAffinityRuntimeFields,
 } from "./sessionAffinityPin";
+import {
+  EXPLICIT_INACTIVE_PROBE_INTERVAL_MS,
+  lastExplicitProbeTime,
+  noteExplicitProbe,
+  selectExplicitInactiveProbe,
+} from "./explicitInactiveProbe";
 import {
   isAnonymousFallbackDisabledBySettings,
   isNoAuthProviderBlockedBySettings,
@@ -1062,7 +1069,10 @@ async function hydrateAccountProxyReferences(
 async function materializeConnection(
   connection: ProviderConnectionView,
   options: CredentialSelectionOptions,
-  extra: DeferredLeaseSelection & { exclusiveLease?: ExclusiveConnectionLease } = {}
+  extra: DeferredLeaseSelection & {
+    exclusiveLease?: ExclusiveConnectionLease;
+    reactivatedFromInactive?: boolean;
+  } = {}
 ) {
   const providerSpecificData = await hydrateAccountProxyReferences(connection.providerSpecificData);
   const apiKeyHealth = providerSpecificData.apiKeyHealth as Record<string, KeyHealth> | undefined;
@@ -1215,6 +1225,20 @@ export async function getProviderCredentials(
       // respected (the no-auth provider will be rejected if it has no real connections
       // matching the allowlist, or a real connection row will be selected if present).
       if (!allowedConnections || allowedConnections.length === 0) {
+        // #13483: check model-only lockout before handing back the synthetic
+        // connection. Without this, a locked model (e.g. 400 model_capacity)
+        // is retried on every request because the noauth path short-circuits
+        // before the per-connection status pass that classifies modelLocked.
+        const modelLockout = requestedModel
+          ? getModelLockoutInfo(resolvedId, SYNTHETIC_NOAUTH_CONNECTION_ID, requestedModel)
+          : null;
+        if (modelLockout && modelLockout.remainingMs > 0) {
+          log.debug(
+            "AUTH",
+            `${resolvedId} | noauth model-only lockout for ${requestedModel} — ${modelLockout.remainingMs}ms remaining, returning null`
+          );
+          return null;
+        }
         return await maybeSyntheticNoAuthFallback(resolvedId, excludedForNoAuth);
       }
     }
@@ -1261,6 +1285,29 @@ export async function getProviderCredentials(
     if (allowedConnections && allowedConnections.length > 0) {
       connections = connections.filter((conn) => allowedConnections.includes(conn.id));
     }
+    let explicitProbeKind: "probe" | "suppressed" | "skip" = "skip";
+    if (forcedConnectionId && !connections.some((c) => c.id === forcedConnectionId)) {
+      const pinnedRaw = await getCachedProviderConnectionById(forcedConnectionId);
+      const pinnedRow = pinnedRaw ? toProviderConnection(pinnedRaw) : null;
+      const nowMs = Date.now();
+      const decision = selectExplicitInactiveProbe({
+        forcedConnectionId,
+        activeConnections: connections,
+        pinnedRow,
+        providersToSearch,
+        allowedConnectionIds: allowedConnections ?? null,
+        nowMs,
+        lastProbeAtMs: lastExplicitProbeTime(forcedConnectionId),
+        intervalMs: EXPLICIT_INACTIVE_PROBE_INTERVAL_MS,
+      });
+      explicitProbeKind = decision.kind;
+      if (decision.kind === "probe" && pinnedRow) {
+        noteExplicitProbe(forcedConnectionId, nowMs);
+        connections = [pinnedRow];
+      }
+    }
+    const probeStamp =
+      explicitProbeKind === "probe" ? { reactivatedFromInactive: true as const } : {};
     const forcedConnectionEligible = connections.some((conn) => conn.id === forcedConnectionId);
     if (options.lease && forcedConnectionId && !forcedConnectionEligible) return null;
     if (options.lease?.mode === "request" && forcedConnectionId) {
@@ -1487,7 +1534,7 @@ export async function getProviderCredentials(
         connectionFilterStatus.set(c.id, "modelNotAdvertised");
         return false;
       }
-      if (!allowSuppressedConnections) {
+      if (!allowSuppressedConnections && explicitProbeKind !== "probe") {
         if (!allowRateLimitedConnections && isAccountUnavailable(c.rateLimitedUntil)) {
           connectionFilterStatus.set(c.id, "rateLimited");
           return false;
@@ -2120,6 +2167,7 @@ export async function getProviderCredentials(
         return materializeConnection(connection, options, {
           commitSelectionSideEffects,
           selectNextLeaseCandidate,
+          ...probeStamp,
         });
       }
       let claim = mutateExclusiveConnectionLease(
@@ -2139,7 +2187,12 @@ export async function getProviderCredentials(
       exclusiveLease = claim.lease;
       await commitSelectionSideEffects?.();
       if (options.materializeCredentials === false) {
-        return { exclusiveLease, connectionId: connection.id, provider: connection.provider };
+        return {
+          exclusiveLease,
+          connectionId: connection.id,
+          provider: connection.provider,
+          ...probeStamp,
+        };
       }
     }
 
@@ -2150,7 +2203,10 @@ export async function getProviderCredentials(
       );
     }
 
-    return materializeConnection(connection, options, { exclusiveLease });
+    return materializeConnection(connection, options, {
+      exclusiveLease,
+      ...probeStamp,
+    });
   } finally {
     selectionLock?.release();
   }

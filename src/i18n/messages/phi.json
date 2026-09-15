@@ -8670,7 +8670,9 @@
     "languagePacksList": "Mga language pack: {packs}",
     "dragToReorder": "I-drag upang muling isaayos ang hakbang",
     "engine": "Engine",
-    "intensity": "Intensity"
+    "intensity": "Intensity",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Walang available na compression run.",
@@ -8699,6 +8701,7 @@
     "run": "Patakbuhin",
     "laneRejected": "tinanggihan: {reason}",
     "error": "error",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Pinagsamang flow",
     "eachLayer": "Bawat layer nang hiwalay",
     "diff": "Pagkakaiba",

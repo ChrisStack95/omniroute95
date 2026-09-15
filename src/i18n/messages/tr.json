@@ -8670,7 +8670,9 @@
     "languagePacksList": "Dil paketleri: {packs}",
     "dragToReorder": "Adımı yeniden sıralamak için sürükleyin",
     "engine": "Motor",
-    "intensity": "Yoğunluk"
+    "intensity": "Yoğunluk",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Kullanılabilir sıkıştırma çalışması yok.",
@@ -8699,6 +8701,7 @@
     "run": "Çalıştır",
     "laneRejected": "reddedildi: {reason}",
     "error": "hata",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Birleşik akış",
     "eachLayer": "Her katman ayrı ayrı",
     "diff": "Fark",

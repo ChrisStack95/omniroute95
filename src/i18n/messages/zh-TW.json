@@ -8670,7 +8670,9 @@
     "languagePacksList": "語言包：{packs}",
     "dragToReorder": "拖曳以重新排序步驟",
     "engine": "引擎",
-    "intensity": "強度"
+    "intensity": "強度",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "無可用的壓縮執行記錄。",
@@ -8699,6 +8701,7 @@
     "run": "執行",
     "laneRejected": "已拒絕：{reason}",
     "error": "錯誤",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "組合流程",
     "eachLayer": "各圖層分開",
     "diff": "差異",

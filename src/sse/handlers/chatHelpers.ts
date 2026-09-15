@@ -8,6 +8,7 @@ import {
   markAccountUnavailable,
   buildExhaustionOptions,
 } from "../services/auth";
+import { maybeReactivateAfterExplicitProbe } from "../services/explicitInactiveProbe";
 import { connectionHasExtraKeys } from "@omniroute/open-sse/services/apiKeyRotator.ts";
 import { createBuiltinAutoCombo } from "@omniroute/open-sse/services/autoCombo/builtinCatalog.ts";
 import * as log from "../utils/logger";
@@ -536,6 +537,13 @@ export async function executeChatWithBreaker({
             onRequestSuccess: async () => {
               if (isShadowTraffic) return;
               await clearAccountError(credentials.connectionId, credentials);
+              await maybeReactivateAfterExplicitProbe({
+                connectionId: credentials.connectionId,
+                reactivatedFromInactive: credentials.reactivatedFromInactive,
+                isShadowTraffic,
+                requestedModel: model,
+                provider,
+              });
             },
             onStreamFailure: async (failure: any) => {
               if (isShadowTraffic) return;

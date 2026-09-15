@@ -8670,7 +8670,9 @@
     "languagePacksList": "భాషా ప్యాక్‌లు: {packs}",
     "dragToReorder": "దశను క్రమబద్ధీకరించడానికి డ్రాగ్ చేయండి",
     "engine": "ఇంజిన్",
-    "intensity": "తీవ్రత"
+    "intensity": "తీవ్రత",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "ఎటువంటి కంప్రెషన్ రన్ అందుబాటులో లేదు.",
@@ -8699,6 +8701,7 @@
     "run": "రన్ చేయండి",
     "laneRejected": "తిరస్కరించబడింది: {reason}",
     "error": "లోపం",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "కంబైన్డ్ ఫ్లో",
     "eachLayer": "ప్రతి లేయర్ విడివిడిగా",
     "diff": "వ్యత్యాసం",

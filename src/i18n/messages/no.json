@@ -8670,7 +8670,9 @@
     "languagePacksList": "Språkpakker: {packs}",
     "dragToReorder": "Dra for å endre rekkefølge på trinn",
     "engine": "Motor",
-    "intensity": "Intensitet"
+    "intensity": "Intensitet",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Ingen komprimeringskjøring tilgjengelig.",
@@ -8699,6 +8701,7 @@
     "run": "Kjør",
     "laneRejected": "avvist: {reason}",
     "error": "feil",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Kombinert flyt",
     "eachLayer": "Hvert lag separat",
     "diff": "Differanse",

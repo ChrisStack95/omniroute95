@@ -8670,7 +8670,9 @@
     "languagePacksList": "ভাষা প্যাক: {packs}",
     "dragToReorder": "ধাপের ক্রম পরিবর্তন করতে টেনে আনুন",
     "engine": "ইঞ্জিন",
-    "intensity": "তীব্রতা"
+    "intensity": "তীব্রতা",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "কোনো কম্প্রেশন রান উপলব্ধ নেই।",
@@ -8699,6 +8701,7 @@
     "run": "রান করুন",
     "laneRejected": "প্রত্যাখ্যাত: {reason}",
     "error": "ত্রুটি",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "সম্মিলিত ফ্লো",
     "eachLayer": "প্রতিটি লেয়ার আলাদাভাবে",
     "diff": "পার্থক্য",

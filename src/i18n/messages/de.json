@@ -8670,7 +8670,9 @@
     "languagePacksList": "Sprachpakete: {packs}",
     "dragToReorder": "Ziehen, um Schritt neu anzuordnen",
     "engine": "Engine",
-    "intensity": "Intensität"
+    "intensity": "Intensität",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Kein Komprimierungsdurchlauf verfügbar.",
@@ -8699,6 +8701,7 @@
     "run": "Ausführen",
     "laneRejected": "abgelehnt: {reason}",
     "error": "Fehler",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Kombinierter Ablauf",
     "eachLayer": "Jede Ebene einzeln",
     "diff": "Differenz",

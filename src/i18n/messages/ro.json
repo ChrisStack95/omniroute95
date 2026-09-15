@@ -8670,7 +8670,9 @@
     "languagePacksList": "Pachete de limbi: {packs}",
     "dragToReorder": "Trageți pentru a reordona pasul",
     "engine": "Motor",
-    "intensity": "Intensitate"
+    "intensity": "Intensitate",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Nicio rulare de compresie disponibilă.",
@@ -8699,6 +8701,7 @@
     "run": "Rulează",
     "laneRejected": "respins: {reason}",
     "error": "eroare",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Flux combinat",
     "eachLayer": "Fiecare strat separat",
     "diff": "Diferență",
