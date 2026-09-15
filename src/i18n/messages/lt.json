@@ -8645,7 +8645,9 @@
     "languagePacksList": "Kalbų paketai: {packs}",
     "dragToReorder": "Vilkite, kad pakeistumėte veiksmo vietą",
     "engine": "Variklis",
-    "intensity": "Intensyvumas"
+    "intensity": "Intensyvumas",
+    "activeProfileMasterSwitchOffWarning": "__MISSING__:The active profile below will not run until the master \"Prompt Compression\" switch is turned on.",
+    "activeProfileMasterSwitchOffCta": "__MISSING__:Turn it on in Settings"
   },
   "compressionStudio": {
     "noRun": "Nėra pasiekiamų glaudinimo vykdymo duomenų.",
@@ -8674,6 +8676,7 @@
     "run": "Vykdyti",
     "laneRejected": "atmesta: {reason}",
     "error": "klaida",
+    "combinedError": "__MISSING__:Combined pipeline preview failed: {reason}",
     "combinedFlow": "Jungtinė eiga",
     "eachLayer": "Kiekvienas sluoksnis atskirai",
     "diff": "Skirtumas",
@@ -14007,7 +14010,18 @@
     "actionDone": "Veiksmas pritaikytas",
     "actionFailed": "Veiksmas nepavyko: {error}",
     "detailFailed": "Nepavyko įkelti išsamios informacijos: {error}",
-    "mirroredInA2A": "Dubliuojama A2A sistemoje"
+    "mirroredInA2A": "Dubliuojama A2A sistemoje",
+    "compareMode": "Palyginti vykdymus",
+    "compareExit": "Išeiti iš palyginimo režimo",
+    "compareHint": "Pasirinkite du vykdymus palyginimui",
+    "compareTitle": "Palyginimas",
+    "compareDetailFailed": "Nepavyko įkelti šio vykdymo informacijos",
+    "compareDifferentIdentity": "Skirtingi šaltiniai arba gebėjimai — skirtumai yra informaciniai",
+    "compareDuration": "Trukmė",
+    "compareCost": "Kaina",
+    "compareEvents": "Įvykiai",
+    "compareDeltaLegend": "Δ dešinė − kairė",
+    "noMatches": "Nė vienas vykdymas neatitinka šių filtrų"
   },
   "cliproxyProviderExposure": {
     "title": "Teikėjo prieinamumas",
