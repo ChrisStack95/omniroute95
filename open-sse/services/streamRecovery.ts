@@ -23,8 +23,8 @@ export { ThroughputWatchdogError } from "./throughputWatchdog.ts";
 const TOOLCALL_ORDER_FIX_FLAG = "STREAM_RECOVERY_TOOLCALL_ORDER_FIX";
 
 /**
- * Read the order-fix flag fail-closed: any resolution failure (DB not ready in
- * tests, unknown key) keeps the release behavior instead of changing the hot path.
+ * Read the opt-in tool-call-safe continuation flag. Fail-closed: any resolution failure
+ * (DB not ready, unknown key) keeps the release behavior.
  */
 function isToolcallOrderFixEnabled(): boolean {
   try {
@@ -230,115 +230,27 @@ export interface OpenAiSseScan {
 }
 
 /**
- * Resolve the choice index for order tracking: the numeric `index` when present,
- * else the fallback slot 0 for single-choice payloads (the standard shape here),
- * else null (multi-choice without index — fail-closed, track nothing).
- */
-function resolveOrderIndex(choice: unknown, singleChoice: boolean): number | null {
-  const record = (choice as { index?: unknown }) ?? {};
-  if (typeof record.index === "number" && Number.isInteger(record.index)) return record.index;
-  return singleChoice ? 0 : null;
-}
-
-/**
- * Order-aware in-flight tracker (pure helper): pending tool calls per choice index.
- * A `tool_calls` delta opens its choice index; a `finish_reason "tool_calls"`
- * settles only that index. Deltas without an index open the fallback slot only for
- * single-choice payloads, the standard shape on this path; on a multi-choice
- * payload they open nothing (fail-closed): `sawToolCall` stays set but no pending
- * index is added, mirroring the finish side which settles nothing index-less.
- */
-function trackToolCallOrder(
-  pending: Set<number>,
-  choice: unknown,
-  singleChoice: boolean,
-  sawToolCallDelta: boolean,
-  finishedToolCall: boolean
-): void {
-  const slot = resolveOrderIndex(choice, singleChoice);
-  if (slot === null) return;
-  if (sawToolCallDelta) pending.add(slot);
-  // A finish settles only its own choice index; an index-less finish on a
-  // multi-choice payload returns early above (fail-closed), never clearing live calls.
-  if (finishedToolCall) pending.delete(slot);
-}
-
-/** Fold one parsed choice into the running text/tool-call accumulators. Pure. */
-function foldChoiceDeltas(
-  choice: unknown,
-  acc: { text: string; reasoningText: string; sawToolCall: boolean; parsedOpenAi: boolean }
-): boolean {
-  const delta = (choice as { delta?: unknown })?.delta;
-  if (!delta || typeof delta !== "object") return false;
-  acc.parsedOpenAi = true;
-  const content = (delta as { content?: unknown }).content;
-  if (typeof content === "string") acc.text += content;
-  const reasoning = (delta as { reasoning_content?: unknown }).reasoning_content;
-  if (typeof reasoning === "string") acc.reasoningText += reasoning;
-  const toolCalls = (delta as { tool_calls?: unknown }).tool_calls;
-  if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-    acc.sawToolCall = true;
-    return true;
-  }
-  return false;
-}
-
-/**
- * Fold one parsed choice's finish reason. Returns true for `tool_calls` (settles one
- * choice, never terminal for the turn), else records the terminal marker. Pure.
- */
-function foldChoiceFinish(
-  choice: unknown,
-  acc: { terminal: boolean; finishReason: string | null; toolCallFinished: boolean }
-): boolean {
-  const rawFinishReason = (choice as { finish_reason?: unknown })?.finish_reason;
-  if (rawFinishReason === "tool_calls") {
-    // Ends this one choice, but the overall stream/turn stays continuable —
-    // never counts as the general terminal marker (see OpenAiSseScan.terminal).
-    acc.toolCallFinished = true;
-    acc.finishReason = "tool_calls";
-    return true;
-  }
-  if (rawFinishReason != null) {
-    acc.terminal = true;
-    if (typeof rawFinishReason === "string") acc.finishReason = rawFinishReason;
-  }
-  return false;
-}
-
-/**
  * Scan a slice of OpenAI-compatible SSE for the assistant text, tool-call presence, and
  * a terminal marker. Non-OpenAI bodies (e.g. Anthropic `content_block_delta` events) parse
  * to `parsedOpenAi:false` with empty text, so the caller falls back to current behavior.
- *
- * With `orderAware` on, in-flight detection tracks pending tool calls per choice index
- * instead of reducing the batch to two order-blind booleans: a `finish_reason
- * "tool_calls"` settles only the choice index it closes, so a new in-flight call in the
- * same batch keeps the scan in flight, and a batch whose finish settles every pending
- * call reports nothing in flight. Off, the scan keeps the exact release computation.
  */
-export function scanOpenAiSseText(sse: string, orderAware = false): OpenAiSseScan {
-  const acc = {
-    text: "",
-    reasoningText: "",
-    sawToolCall: false,
-    toolCallFinished: false,
-    terminal: false,
-    finishReason: null as string | null,
-    parsedOpenAi: false,
-  };
-  // Pending tool calls per choice index while orderAware is on: a tool_calls delta
-  // opens its choice index, a finish_reason "tool_calls" closes only that index.
-  const pendingToolCallByIndex = new Set<number>();
+export function scanOpenAiSseText(sse: string): OpenAiSseScan {
+  let text = "";
+  let reasoningText = "";
+  let sawToolCall = false;
+  let toolCallFinished = false;
+  let terminal = false;
+  let finishReason: string | null = null;
+  let parsedOpenAi = false;
   if (typeof sse !== "string" || sse.length === 0) {
     return {
-      text: acc.text,
-      reasoningText: acc.reasoningText,
-      sawToolCall: acc.sawToolCall,
+      text,
+      reasoningText,
+      sawToolCall,
       sawToolCallInFlight: false,
-      terminal: acc.terminal,
-      finishReason: acc.finishReason,
-      parsedOpenAi: acc.parsedOpenAi,
+      terminal,
+      finishReason,
+      parsedOpenAi,
     };
   }
   for (const line of sse.split("\n")) {
@@ -347,7 +259,7 @@ export function scanOpenAiSseText(sse: string, orderAware = false): OpenAiSseSca
     const payload = trimmed.slice(5).trim();
     if (!payload) continue;
     if (payload === "[DONE]") {
-      acc.terminal = true;
+      terminal = true;
       continue;
     }
     let json: unknown;
@@ -358,47 +270,39 @@ export function scanOpenAiSseText(sse: string, orderAware = false): OpenAiSseSca
     }
     const choices = (json as { choices?: unknown })?.choices;
     if (!Array.isArray(choices)) continue;
-    const singleChoice = choices.length === 1;
     for (const choice of choices) {
-      const sawDelta = foldChoiceDeltas(choice, acc);
-      const finished = foldChoiceFinish(choice, acc);
-      if (orderAware && (sawDelta || finished)) {
-        trackToolCallOrder(pendingToolCallByIndex, choice, singleChoice, sawDelta, finished);
+      const delta = (choice as { delta?: unknown })?.delta;
+      if (delta && typeof delta === "object") {
+        parsedOpenAi = true;
+        const content = (delta as { content?: unknown }).content;
+        if (typeof content === "string") text += content;
+        const reasoning = (delta as { reasoning_content?: unknown }).reasoning_content;
+        if (typeof reasoning === "string") reasoningText += reasoning;
+        const toolCalls = (delta as { tool_calls?: unknown }).tool_calls;
+        if (Array.isArray(toolCalls) && toolCalls.length > 0) sawToolCall = true;
+      }
+      const rawFinishReason = (choice as { finish_reason?: unknown })?.finish_reason;
+      if (rawFinishReason === "tool_calls") {
+        // Ends this one choice, but the overall stream/turn stays continuable —
+        // never counts as the general terminal marker (see OpenAiSseScan.terminal).
+        toolCallFinished = true;
+        finishReason = "tool_calls";
+      } else if (rawFinishReason != null) {
+        terminal = true;
+        if (typeof rawFinishReason === "string") finishReason = rawFinishReason;
       }
     }
   }
-  // Order-aware in-flight detection (flag-gated, m2): a finish settles only its own
-  // choice index, so anything still pending keeps the batch in flight. Without any
-  // tool call seen, nothing can be in flight; an index-less finish on a multi-choice
-  // payload is ignored (fail-closed), which the pending set already reflects.
-  const sawToolCallInFlight = orderAware
-    ? acc.sawToolCall && pendingToolCallByIndex.size > 0
-    : acc.sawToolCall && !acc.toolCallFinished;
+  const sawToolCallInFlight = sawToolCall && !toolCallFinished;
   return {
-    text: acc.text,
-    reasoningText: acc.reasoningText,
-    sawToolCall: acc.sawToolCall,
+    text,
+    reasoningText,
+    sawToolCall,
     sawToolCallInFlight,
-    terminal: acc.terminal,
-    finishReason: acc.finishReason,
-    parsedOpenAi: acc.parsedOpenAi,
+    terminal,
+    finishReason,
+    parsedOpenAi,
   };
-}
-
-export type RecoveryTraceOutcome =
-  "suffix" | "terminal" | "overlap-reject" | "refused" | "no-stream";
-
-export interface StreamRecoveryTrace {
-  kind: "continue-attempt" | "continue-outcome" | "latch";
-  attempt: number;
-  latch?: boolean;
-  latchBefore?: boolean;
-  latchAfter?: boolean;
-  orderFixOn: boolean;
-  outcome?: RecoveryTraceOutcome;
-  refusedReason?: "latch" | "terminal" | "budget" | "format" | "empty-retry";
-  suffixChars?: number;
-  overlapChars?: number;
 }
 
 export interface ContinuableBody {
@@ -467,14 +371,6 @@ export interface RecoverableStreamOptions {
   maxContinuations?: number;
   /** Observability hook fired on each continuation attempt. */
   onContinue?: (attempt: number, assistantSoFar: string) => void;
-  /**
-   * Test seam for the order-fix flag: overrides the flag lookup used by
-   * `emit()`. Defaults to the real lookup; production never passes this.
-   */
-  resolveOrderFixFlag?: () => boolean;
-  /** Recovery trace hook: fired on each continuation attempt, outcome, and latch
-   *  transition. No-op when omitted. */
-  onRecoveryTrace?: (trace: StreamRecoveryTrace) => void;
   /** Opt-in active-stream output-quality watchdog. Disabled when omitted. */
   throughputWatchdog?: ThroughputWatchdogOptions;
   /** Sanitized observability hook fired before the active attempt is aborted. */
@@ -552,24 +448,12 @@ export function createRecoverableStream(
   let emittedTerminal = false;
   let emittedToolCallInFlight = false;
   let emittedSawToolCall = false; // any tool_call delta seen, complete or not
+  let emittedToolCallFinish = false; // any finish_reason "tool_calls" seen
   let emittedParsedOpenAi = false;
-  let flagErrorLogged = false;
-  let lastOrderFixOn = false;
-
-  const resolveFlag = (): boolean => {
-    try {
-      return (options.resolveOrderFixFlag ?? isToolcallOrderFixEnabled)();
-    } catch (error) {
-      if (!flagErrorLogged) {
-        flagErrorLogged = true;
-        console.error(
-          "[stream-recovery] order-fix flag resolution failed, staying fail-closed",
-          error
-        );
-      }
-      return false;
-    }
-  };
+  // STREAM_RECOVERY_TOOLCALL_ORDER_FIX, resolved lazily at most once per stream and only
+  // on a recovery decision, so the flag costs nothing on streams that end cleanly.
+  let toolCallOrderFix: boolean | undefined;
+  const isToolCallOrderFixOn = () => (toolCallOrderFix ??= isToolcallOrderFixEnabled());
 
   // Enqueue to the client and, when continuation is enabled, fold the chunk into the
   // running scan so a later continuation can be prefilled with exactly what was sent.
@@ -584,41 +468,14 @@ export function createRecoverableStream(
     if (boundary < 0) return;
     const complete = emittedTail.slice(0, boundary + 2);
     emittedTail = emittedTail.slice(boundary + 2);
-    const orderFixOn = resolveFlag();
-    lastOrderFixOn = orderFixOn;
-    const scan = scanOpenAiSseText(complete, orderFixOn);
+    const scan = scanOpenAiSseText(complete);
     emittedText += scan.text;
     emittedReasoningText += scan.reasoningText;
     if (scan.finishReason !== null) emittedFinishReason = scan.finishReason;
     if (scan.terminal) emittedTerminal = true;
-    // Order-aware re-arm (flag-gated): a batch whose finish settles every pending
-    // call re-arms the latch — only trailing prose was lost, so the turn stays
-    // resumable. A batch with a call still in flight keeps it set. Flag off: the
-    // latch stays sticky, exactly the release behavior.
-    if (scan.sawToolCallInFlight) {
-      if (!emittedToolCallInFlight) {
-        emittedToolCallInFlight = true;
-        options.onRecoveryTrace?.({
-          kind: "latch",
-          attempt: continuations,
-          latchBefore: false,
-          latchAfter: true,
-          orderFixOn,
-        });
-      }
-    } else if (orderFixOn && scan.finishReason === "tool_calls") {
-      if (emittedToolCallInFlight) {
-        emittedToolCallInFlight = false;
-        options.onRecoveryTrace?.({
-          kind: "latch",
-          attempt: continuations,
-          latchBefore: true,
-          latchAfter: false,
-          orderFixOn,
-        });
-      }
-    }
+    if (scan.sawToolCallInFlight) emittedToolCallInFlight = true;
     if (scan.sawToolCall) emittedSawToolCall = true;
+    if (scan.finishReason === "tool_calls") emittedToolCallFinish = true;
     if (scan.parsedOpenAi) emittedParsedOpenAi = true;
   };
 
@@ -656,40 +513,23 @@ export function createRecoverableStream(
     emittedText.length === 0 &&
     emittedReasoningText.length > 0;
 
+  // With STREAM_RECOVERY_TOOLCALL_ORDER_FIX on, any tool-call activity makes the turn
+  // non-continuable. The per-batch scan above is order-blind: a batch carrying a finished
+  // call followed by a new partial call reports nothing in flight, and a call finished with
+  // finish_reason "tool_calls" is a completed turn where only [DONE] can be missing — a
+  // continuation there spends an upstream request and appends content plus a second
+  // finish_reason after the tool-call finish. Every tool call is either still pending or
+  // already finished, so the order-independent check is exact. Off: the release gate.
+  const toolCallBlocksContinuation = () =>
+    (emittedSawToolCall || emittedToolCallFinish) && isToolCallOrderFixOn();
+
   const canContinue = () =>
     continueEnabled &&
     continuations < maxContinuations &&
     emittedParsedOpenAi &&
     !emittedToolCallInFlight &&
-    (emittedText.length > 0 ? !emittedTerminal : hallucinatedEmptyStop());
-
-  /**
-   * Why a refusal happened, by fixed precedence: latch first, then a seen
-   * terminal marker, then the retry budget, then the format gate.
-   *
-   * "terminal" is an internal sentinel, never emitted: the nominal-silence
-   * gate below drops any refusal whose cause is terminal, so a nominal done
-   * stays chatter-free. It stays in the union (instead of a narrower emitted
-   * type) to keep the precedence table total — every failing clause maps to
-   * exactly one cause, including the terminal one the gate then swallows.
-   */
-  type RefusedReason = "latch" | "terminal" | "budget" | "format" | "empty-retry";
-
-  // Fixed precedence for multi-failure refusals: the latch dominates  // (a false negative corrupts), then a seen terminal marker, then the retry
-  // budget, then the format gate. The "terminal" cause needs a real marker: an
-  // empty text without a reasoning-only stop is just the positive gate staying
-  // shut, reported through budget/format (or silence when nothing else fails).
-  const refusedReason = (): RefusedReason | null => {
-    if (emittedToolCallInFlight) return "latch";
-    if (emittedTerminal) return "terminal";
-    if (!(continueEnabled && continuations < maxContinuations)) return "budget";
-    if (!emittedParsedOpenAi) return "format";
-    return null;
-  };
-
-  // Whether a graceful end after commit carried a nominal terminal marker:
-  // nothing left worth continuing, so the done-branch refusal stays silent.
-  const isNominalEnd = () => emittedTerminal && continuations === 0;
+    (emittedText.length > 0 ? !emittedTerminal : hallucinatedEmptyStop()) &&
+    !toolCallBlocksContinuation();
 
   const emitCleanTerminal = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     controller.enqueue(
@@ -702,36 +542,11 @@ export function createRecoverableStream(
   // Returns true once the recovered stream has been terminated (caller closes); false to
   // fall back to the unchanged #4131 error/close behavior.
   const tryContinue = async (
-    controller: ReadableStreamDefaultController<Uint8Array>,
-    isNominalDone = false
+    controller: ReadableStreamDefaultController<Uint8Array>
   ): Promise<boolean> => {
-    if (!canContinue()) {
-      // Refusals are traced only on non-terminal ends (retryable error, done
-      // without a terminal marker, watchdog abort) — never on a nominal done
-      // with a terminal marker (zero chatter per nominal request).
-      if (!isNominalDone) {
-        const reason = refusedReason();
-        if (reason === null || reason === "terminal") return false;
-        options.onRecoveryTrace?.({
-          kind: "continue-outcome",
-          attempt: continuations,
-          latchBefore: emittedToolCallInFlight,
-          latchAfter: emittedToolCallInFlight,
-          orderFixOn: lastOrderFixOn,
-          outcome: "refused",
-          refusedReason: reason,
-        });
-      }
-      return false;
-    }
+    if (!canContinue()) return false;
     continuations += 1;
     options.onContinue?.(continuations, emittedText);
-    options.onRecoveryTrace?.({
-      kind: "continue-attempt",
-      attempt: continuations,
-      latch: emittedToolCallInFlight,
-      orderFixOn: lastOrderFixOn,
-    });
 
     let contStream: ReadableStream<Uint8Array> | null = null;
     try {
@@ -739,17 +554,7 @@ export function createRecoverableStream(
     } catch {
       contStream = null;
     }
-    if (!contStream) {
-      options.onRecoveryTrace?.({
-        kind: "continue-outcome",
-        attempt: continuations,
-        latchBefore: emittedToolCallInFlight,
-        latchAfter: emittedToolCallInFlight,
-        orderFixOn: lastOrderFixOn,
-        outcome: "no-stream",
-      });
-      return false;
-    }
+    if (!contStream) return false;
 
     // Drain the continuation fully (recovery favors correctness over token-by-token
     // streaming of the recovered tail), then emit only the de-duplicated suffix.
@@ -768,7 +573,6 @@ export function createRecoverableStream(
     }
 
     const scan = scanOpenAiSseText(raw);
-    const emptyContinuation = scan.text.length === 0 && !scan.sawToolCall;
     // A continuation whose overlap with what was already emitted falls below the documented
     // threshold is treated as a suspected restart rather than a real resume — see
     // STREAM_RECOVERY.MIN_CONTINUATION_OVERLAP_CHARS for the full trade-off rationale. This
@@ -782,15 +586,6 @@ export function createRecoverableStream(
       scan.text.length > 0 &&
       overlapChars < STREAM_RECOVERY.MIN_CONTINUATION_OVERLAP_CHARS;
     if (isSuspectedRestart) {
-      options.onRecoveryTrace?.({
-        kind: "continue-outcome",
-        attempt: continuations,
-        latchBefore: emittedToolCallInFlight,
-        latchAfter: emittedToolCallInFlight,
-        orderFixOn: lastOrderFixOn,
-        outcome: "overlap-reject",
-        overlapChars,
-      });
       if (await tryContinue(controller)) return true;
       emitCleanTerminal(controller);
       return true;
@@ -803,51 +598,21 @@ export function createRecoverableStream(
           `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: suffix } }] })}\n\n`
         )
       );
-      options.onRecoveryTrace?.({
-        kind: "continue-outcome",
-        attempt: continuations,
-        latchBefore: emittedToolCallInFlight,
-        latchAfter: emittedToolCallInFlight,
-        orderFixOn: lastOrderFixOn,
-        outcome: "suffix",
-        suffixChars: suffix.length,
-      });
     }
     // A clean finish, or a tool call we cannot safely stitch, ends the recovered stream.
-    // The continuation scan stays order-blind: a terminal outcome may reflect
-    // the release semantics even with the flag on.
     if (scan.terminal || scan.sawToolCall) {
-      if (!suffix) {
-        options.onRecoveryTrace?.({
-          kind: "continue-outcome",
-          attempt: continuations,
-          latchBefore: emittedToolCallInFlight,
-          latchAfter: emittedToolCallInFlight,
-          orderFixOn: lastOrderFixOn,
-          outcome: "terminal",
-        });
-      }
+      emitCleanTerminal(controller);
+      return true;
+    }
+    // With STREAM_RECOVERY_TOOLCALL_ORDER_FIX on, a continuation that delivered no text
+    // carries no new information (the next re-request replays the same prefill), so close
+    // after this one spent request instead of burning the rest of the budget.
+    if (scan.text.length === 0 && isToolCallOrderFixOn()) {
       emitCleanTerminal(controller);
       return true;
     }
     // The continuation truncated too — try again (bounded), else close cleanly so the
-    // client never hangs waiting on a partial response. A continuation that
-    // delivered zero usable bytes carries no new information: the recursive
-    // re-request would replay the identical prefill, so stop after this single
-    // spent request instead of burning the whole budget.
-    if (emptyContinuation) {
-      options.onRecoveryTrace?.({
-        kind: "continue-outcome",
-        attempt: continuations,
-        latchBefore: emittedToolCallInFlight,
-        latchAfter: emittedToolCallInFlight,
-        orderFixOn: lastOrderFixOn,
-        outcome: "refused",
-        refusedReason: "empty-retry",
-      });
-      emitCleanTerminal(controller);
-      return true;
-    }
+    // client never hangs waiting on a partial response.
     if (await tryContinue(controller)) return true;
     emitCleanTerminal(controller);
     return true;
@@ -893,7 +658,7 @@ export function createRecoverableStream(
             // says the stream is worth continuing (silent truncation, or a clean-but-empty
             // reasoning-only stop) — canContinue() is the single source of truth here, same as
             // the read-error branch above.
-            if (await tryContinue(controller, isNominalEnd())) {
+            if (await tryContinue(controller)) {
               runFinalize();
               controller.close();
               return;
