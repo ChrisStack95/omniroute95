@@ -28,3 +28,13 @@ test("zero completed files is not PASS", () => {
   assert.equal(out.completed.length, 0);
   assert.equal(out.pass, false);
 });
+
+test("Subtest path wins when the result line has a short name", () => {
+  const tap = `TAP version 13
+# Subtest: tests/unit/a.test.ts
+ok 1 - some name
+`;
+  const out = fromNodeTestTap(tap, ["tests/unit/a.test.ts"]);
+  assert.equal(out.completed[0], "tests/unit/a.test.ts");
+  assert.equal(out.missing.length, 0);
+});

@@ -52,3 +52,21 @@ test("new reducer maps the same timeout to UNVERIFIED", () => {
   ]);
   assert.equal(out.verdict, "UNVERIFIED");
 });
+
+test("synthesized pack-boot without identity.tested_sha is UNVERIFIED not null sha", () => {
+  const plan = {
+    required_gates: planPack.required_gates,
+    identity: { run_id: "1", run_attempt: 1 },
+    dependencies: { "pack-boot": "pack-artifact" },
+  };
+  const out = reduce(plan, [record({ gate_id: "pack-artifact", status: "FAIL" })]);
+  const boot = out.gates.find((g) => g.gate_id === "pack-boot");
+  if (boot) {
+    assert.notEqual(boot.tested_sha, null);
+    assert.match(String(boot.tested_sha), /^[0-9a-f]{40}$/);
+  }
+  assert.equal(out.verdict, "FAILED");
+  assert.ok(
+    !boot || (typeof boot.tested_sha === "string" && boot.tested_sha.length === 40)
+  );
+});

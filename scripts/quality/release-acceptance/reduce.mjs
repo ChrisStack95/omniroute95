@@ -86,7 +86,7 @@ export function reduce(plan, records) {
       suite_id: depKey.suite_id,
       shard_index: depKey.shard_index,
       shard_total: depKey.shard_total,
-      tested_sha: identity.tested_sha ?? null,
+      tested_sha: identity.tested_sha || "0".repeat(40),
       run_id: identity.run_id ?? "0",
       run_attempt: identity.run_attempt ?? 1,
       command_id: depKey.gate_id,

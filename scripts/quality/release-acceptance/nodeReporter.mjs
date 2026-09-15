@@ -14,7 +14,7 @@ export function fromNodeTestTap(tapText, argvFiles) {
     }
     const res = line.match(RESULT);
     if (res) {
-      const file = res[2] || pending;
+      const file = pending || res[2];
       if (file && !seen.has(file)) {
         completed.push(file);
         seen.add(file);

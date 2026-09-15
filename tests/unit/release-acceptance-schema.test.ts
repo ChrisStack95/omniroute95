@@ -39,6 +39,15 @@ test("unknown top-level gate field is invalid in version 1", () => {
   assert.equal(validate(extra), false);
 });
 
+test("evidence member rejects parent traversal", () => {
+  const validate = compile();
+  const report = JSON.parse(
+    readFileSync(new URL("../fixtures/release-acceptance/verified.json", import.meta.url), "utf8")
+  );
+  report.gates[0].evidence[0].member = "foo/../../etc/passwd";
+  assert.equal(validate(report), false);
+});
+
 test("known-answer fixtures validate", () => {
   const validate = compile();
   for (const name of [

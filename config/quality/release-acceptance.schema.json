@@ -93,7 +93,7 @@
         "member": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^(?!/).*(?<!\\.\\./).*$"
+          "pattern": "^(?!/)(?!.*\\.\\./)[^\\s]+$"
         },
         "algorithm": { "const": "sha256" },
         "digest": { "$ref": "#/$defs/digest" }
