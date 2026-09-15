@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "बाइट्स आधीच क्लायंटपर्यंत पोहोचल्यानंतर प्रतिसादाची पुन्हा विनंती करण्यासाठी आणि तो जोडण्यासाठी स्ट्रीम रिकव्हरीला अनुमती द्या."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models प्रतिसादांमध्ये प्रदर्शनासाठी अनुकूल नाव फील्ड समाविष्ट करा. केवळ मॉडेल आयडी स्वीकारणाऱ्या क्लायंटसाठी हे अक्षम करा."
       },

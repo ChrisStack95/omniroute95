@@ -12952,6 +12952,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Εξουσιοδότηση αποκατάστασης ροής να ζητά εκ νέου την απόκριση και να την συνενώνει αφού bytes έχουν ήδη φτάσει στον πελάτη."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Συμπερίληψη φιλικών προς εμφάνιση πεδίων ονόματος στις αποκρίσεις /v1/models. Απενεργοποιήστε το για πελάτες που δέχονται μόνο αναγνωριστικά μοντέλων."
       },

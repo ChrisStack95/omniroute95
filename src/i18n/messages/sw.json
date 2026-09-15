@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Ruhusu urejesho wa mkondo kuomba jibu tena na kuliunganisha baada ya baiti kuwa tayari zimefikia mteja."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Jumuisha sehemu za majina rahisi kuonyeshwa katika majibu ya /v1/models. Zima hii kwa wateja wanaokubali vitambulisho vya mfano pekee."
       },

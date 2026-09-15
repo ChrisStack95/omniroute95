@@ -12952,6 +12952,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Ceadaigh d'aisghabháil srutha an freagra a iarraidh arís agus é a fhuáil le chéile tar éis do bhearta a bheith sroichte ag an gcliant cheana féin."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Cuir réimsí ainmneacha atá cairdiúil don taispeáint san áireamh i bhfreagraí /v1/models. Díchumasaigh é seo do chliaint a ghlacann le haitheantóirí múnla amháin."
       },
