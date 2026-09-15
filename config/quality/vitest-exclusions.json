@@ -27,12 +27,6 @@
       "status": "Tests 3 failed | 1 passed (4)"
     },
     {
-      "file": "src/app/(dashboard)/dashboard/endpoint/__tests__/ApiEndpointsTab.test.tsx",
-      "issue": "#13204",
-      "measured": "2026-09-10",
-      "status": "Tests 2 failed | 1 passed (3)"
-    },
-    {
       "file": "src/app/(dashboard)/dashboard/cache/__tests__/CacheTrends.test.tsx",
       "issue": "#13204",
       "measured": "2026-09-10",
