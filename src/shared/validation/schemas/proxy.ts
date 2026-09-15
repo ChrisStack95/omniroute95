@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { partialWithoutDefaults } from "@/shared/validation/partialWithoutDefaults";
 import {
   ACCOUNT_FALLBACK_STRATEGY_VALUES,
   ROUTING_STRATEGY_VALUES,
@@ -128,7 +129,9 @@ export const proxyRegistryFieldsSchema = z
       .optional(),
     // Address-family egress policy (#3777): "auto" keeps the prior dual-stack behavior;
     // "ipv4"/"ipv6" pin the connection to that family (no v4 leak under an IPv6-only proxy).
-    family: z.enum(["auto", "ipv4", "ipv6"]).optional().default("auto"),
+    // Defaulted to "auto" only by createProxyRegistrySchema: an update or a re-import that
+    // omits it keeps the stored family.
+    family: z.enum(["auto", "ipv4", "ipv6"]).optional(),
   })
   .strict();
 
@@ -141,12 +144,12 @@ export const createProxyRegistrySchema = proxyRegistryFieldsSchema
       )
       .optional()
       .default("http"),
+    family: z.enum(["auto", "ipv4", "ipv6"]).optional().default("auto"),
     assignment: inlineProxyAssignmentSchema.optional(),
   })
   .strict();
 
-export const updateProxyRegistrySchema = proxyRegistryFieldsSchema
-  .partial()
+export const updateProxyRegistrySchema = partialWithoutDefaults(proxyRegistryFieldsSchema)
   .extend({
     id: z.string().trim().min(1, "id is required"),
     assignment: inlineProxyAssignmentSchema.optional(),
