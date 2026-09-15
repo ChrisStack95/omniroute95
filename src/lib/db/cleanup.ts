@@ -272,6 +272,17 @@ export async function cleanupMemoryEntries(): Promise<CleanupResult> {
     const runResult = stmt.run(cutoffISO);
     result.deleted = runResult.changes;
 
+    // Compact FTS5 segments to reclaim space from tombstoned rows left
+    // by the DELETE trigger (memory_fts_ad). Without this, orphaned FTS
+    // data/docsize rows grow without bound after retention deletes.
+    if (result.deleted > 0) {
+      try {
+        db.prepare("INSERT INTO memory_fts(memory_fts) VALUES('optimize')").run();
+      } catch {
+        // Best-effort; FTS compaction failure is non-fatal.
+      }
+    }
+
     console.log(
       `[Cleanup] Deleted ${result.deleted} memory_entries older than ${retentionDays} days`
     );
@@ -888,6 +899,59 @@ export async function cleanupProxyLogs(): Promise<CleanupResult> {
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 let _cleanupSchedulerTimer: ReturnType<typeof setInterval> | null = null;
 
+const VACUUM_MIN_DELETED_ROWS_DEFAULT = 1000;
+
+export function getVacuumMinDeletedRows(): number {
+  const raw = process.env.OMNIROUTE_VACUUM_MIN_DELETED_ROWS;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const parsed = Number(raw);
+    // 0 is valid and means "always VACUUM after a cleanup that freed any rows".
+    if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
+  }
+  return VACUUM_MIN_DELETED_ROWS_DEFAULT;
+}
+
+/**
+ * VACUUM rewrites the entire database file (a multi-GB DB produces a
+ * multi-GB WAL and a matching page-cache/I/O burst on the host). Running it
+ * after a cleanup that only freed a handful of rows buys no space and pays
+ * the full rewrite cost, so tiny cleanups skip it; the scheduled VACUUM
+ * (#4437) and large cleanups still reclaim space.
+ */
+export function shouldVacuumAfterCleanup(
+  totalDeleted: number,
+  minRows: number = getVacuumMinDeletedRows()
+): boolean {
+  return totalDeleted > 0 && totalDeleted >= minRows;
+}
+
+/**
+ * Runs the post-cleanup VACUUM only when the cleanup freed enough rows to
+ * justify a full-database rewrite. Returns true when VACUUM ran.
+ */
+export async function vacuumAfterCleanup(
+  totalDeleted: number,
+  exec: (sql: string) => void,
+  log: (message: string) => void = (m) => console.log(m),
+  logError: (message: string, error: unknown) => void = (m, e) => console.error(m, e)
+): Promise<boolean> {
+  if (totalDeleted <= 0) return false;
+  const minRows = getVacuumMinDeletedRows();
+  if (!shouldVacuumAfterCleanup(totalDeleted, minRows)) {
+    log(`[Cleanup] Freed ${totalDeleted} rows; skipping VACUUM (below ${minRows}-row threshold).`);
+    return false;
+  }
+  log(`[Cleanup] Running VACUUM to reclaim ${totalDeleted} freed rows...`);
+  try {
+    exec("VACUUM");
+    log("[Cleanup] VACUUM completed after cleanup.");
+    return true;
+  } catch (vacErr) {
+    logError("[Cleanup] VACUUM after cleanup failed:", vacErr);
+    return false;
+  }
+}
+
 /**
  * Start the background cleanup scheduler. Runs cleanup on startup
  * and then every 6 hours. Runs VACUUM after deletes to reclaim disk space.
@@ -906,14 +970,8 @@ export function startCleanupScheduler(): void {
       const proxyResult = await cleanupProxyLogs();
       const totalDeleted = result.totalDeleted + proxyResult.deleted;
       if (totalDeleted > 0) {
-        console.log(`[Cleanup] Startup cleanup freed ${totalDeleted} rows. Running VACUUM...`);
-        try {
-          const db = getDbInstance();
-          db.exec("VACUUM");
-          console.log("[Cleanup] VACUUM completed after startup cleanup.");
-        } catch (vacErr) {
-          console.error("[Cleanup] VACUUM after cleanup failed:", vacErr);
-        }
+        console.log(`[Cleanup] Startup cleanup freed ${totalDeleted} rows.`);
+        await vacuumAfterCleanup(totalDeleted, (sql) => getDbInstance().exec(sql));
       }
     } catch (err) {
       console.error("[Cleanup] Startup cleanup failed:", err);
@@ -927,14 +985,8 @@ export function startCleanupScheduler(): void {
       const proxyResult = await cleanupProxyLogs();
       const totalDeleted = result.totalDeleted + proxyResult.deleted;
       if (totalDeleted > 0) {
-        console.log(`[Cleanup] Periodic cleanup freed ${totalDeleted} rows. Running VACUUM...`);
-        try {
-          const db = getDbInstance();
-          db.exec("VACUUM");
-          console.log("[Cleanup] VACUUM completed after periodic cleanup.");
-        } catch (vacErr) {
-          console.error("[Cleanup] VACUUM after cleanup failed:", vacErr);
-        }
+        console.log(`[Cleanup] Periodic cleanup freed ${totalDeleted} rows.`);
+        await vacuumAfterCleanup(totalDeleted, (sql) => getDbInstance().exec(sql));
       }
     } catch (err) {
       console.error("[Cleanup] Periodic cleanup failed:", err);
