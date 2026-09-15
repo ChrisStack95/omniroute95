@@ -314,7 +314,7 @@ export default define({
       };
       if (models.length > 0) {
         state.entries.set(cacheKey, snapshot);
-        await writeDiskSnapshot(X, snapshot, identityFingerprint);
+        await writeDiskSnapshot(X, snapshot, identityFingerprint, log);
       }
       void optional.then(
         (parts) => upgradeWithOptional(snapshot, parts),
@@ -361,7 +361,7 @@ export default define({
       if (unchanged) return;
       state.entries.set(cacheKey, upgraded);
       if (upgraded.models.length > 0) {
-        await writeDiskSnapshot(X, upgraded, identityFingerprint);
+        await writeDiskSnapshot(X, upgraded, identityFingerprint, log);
       }
       // Reload only when the optional tier actually moved: the catalog
       // fingerprint covers ids alone, so without this the host would rebuild
