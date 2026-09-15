@@ -1,0 +1,4 @@
+- fix(catalog): case-insensitive pricing collisions resolve deterministically (UTF-16-smaller key wins) with a warn naming both keys ([#13601](https://github.com/diegosouzapw/OmniRoute/issues/13601))
+- fix(headers): billing/credits/quota diagnostic headers forward at priority 2 so they beat filler under a full budget ([#13601](https://github.com/diegosouzapw/OmniRoute/issues/13601))
+- fix(memory): transient embed failures (rate_limited/timeout/request_failed) get one delayed retry before warn+reindex flag ([#13601](https://github.com/diegosouzapw/OmniRoute/issues/13601))
+- fix(quota): auto-ping skips sends past a 6h-out resetAt and never pings explicit inactive connections ([#13601](https://github.com/diegosouzapw/OmniRoute/issues/13601))

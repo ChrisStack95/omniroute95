@@ -119,6 +119,30 @@ function safeMarkNeedsReindex(id: string, needs: boolean): void {
   }
 }
 
+export const MEMORY_EMBED_TRANSIENT_RETRY_DELAY_MS = 2500;
+
+export function isTransientEmbeddingErrorReason(reason: string): boolean {
+  return reason === "rate_limited" || reason === "timeout" || reason === "request_failed";
+}
+
+export async function embedWithTransientRetry(
+  embedFn: typeof embed,
+  content: string,
+  settings: Parameters<typeof embed>[1],
+  delayMs = MEMORY_EMBED_TRANSIENT_RETRY_DELAY_MS
+): Promise<Awaited<ReturnType<typeof embed>>> {
+  const first = await embedFn(content, settings);
+  // why: retry transient transport failures only — deterministic failures must not burn embed credits (#8074)
+  if (!("vector" in first) && isTransientEmbeddingErrorReason(first.reason)) {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, delayMs);
+      timer.unref?.();
+    });
+    return embedFn(content, settings);
+  }
+  return first;
+}
+
 function scheduleVectorUpsert(id: string, content: string): void {
   setImmediate(async () => {
     try {
@@ -137,7 +161,7 @@ function scheduleVectorUpsert(id: string, content: string): void {
       const resolution = resolveEmbeddingSource(settings);
       if (!resolution.source) return;
 
-      const embeddingResult = await embed(content, settings);
+      const embeddingResult = await embedWithTransientRetry(embed, content, settings);
       if (!("vector" in embeddingResult)) {
         log.warn("memory.vec.embed.fail", {
           id,

@@ -34,6 +34,7 @@ import { refreshAndUpdateCredentialsWithResolver } from "@/lib/usage/providerLim
 import { getCircuitBreaker } from "@/shared/utils/circuitBreaker";
 import {
   QUOTA_AUTOPING_FAILURE_COOLDOWN_MS,
+  QUOTA_AUTOPING_FAR_RESET_SKIP_MS,
   QUOTA_AUTOPING_PROVIDERS,
   QUOTA_AUTOPING_REFRESH_AHEAD_MS,
   QUOTA_AUTOPING_TICK_INTERVAL_MS,
@@ -59,6 +60,8 @@ export interface QuotaAutoPingConnection {
   rateLimitedUntil?: string | null;
   lastPingAt?: string | null;
   lastPingedResetKey?: string | null;
+  /** Absent = current behavior; explicit false = never ping (non-default-deps safety net). */
+  isActive?: boolean;
 }
 
 export interface QuotaAutoPingDeps {
@@ -353,6 +356,7 @@ function shouldSendPing(
     return false;
   }
   if (isQuotaExhausted(quota)) return false;
+  if (new Date(resetAt).getTime() - nowMs > QUOTA_AUTOPING_FAR_RESET_SKIP_MS) return false;
   if (!shouldPingForReset(providerConfig, cachedReset, resetAt, nowMs)) return false;
   if (wasPingedRecently(current, providerConfig.minPingIntervalMs, nowMs)) return false;
   if (current.lastPingedResetKey === resetKey) return false;
@@ -486,7 +490,7 @@ async function pingProviderConnections(
 ): Promise<void> {
   const connections = await deps.getProviderConnections({ provider, isActive: true });
   const targets = connections.filter(
-    (conn) => conn.authType === "oauth" && enabledMap[conn.id] === true
+    (conn) => conn.authType === "oauth" && enabledMap[conn.id] === true && conn.isActive !== false
   );
   for (const connection of targets) {
     try {

@@ -115,6 +115,13 @@ function getForwardingPriority(headerName: string): number {
   }
   if (normalized === "retry-after") return 1;
   if (normalized.includes("ratelimit") || normalized.includes("rate-limit")) return 2;
+  if (
+    normalized.includes("billing") ||
+    normalized.includes("credits") ||
+    normalized.includes("quota")
+  ) {
+    return 2;
+  }
   // Codex quota / reset / credits do not contain "ratelimit" in the name,
   // so they used to fall through to priority 3 and lose to date/csp/cf-ray.
   if (

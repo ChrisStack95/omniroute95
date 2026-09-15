@@ -301,32 +301,36 @@ export function getCanonicalModelMetadata(input: {
 // by identity (WeakMap) — getModelsDevPricing() returns the same object reference while
 // its cache is warm, so the index is reused across every resolveCatalogPricing() call in
 // a rebuild instead of rebuilt per lookup.
-const lowercaseIndexCache = new WeakMap<object, Map<string, unknown>>();
+const lowercaseIndexCache = new WeakMap<object, Map<string, { key: string; value: unknown }>>();
 
 function findInsensitive<T>(obj: Record<string, T> | null | undefined, key: string): T | undefined {
   if (!obj || !key) return undefined;
   if (key in obj) return obj[key];
   let index = lowercaseIndexCache.get(obj);
   if (!index) {
-    index = new Map();
+    index = new Map<string, { key: string; value: unknown }>();
     for (const [k, v] of Object.entries(obj)) {
       const lowerKey = k.toLowerCase();
       // Warn once at index-build time (not per-lookup) if two keys collide
       // case-insensitively — a real data-quality signal from an upstream sync (e.g.
       // models.dev returning both "OpenAI" and "openai" as distinct provider keys).
-      // Matches the pre-fix scan's silent first-match-wins behavior, just surfaced
-      // instead of swallowed.
-      if (index.has(lowerKey)) {
+      // Tie-break keeps the UTF-16-smaller key: arbitrary but order-independent,
+      // so pricing is a function of (provider, model), not of upstream dict order.
+      const seen = index.get(lowerKey);
+      if (seen !== undefined) {
+        const kept = k < seen.key ? k : seen.key;
+        const discarded = k < seen.key ? seen.key : k;
         console.warn(
-          `[modelMetadataRegistry] findInsensitive: case-insensitive key collision on "${lowerKey}" — keeping first-seen value, later one discarded`
+          `[modelMetadataRegistry] findInsensitive: case-insensitive key collision on "${lowerKey}" ("${seen.key}" vs "${k}") — keeping "${kept}", discarding "${discarded}"`
         );
+        if (k < seen.key) index.set(lowerKey, { key: k, value: v });
         continue;
       }
-      index.set(lowerKey, v);
+      index.set(lowerKey, { key: k, value: v });
     }
     lowercaseIndexCache.set(obj, index);
   }
-  return index.get(key.toLowerCase()) as T | undefined;
+  return index.get(key.toLowerCase())?.value as T | undefined;
 }
 
 function resolveCatalogPricing(
