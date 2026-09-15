@@ -107,10 +107,10 @@ export const ANTIGRAVITY_SHARED_MODELS = Object.freeze([
  * This preserves the ability for agy/antigravity to diverge in the future while
  * keeping today's single-edit maintenance path.
  */
-export function buildSurfaceCatalog(
-  base: readonly { id: string; [k: string]: unknown }[],
-  delta: { add?: typeof base; remove?: readonly string[] } = {}
-): typeof base {
+export function buildSurfaceCatalog<T extends { id: string }>(
+  base: readonly T[],
+  delta: { add?: readonly T[]; remove?: readonly string[] } = {}
+): readonly T[] {
   const removed = new Set(delta.remove ?? []);
   const added = delta.add ?? [];
   const filtered = base.filter((m) => !removed.has(m.id));
