@@ -10,10 +10,11 @@ import { randomInt } from "crypto";
 import { getDbInstance } from "../core";
 import { pickByLatency } from "../proxyLatency";
 import {
+  hasProxyRefusals,
   isProxyAvoided,
-  isProxySkipEnabled,
   proxyEgressKey,
 } from "@omniroute/open-sse/utils/proxyRefusalMemory.ts";
+import { isProxySkipRecentlyFailedEnabled } from "@/shared/utils/featureFlags";
 import type { JsonRecord, ProxyScope, ProxyRotationStrategy } from "./types";
 import { PROXY_ROTATION_STRATEGIES, DEFAULT_PROXY_ROTATION_STRATEGY } from "./types";
 import {
@@ -135,15 +136,17 @@ function getOrCreateRotationRow(
 }
 
 // Indexes of the members not currently set aside by the proxy refusal memory, or null to
-// keep the plain behavior: switch off, nothing set aside, or every member set aside (an
-// all-failed pool keeps today's selection and its #6246 fail-closed contract).
+// keep the plain behavior: nothing set aside, every member set aside (an all-failed pool
+// keeps today's selection and its #6246 fail-closed contract), or PROXY_SKIP_RECENTLY_FAILED
+// off. The flag is read last, only when skipping would actually change the pick.
 function eligibleMemberIndexes(candidates: unknown[]): number[] | null {
-  if (!isProxySkipEnabled()) return null;
+  if (!hasProxyRefusals()) return null;
   const eligible: number[] = [];
   candidates.forEach((row, index) => {
     if (!isProxyAvoided(proxyEgressKey(row))) eligible.push(index);
   });
-  return eligible.length === 0 || eligible.length === candidates.length ? null : eligible;
+  if (eligible.length === 0 || eligible.length === candidates.length) return null;
+  return isProxySkipRecentlyFailedEnabled() ? eligible : null;
 }
 
 // First eligible index at or after `start`, going round the pool.

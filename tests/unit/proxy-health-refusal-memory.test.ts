@@ -1,8 +1,9 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 
-// The TCP reachability probe already runs for every proxied request. Its verdict now feeds
-// proxy selection: a refused probe sets the proxy aside, a successful one takes it back.
+// The TCP reachability probe already runs for every proxied request. With the opt-in
+// PROXY_SKIP_RECENTLY_FAILED flag on, its verdict feeds proxy selection: a refused probe sets
+// the proxy aside, a successful one takes it back. With the flag off nothing is written.
 
 const health = await import("../../src/lib/proxyHealth.ts");
 const memory = await import("../../open-sse/utils/proxyRefusalMemory.ts");
@@ -13,7 +14,7 @@ const KEY = memory.proxyEgressKey(PROXY_URL);
 test.beforeEach(() => {
   memory.__resetProxyRefusalMemoryForTesting();
   health.invalidateProxyHealth(PROXY_URL);
-  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
+  process.env.PROXY_SKIP_RECENTLY_FAILED = "true";
 });
 
 test.afterEach(() => {
@@ -50,8 +51,8 @@ test("a probe that answers again ends the period", async () => {
   assert.equal(memory.isProxyAvoided(KEY), false);
 });
 
-test("with the switch off a refused probe writes nothing", async () => {
-  process.env.PROXY_SKIP_RECENTLY_FAILED = "false";
+test("with the flag at its default (off) a refused probe writes nothing", async () => {
+  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
   health.__setProxyHealthTcpCheckForTesting(async () => false);
   assert.equal(await health.isProxyReachable(PROXY_URL), false);
   assert.equal(memory.__proxyRefusalMemorySizeForTesting(), 0);

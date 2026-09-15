@@ -39,7 +39,8 @@ const {
 // OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS bumped it from 53 to 54;
 // the dead ONEPROXY_ENABLED (readerless since the 1proxy purge, #12091)
 // brought it back to 53. UNIVERSAL_CONTEXT_HANDOFF_ENABLED bumped it to 54.
-const EXPECTED_FEATURE_FLAG_COUNT = 55;
+// PROXY_SKIP_RECENTLY_FAILED (opt-in proxy refusal memory, #13578) bumped it from 55 to 56.
+const EXPECTED_FEATURE_FLAG_COUNT = 56;
 
 // ──────────────────────────────────────────────────────
 // Test group 1 — Flag definitions registry
@@ -180,6 +181,17 @@ describe("featureFlagDefinitions", () => {
     assert.strictEqual(def.defaultValue, "true");
     assert.strictEqual(def.requiresRestart, false);
     assert.strictEqual(def.warningLevel, "info");
+  });
+
+  it("defines skip-recently-failed proxies as a network boolean flag disabled by default", () => {
+    // Guards the routing default: with this on, pools and account rotation skip a proxy
+    // that just failed. Selection order must stay the plain rotation unless opted in.
+    const def = FEATURE_FLAG_DEFINITIONS.find((d) => d.key === "PROXY_SKIP_RECENTLY_FAILED");
+    assert.ok(def, "PROXY_SKIP_RECENTLY_FAILED should exist");
+    assert.strictEqual(def.category, "network");
+    assert.strictEqual(def.type, "boolean");
+    assert.strictEqual(def.defaultValue, "false");
+    assert.strictEqual(def.requiresRestart, false);
   });
 
   it("defines remote audio provider nodes as a network boolean flag disabled by default", () => {

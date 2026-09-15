@@ -31,13 +31,16 @@ import {
 import { isOpencodeGeoBlocked, proxyKeyOf } from "./opencodeGeoBlock.ts";
 import { isRetriableUpstreamFailure } from "./opencodeTransientFailure.ts";
 import {
+  hasProxyRefusals,
   isProxyAvoided,
-  isProxySkipEnabled,
   noteProxyRefusal,
   noteProxyServed,
   proxyEgressKey,
 } from "../utils/proxyRefusalMemory.ts";
-import { isNetworkRotationSharedEgressGuardEnabled } from "@/shared/utils/featureFlags";
+import {
+  isNetworkRotationSharedEgressGuardEnabled,
+  isProxySkipRecentlyFailedEnabled,
+} from "@/shared/utils/featureFlags";
 
 /**
  * The main OpenCode Zen host, shared by the `opencode` and `opencode-zen`
@@ -357,7 +360,8 @@ export class OpencodeExecutor extends BaseExecutor {
   private markSuccess(account: OpencodeAccountState): void {
     markAccountSuccess(account);
     // A response came back through this proxy: it is usable again for every refusal kind.
-    if (isProxySkipEnabled()) noteProxyServed(proxyEgressKey(account.proxy));
+    // Nothing is held unless PROXY_SKIP_RECENTLY_FAILED was on, so this costs no flag read.
+    if (hasProxyRefusals()) noteProxyServed(proxyEgressKey(account.proxy));
   }
 
   /**
@@ -592,9 +596,9 @@ export class OpencodeExecutor extends BaseExecutor {
       // model (geo-blocked, or transient 5xx). Request-local only — nothing
       // persists past execute().
       const geoTriedProxyKeys = new Set<string>();
-      // Members the provider just refused (received refusal or refused TCP probe) are skipped,
-      // unless PROXY_SKIP_RECENTLY_FAILED turns the memory off.
-      const skipRecentlyFailed = isProxySkipEnabled();
+      // Opt-in (PROXY_SKIP_RECENTLY_FAILED, default off): members the provider just refused
+      // (received refusal or refused TCP probe) are skipped. Off = plain rotation.
+      const skipRecentlyFailed = isProxySkipRecentlyFailedEnabled();
       let directTried = false;
 
       for (let attempt = 0; attempt < this.accounts.length + emptyRejectionBudget; attempt++) {
@@ -716,7 +720,7 @@ export class OpencodeExecutor extends BaseExecutor {
             : null;
           log?.warn?.(
             "OPENCODE",
-            `${cid}Provider refused (429) on account ${masked}` +
+            `${cid}Rate limited (429) on account ${masked}` +
               (setAsideMs ? `, member set aside for ${Math.round(setAsideMs / 1000)}s` : "") +
               ", rotating to next…"
           );
