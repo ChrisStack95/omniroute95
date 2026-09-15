@@ -32,6 +32,18 @@ const AGENT_BODY = {
   system: "You are a helpful agent.",
 };
 
+function withEnv(key: string, value: string | undefined, fn: () => void) {
+  const saved = process.env[key];
+  try {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env[key];
+    else process.env[key] = saved;
+  }
+}
+
 test("opencode executor: forwards client x-opencode-session (case-insensitive) for cache affinity", () => {
   const executor = new OpencodeExecutor("opencode-go");
   const headers = executor.buildHeaders(
@@ -75,6 +87,33 @@ test("opencode executor: synthesizes a conversation-stable session when the clie
   ) as Record<string, string>;
   assert.ok(headers["x-opencode-session"], "synthesized x-opencode-session missing outbound");
   assert.ok(headers["x-opencode-request"], "synthesized x-opencode-request missing outbound");
+});
+
+// The default path backfills x-opencode-session twice — step 3 (synthesizeRequestId)
+// and step 4's applyCliDefaults `||=` (#10571) — so the step-3 gap is only observable
+// when an operator opts OUT of CLI-identity synthesis. With
+// OPENCODE_SYNTHESIZE_CLI_HEADERS=false, step 4 never runs and step 3 is the only
+// filler left; before this fix that left outbound WITHOUT x-opencode-session —
+// exactly what opencode.ai errors on since 2026-09-06.
+test("opt-out (OPENCODE_SYNTHESIZE_CLI_HEADERS=false): step 3 alone still fills x-opencode-session", () => {
+  withEnv("OPENCODE_SYNTHESIZE_CLI_HEADERS", "false", () => {
+    const executor = new OpencodeExecutor("opencode-go");
+    const headers = executor.buildHeaders(
+      { accessToken: "test-key" } as any,
+      true,
+      {},
+      "kimi-k2.6",
+      undefined,
+      AGENT_BODY
+    ) as Record<string, string>;
+    assert.ok(
+      headers["x-opencode-session"],
+      "step-3 synthesis must fill x-opencode-session with CLI synthesis opted out"
+    );
+    // Prove this came from step 3 alone: no CLI-identity headers were synthesized.
+    assert.equal(headers["x-opencode-client"], undefined);
+    assert.equal(headers["x-opencode-project"], undefined);
+  });
 });
 
 test("opencode executor: same body fingerprint keeps the session stable across turns (prompt caching)", () => {
