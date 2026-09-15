@@ -109,8 +109,11 @@ jobs:
             .eslintcache
             .eslintcache-complexity
           key: eslint-${{ runner.os }}-${{ hashFiles('eslint.config.mjs', 'eslint.complexity-ratchets.config.mjs', 'config/quality/eslint-suppressions.json', 'package-lock.json') }}
-          restore-keys: |
-            eslint-${{ runner.os }}-
+          # No restore-keys fallback on purpose (#11600, P-II.1 of the v3.8.50 postmortem): a
+          # cache built under a different suppressions file / lint config / lockfile reports
+          # stale per-file verdicts, which is exactly how 215 pre-existing errors stayed
+          # invisible for a whole cycle. Exact key or a cold full lint (~13 min) — never a
+          # partial cache from another configuration.
       # Single ESLint inventory (JSON) — quality-gate reuses the artifact instead of
       # a second cold full-tree pass for eslintWarnings ratchet counts.
       - name: ESLint (JSON report)
@@ -139,7 +142,14 @@ jobs:
       - run: npm run check:known-symbols
       - run: npm run check:route-guard-membership
       - run: npm run check:test-discovery
+      - run: npm run check:radar-sentinels
       - run: npm run check:tracked-artifacts
+      # A test parked in vitest.config.ts's exclude list does not run, and looks like
+      # coverage to whoever reads the tree. 62 files accumulated behind a comment pointing
+      # at #8618 — closed in August while the list grew to 62; 51 of them passed when
+      # finally measured (#13204). This gate requires every exclusion to name a tracker and
+      # to appear in config/quality/vitest-exclusions.json, so the debt stays reviewable.
+      - run: npm run check:vitest-exclusions
       # (gap 30) Also lives in quality.yml's PR-only "Merge integrity" job — because the
       # CHANGELOG half of that job needs a base to diff against. This half does NOT: the
       # generator either reproduces the committed SKILL.md files or it does not.
@@ -209,8 +219,11 @@ jobs:
             .eslintcache
             .eslintcache-complexity
           key: eslint-${{ runner.os }}-${{ hashFiles('eslint.config.mjs', 'eslint.complexity-ratchets.config.mjs', 'config/quality/eslint-suppressions.json', 'package-lock.json') }}
-          restore-keys: |
-            eslint-${{ runner.os }}-
+          # No restore-keys fallback on purpose (#11600, P-II.1 of the v3.8.50 postmortem): a
+          # cache built under a different suppressions file / lint config / lockfile reports
+          # stale per-file verdicts, which is exactly how 215 pre-existing errors stayed
+          # invisible for a whole cycle. Exact key or a cold full lint (~13 min) — never a
+          # partial cache from another configuration.
       # Coverage mergeada (coverage-summary.json) p/ o ratchet de cobertura.
       # continue-on-error: o artifact pode não existir se a job test-coverage foi
       # SKIPPED (shard flaky). Nesse caso collect-metrics pula coverage.* (ausente sem
@@ -496,6 +509,11 @@ jobs:
           cache: npm
       - uses: ./.github/actions/npm-ci-retry
       - run: node scripts/i18n/check-ui-keys-coverage.mjs --threshold=65
+      # Real-translation ratchet: a leaf copied verbatim from en.json passes key
+      # parity above but is still English to the user (es shipped 55% English).
+      # Advisory in PR-0; flipped to blocking once the backlog is retranslated (PR-4).
+      - name: i18n real-translation ratio (advisory)
+        run: node scripts/i18n/check-translation-ratio.mjs --warn
       # #8463: a rewritten English value used to leave its 39 translations behind
       # silently (googleOAuthWarning shipped wrong copy in 39 locales for months).
       # Key parity above cannot see it — a stale translation counts as covered.
@@ -503,6 +521,16 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref && format('origin/{0}', github.base_ref) || '' }}
         run: node scripts/i18n/check-ui-value-drift.mjs
+      # Sibling of the drift gate above. That one catches an English value that was
+      # REWRITTEN; this one catches an English key that was ADDED while some locales never
+      # got it. The coverage gate at the top of this job cannot: it is a percentage per
+      # locale, and 11 absent keys out of ~13,000 leaves coverage at 99.9%. Incident: the
+      # Phase 3 canvas keys were translated across the 42 locales that existed, then the EU
+      # batch (#13044) took the repo to 51 and the nine newcomers shipped untranslated.
+      - name: i18n new-key coverage (a new key must reach every locale)
+        env:
+          BASE_REF: ${{ github.base_ref && format('origin/{0}', github.base_ref) || '' }}
+        run: node scripts/i18n/check-new-key-coverage.mjs
 
   # #8038: cheap glossary/protected-terms consistency gate —
   # complements i18n-ui-coverage (key parity) and the ICU `i18n` job below
@@ -621,9 +649,9 @@ jobs:
     # 13:50Z the kernel OOM-killed main's build while a PR build ran beside it
     # (five Build jobs had been queued by a burst of PRs). Two lanes: main keeps
     # its own so a release is never queued behind PR traffic; PR builds serialize
-    # among themselves. GitHub keeps one running + one pending per group and
-    # CANCELS older pendings — a cancelled PR build is re-runnable; a dead main
-    # build costs the publish its artefact and a 40-minute rebuild that OOMs.
+    # among themselves. docker-publish.yml's amd64 leg joins `heavy-build-main`
+    # so a :next image build waits beside this artefact instead of becoming the
+    # third heavy (#11976). GitHub keeps one running + one pending per group.
     concurrency:
       group: heavy-build-${{ github.ref == 'refs/heads/main' && 'main' || 'pr' }}
       cancel-in-progress: false

@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  memo,
+  Suspense,
+} from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,6 +27,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { FieldLabelWithHelp, WeightTotalBar } from "./parts";
 import { ComboTargetOptions } from "./ComboQuotaOnlyFallbackToggle";
 import { applyQuotaOnlyFallbackConfig, setQuotaOnlyFallback } from "./comboQuotaOnlyFallback";
+import { buildAgentFeaturePatch } from "./comboAgentFeatures";
 import { useComboProxyAssignments } from "./useComboProxyAssignments";
 import { ResponseValidationEditor, type ResponseValidationValue } from "./ResponseValidationEditor";
 import ReasoningTokenBufferToggle from "./ReasoningTokenBufferToggle";
@@ -72,6 +82,7 @@ import {
   normalizeIntelligentRoutingConfig,
 } from "@/lib/combos/intelligentRouting";
 import { getComboStepTarget } from "@/lib/combos/steps";
+import { DEAD_COMBO_CONFIG_KEYS } from "@/lib/combos/deadConfigKeys";
 import { resolveServerErrorMessage } from "@/lib/api/serverErrorMessage";
 import { useTranslations } from "next-intl";
 
@@ -175,6 +186,11 @@ const STRATEGY_GUIDANCE_FALLBACK = {
     avoid: "Avoid when models have similar context lengths or simple tasks.",
     example: "Example: Distribute long conversations across models with large context windows.",
   },
+  "quota-weighted": {
+    when: "Use when several accounts of the same model have quota snapshots and concurrent traffic should land on accounts that still have leftover.",
+    avoid: "Avoid when most accounts have no quota snapshots.",
+    example: "Example: 10 Antigravity Gemini accounts with different 5h/weekly resets; skip empty ones and pick among the rest in proportion to leftover.",
+  },
 };
 
 const ADVANCED_FIELD_HELP_FALLBACK = {
@@ -202,23 +218,13 @@ const ADVANCED_FIELD_HELP_FALLBACK = {
     "What to do when the next combo target cannot accept the original reasoning transport. Drop is the default: it removes reasoning state and tries the target. Skip leaves the request body untouched and falls through.",
 };
 
-const LEGACY_COMBO_RESILIENCE_KEYS = new Set([
+// UI-only keys the modal manages itself (never persisted by this path):
+// timeoutMs, healthCheckEnabled, healthCheckTimeoutMs.
+const NON_PERSISTED_COMBO_CONFIG_KEYS = new Set([
+  ...DEAD_COMBO_CONFIG_KEYS,
   "timeoutMs",
   "healthCheckEnabled",
   "healthCheckTimeoutMs",
-  "queueTimeoutMs",
-  "queueDepth",
-  "fallbackDelayMs",
-  "handoffProviders",
-  "maxComboDepth",
-  "manifestRouting",
-  "complexityAwareRouting",
-  "pipeline_enabled",
-  "pipelineConcurrency",
-  "shadowRouting",
-  "evalRouting",
-  "resetAwareEnabled",
-  "resetAwareWindow",
 ]);
 const MS_PER_SECOND = 1000;
 
@@ -240,7 +246,7 @@ function sanitizeComboRuntimeConfig(config) {
   return Object.fromEntries(
     Object.entries(config).filter(
       ([key, value]) =>
-        value !== undefined && value !== null && !LEGACY_COMBO_RESILIENCE_KEYS.has(key)
+        value !== undefined && value !== null && !NON_PERSISTED_COMBO_CONFIG_KEYS.has(key)
     )
   );
 }
@@ -383,9 +389,65 @@ const STRATEGY_RECOMMENDATIONS_FALLBACK = {
       "Use when context limits are a bottleneck for your workload.",
     ],
   },
+  "quota-weighted": {
+    title: "Quota-weighted account spread",
+    description: "Drops exhausted accounts, keeps a 1% soft floor, then picks the first target in proportion to leftover divided by in-flight load. Existing conversations stay pinned.",
+    tips: [
+      "Keep session stickiness on (the default). New conversations spread by leftover and in-flight load; an existing conversation stays on its account until that account is empty, then rebinds.",
+      "Needs per-account quota snapshots. Missing snapshots stay eligible but only at the reset-aware missing-quota score (0.5).",
+      "The 1% floor is a last-resort pool. An empty A pool still serves B instead of returning 404.",
+    ],
+  },
 };
 
 const COMBO_USAGE_GUIDE_STORAGE_KEY = "omniroute:combos:hide-usage-guide";
+
+// The dismissal lives in localStorage, which SSR cannot read: a lazy useState
+// initializer would render "not dismissed" on the server and the real value on
+// the client, and correcting that in an effect is a synchronous setState inside
+// an effect (react-hooks/set-state-in-effect) that costs an extra commit of this
+// whole tree. useSyncExternalStore is the sanctioned shape for exactly this —
+// getServerSnapshot supplies the SSR-safe default, getSnapshot reads the store
+// after hydration, and the two handlers below notify subscribers instead of
+// setting state. The `storage` listener keeps other tabs in sync for free.
+const usageGuideListeners = new Set<() => void>();
+
+function subscribeUsageGuide(onStoreChange: () => void): () => void {
+  usageGuideListeners.add(onStoreChange);
+  globalThis.addEventListener?.("storage", onStoreChange);
+  return () => {
+    usageGuideListeners.delete(onStoreChange);
+    globalThis.removeEventListener?.("storage", onStoreChange);
+  };
+}
+
+function emitUsageGuideChange(): void {
+  for (const listener of usageGuideListeners) listener();
+}
+
+function getUsageGuideSnapshot(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(COMBO_USAGE_GUIDE_STORAGE_KEY) !== "1";
+  } catch {
+    // Storage access errors (privacy mode / restricted environments) show the guide.
+    return true;
+  }
+}
+
+function getUsageGuideServerSnapshot(): boolean {
+  return true;
+}
+
+// Pure predicate hoisted out of the page component to keep its cyclomatic budget flat
+// (check:complexity new-code mode).
+function isStaleIntelligentSelection(
+  intelligentCombos: Array<{ id: string }>,
+  selectedId: string | null
+): boolean {
+  if (selectedId === null) return false;
+  if (intelligentCombos.length === 0) return true;
+  return !intelligentCombos.some((combo) => combo.id === selectedId);
+}
 const COMBO_FORM_STAGE_META = [
   {
     id: "basics",
@@ -729,7 +791,7 @@ function formatComboEntryDisplay(
   return `${providerLabel}/${modelLabel}`;
 }
 
-export default function CombosPage() {
+function CombosPageContent() {
   const t = useTranslations("combos");
   const tc = useTranslations("common");
   const emailsVisible = useEmailPrivacyStore((s) => s.emailsVisible);
@@ -749,7 +811,23 @@ export default function CombosPage() {
   const [proxyConfig, setProxyConfig] = useState(null);
   const { comboProxyAssignedIds, fetchComboProxyAssignments } = useComboProxyAssignments();
   const [providerNodes, setProviderNodes] = useState([]);
-  const [showUsageGuide, setShowUsageGuide] = useState(true);
+  // SSR has no localStorage, so a lazy initializer reading it here returns a
+  // different value server-side (always "not dismissed") than the client's
+  // real stored value -- exactly the kind of source React's hydration
+  // mismatch check is built to catch, and in dev mode a mismatch forces a
+  // full client-only re-render of this tree, discarding whatever the fetch
+  // effects below had already populated. useSyncExternalStore renders the
+  // SSR-safe default on both passes and switches to the stored value at
+  // hydration, without a second commit — see the store helpers above.
+  const usageGuideNotDismissed = useSyncExternalStore(
+    subscribeUsageGuide,
+    getUsageGuideSnapshot,
+    getUsageGuideServerSnapshot
+  );
+  // "Hide" (as opposed to "hide forever") is intentionally per-mount: it is not
+  // persisted, and remounting the page brings the guide back — same as before.
+  const [usageGuideHiddenForNow, setUsageGuideHiddenForNow] = useState(false);
+  const showUsageGuide = usageGuideNotDismissed && !usageGuideHiddenForNow;
   const [recentlyCreatedCombo, setRecentlyCreatedCombo] = useState("");
   const [creatingKimiPreset, setCreatingKimiPreset] = useState(false);
   const [comboDragIndex, setComboDragIndex] = useState(null);
@@ -781,45 +859,11 @@ export default function CombosPage() {
     return activeFilter === "intelligent" ? intelligentCombos[0] : null;
   }, [activeFilter, intelligentCombos, selectedIntelligentComboId]);
 
-  useEffect(() => {
-    if (intelligentCombos.length === 0) {
-      setSelectedIntelligentComboId(null);
-      return;
-    }
-
-    if (
-      selectedIntelligentComboId &&
-      !intelligentCombos.some((combo) => combo.id === selectedIntelligentComboId)
-    ) {
-      setSelectedIntelligentComboId(null);
-    }
-  }, [intelligentCombos, selectedIntelligentComboId]);
-
-  useEffect(() => {
-    fetchData();
-    fetch("/api/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((settings) => setComboConfigMode(normalizeComboConfigMode(settings?.comboConfigMode)))
-      .catch(() => setComboConfigMode("guided"));
-    fetch("/api/settings/compression")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((settings) => setPromptCompressionEnabled(settings?.enabled === true))
-      .catch(() => setPromptCompressionEnabled(false));
-    fetch("/api/settings/proxy")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((c) => setProxyConfig(c))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (globalThis.localStorage?.getItem(COMBO_USAGE_GUIDE_STORAGE_KEY) === "1") {
-        setShowUsageGuide(false);
-      }
-    } catch {
-      // Ignore storage access errors (privacy mode / restricted environments)
-    }
-  }, []);
+  // Drop a stale selection when the list no longer contains it — state adjustment
+  // during render (react-hooks/set-state-in-effect).
+  if (isStaleIntelligentSelection(intelligentCombos, selectedIntelligentComboId)) {
+    setSelectedIntelligentComboId(null);
+  }
 
   const fetchData = async () => {
     try {
@@ -847,6 +891,27 @@ export default function CombosPage() {
       setLoading(false);
     }
   };
+
+  // Mount load — placed after fetchData so the effect does not read the binding in its
+  // TDZ (react-hooks/immutability); the call sits behind an async boundary
+  // (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    void (async () => {
+      await fetchData();
+    })();
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((settings) => setComboConfigMode(normalizeComboConfigMode(settings?.comboConfigMode)))
+      .catch(() => setComboConfigMode("guided"));
+    fetch("/api/settings/compression")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((settings) => setPromptCompressionEnabled(settings?.enabled === true))
+      .catch(() => setPromptCompressionEnabled(false));
+    fetch("/api/settings/proxy")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => setProxyConfig(c))
+      .catch(() => {});
+  }, []);
 
   const handleCreate = async (data) => {
     try {
@@ -905,6 +970,9 @@ export default function CombosPage() {
       if (res.ok) {
         setCombos(combos.filter((c) => c.id !== id));
         notify.success(t("comboDeleted"));
+      } else {
+        const err = await res.json().catch(() => null);
+        notify.error(err?.error?.message || err?.error || t("errorDeleting"));
       }
     } catch (error) {
       notify.error(t("errorDeleting"));
@@ -990,17 +1058,18 @@ export default function CombosPage() {
   };
 
   const handleHideUsageGuideForever = () => {
-    setShowUsageGuide(false);
     try {
       globalThis.localStorage?.setItem(COMBO_USAGE_GUIDE_STORAGE_KEY, "1");
     } catch {}
+    emitUsageGuideChange();
   };
 
   const handleShowUsageGuide = () => {
-    setShowUsageGuide(true);
     try {
       globalThis.localStorage?.removeItem(COMBO_USAGE_GUIDE_STORAGE_KEY);
     } catch {}
+    setUsageGuideHiddenForNow(false);
+    emitUsageGuideChange();
   };
 
   const handleFilterChange = (nextFilter) => {
@@ -1133,7 +1202,7 @@ export default function CombosPage() {
 
       {showUsageGuide && (
         <ComboUsageGuide
-          onHide={() => setShowUsageGuide(false)}
+          onHide={() => setUsageGuideHiddenForNow(true)}
           onHideForever={handleHideUsageGuideForever}
           onCreateCombo={() => setShowCreateModal(true)}
         />
@@ -1360,6 +1429,14 @@ export default function CombosPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function CombosPage() {
+  return (
+    <Suspense fallback={null}>
+      <CombosPageContent />
+    </Suspense>
   );
 }
 
@@ -2041,13 +2118,15 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
     (config.modelSort as { method?: unknown } | undefined)?.method
   );
   const [sortMethod, setSortMethod] = useState<SortMethod>(initialSortMethod);
-  useEffect(() => {
-    // Sync point: when the combo identity changes, re-derive sort method.
-    // Manual edits via handleSortChange already set sortMethod inside resetFormForCombo,
-    // but this guards the case where the modal is reused (edit-A→close→edit-B without unmount).
+  // Sync point: when the combo identity changes, re-derive sort method — state
+  // adjustment during render (react-hooks/set-state-in-effect). Manual edits via
+  // handleSortChange already set sortMethod inside resetFormForCombo; this guards the
+  // modal-reuse case (edit-A→close→edit-B without unmount).
+  const [prevSortComboId, setPrevSortComboId] = useState(combo?.id);
+  if (combo?.id !== prevSortComboId) {
+    setPrevSortComboId(combo?.id);
     setSortMethod(normalizeSortMethod(combo?.config?.modelSort?.method));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [combo?.id]);
+  }
   const modelsRef = useRef(models);
   const sortMethodRef = useRef<SortMethod>(sortMethod);
   const resetSortGenerationRef = useRef(0);
@@ -2158,11 +2237,11 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
     contextLength,
   ]);
 
-  useEffect(() => {
-    if (!comboBuilderStages.includes(builderStage)) {
-      setBuilderStage("strategy");
-    }
-  }, [builderStage, comboBuilderStages]);
+  // Keep the stage on a real option — self-extinguishing state adjustment during
+  // render (react-hooks/set-state-in-effect).
+  if (!comboBuilderStages.includes(builderStage)) {
+    setBuilderStage("strategy");
+  }
 
   const hasPricingForModel = useCallback(
     (modelValue) => {
@@ -2395,36 +2474,39 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
   };
 
   useEffect(() => {
-    if (isOpen) fetchModalData();
+    // Async continuation — see react-hooks/set-state-in-effect.
+    if (isOpen) {
+      void (async () => {
+        await fetchModalData();
+      })();
+    }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setBuilderProviderId("");
-    setBuilderModelId("");
-    setBuilderConnectionId(COMBO_BUILDER_AUTO_CONNECTION);
-    setBuilderAllowedConnectionIds([]);
-    setManualModelInput("");
-    setManualModelError("");
-    setBuilderComboRefName("");
-    setBuilderError("");
-    setBuilderStage("basics");
-  }, [combo?.id, isOpen]);
+  // Reset the builder inputs whenever the modal (re)opens or switches combos —
+  // state adjustment during render (react-hooks/set-state-in-effect).
+  const [prevBuilderResetKey, setPrevBuilderResetKey] = useState<{
+    comboId: string | undefined;
+    isOpen: boolean;
+  }>({ comboId: combo?.id, isOpen });
+  if (prevBuilderResetKey.comboId !== combo?.id || prevBuilderResetKey.isOpen !== isOpen) {
+    setPrevBuilderResetKey({ comboId: combo?.id, isOpen });
+    if (isOpen) {
+      setBuilderProviderId("");
+      setBuilderModelId("");
+      setBuilderConnectionId(COMBO_BUILDER_AUTO_CONNECTION);
+      setBuilderAllowedConnectionIds([]);
+      setManualModelInput("");
+      setManualModelError("");
+      setBuilderComboRefName("");
+      setBuilderError("");
+      setBuilderStage("basics");
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) return;
 
     let cancelled = false;
-
-    if (combo) {
-      resetFormForCombo(combo);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    createDraftStateRef.current = getEmptyCreateDraftSnapshot();
-    resetFormForCombo(null, null);
 
     const loadDefaults = async () => {
       try {
@@ -2451,20 +2533,30 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
       }
     };
 
-    loadDefaults();
+    // Async continuation — the compiler rejects sync calls to setter-capturing
+    // callbacks from the effect body (react-hooks/set-state-in-effect).
+    void (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      if (combo) {
+        resetFormForCombo(combo);
+        return;
+      }
+      createDraftStateRef.current = getEmptyCreateDraftSnapshot();
+      resetFormForCombo(null, null);
+      await loadDefaults();
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [combo, getEmptyCreateDraftSnapshot, isExpertMode, isOpen, resetFormForCombo]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (builderProviderId) return;
-    if (builderProviders.length === 1) {
-      setBuilderProviderId(builderProviders[0].providerId);
-    }
-  }, [builderProviderId, builderProviders, isOpen]);
+  // Default to the only available provider — self-extinguishing state adjustment
+  // during render (react-hooks/set-state-in-effect).
+  if (isOpen && !builderProviderId && builderProviders.length === 1) {
+    setBuilderProviderId(builderProviders[0].providerId);
+  }
 
   useEffect(() => {
     if (!strategyChangeMountedRef.current) {
@@ -2829,7 +2921,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
     { model: "if/qwen3-coder-plus", weight: 0 },
     { model: "if/deepseek-v3.2", weight: 0 },
     { model: "nvidia/llama-3.3-70b-instruct", weight: 0 },
-    { model: "groq/llama-3.3-70b-versatile", weight: 0 },
+    { model: "groq/openai/gpt-oss-120b", weight: 0 },
   ];
 
   const PAID_PREMIUM_PRESET_MODELS = [
@@ -2987,13 +3079,20 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
       saveData.config = configToSave;
     }
 
-    // Agent features (#399 / #401 / #454)
-    if (agentSystemMessage.trim()) saveData.system_message = agentSystemMessage.trim();
-    else delete saveData.system_message;
-    if (agentToolFilter.trim()) saveData.tool_filter_regex = agentToolFilter.trim();
-    else delete saveData.tool_filter_regex;
-    if (agentContextCache) saveData.context_cache_protection = true;
-    else delete saveData.context_cache_protection;
+    // Agent features (#399 / #401 / #454). A cleared field is sent as null on edit
+    // rather than omitted, because PUT merges over the stored record (#12158).
+    delete saveData.system_message;
+    delete saveData.tool_filter_regex;
+    delete saveData.context_cache_protection;
+    Object.assign(
+      saveData,
+      buildAgentFeaturePatch({
+        systemMessage: agentSystemMessage,
+        toolFilter: agentToolFilter,
+        contextCache: agentContextCache,
+        isEdit,
+      })
+    );
 
     // Validate and save context_length
     if (contextLength !== undefined && contextLength !== null) {

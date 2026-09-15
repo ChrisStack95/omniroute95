@@ -141,7 +141,6 @@ const KNOWN_SVGS = new Set([
   "moonshot",
   "morph",
   "nebius",
-  "nimble-search",
   "nlpcloud",
   "nomic",
   "novita",
@@ -152,6 +151,7 @@ const KNOWN_SVGS = new Set([
   "openai",
   "openclaw",
   "openrouter",
+  "opper",
   "orcarouter",
   "ovhcloud",
   "perplexity",
@@ -240,6 +240,7 @@ const GENERIC_PROVIDER_IDS = new Set([
   "leonardo",
   "modal",
   "modelscope",
+  "nimble-search",
   "nlpcloud",
   "oauth",
   "oci",
@@ -255,7 +256,6 @@ const GENERIC_PROVIDER_IDS = new Set([
   "serper-search",
   "soniox",
   "synthetic",
-  "theoldllm",
   "unorouter",
   "wandb",
   "youcom-search",
@@ -347,7 +347,9 @@ const ProviderIcon = memo(function ProviderIcon({
     : normalizedId;
   const usesGenericIcon =
     GENERIC_PROVIDER_IDS.has(normalizedId) || GENERIC_PROVIDER_IDS.has(localSvgId);
-  const themedSvg = Object.hasOwn(THEMED_SVGS, normalizedId) ? THEMED_SVGS[normalizedId] : undefined;
+  const themedSvg = Object.hasOwn(THEMED_SVGS, normalizedId)
+    ? THEMED_SVGS[normalizedId]
+    : undefined;
   const hasSvg = KNOWN_SVGS.has(localSvgId);
 
   const [failedAssets, setFailedAssets] = useState<Record<string, true>>({});
@@ -438,10 +440,8 @@ const ProviderIcon = memo(function ProviderIcon({
           style={{
             objectFit: "contain",
             flex: "none",
-            width: "auto",
-            height: "auto",
-            maxWidth: size,
-            maxHeight: size,
+            width: size,
+            height: size,
           }}
           onError={() => setFailedAssets((current) => ({ ...current, [themedKey]: true }))}
         />
@@ -454,10 +454,8 @@ const ProviderIcon = memo(function ProviderIcon({
   // intrinsic aspect ratio (some wordmarks are much wider than tall), and next/image's
   // dev-mode check warns whenever the layout size differs from the square
   // width/height attributes — a false positive for non-square logos rendered
-  // at fixed icon sizes. We keep `width/height` attributes for layout reserve
-  // but let the intrinsic ratio win on both axes (`width/height: "auto"`) so
-  // wide logos render at their true aspect ratio instead of
-  // being letterboxed into a 1:1 box.
+  // at fixed icon sizes. Explicit CSS dimensions keep the flex item from
+  // collapsing to 0×0; object-fit preserves each logo's intrinsic ratio.
   if (hasSvg && !svgFailed) {
     return (
       <span
@@ -473,10 +471,8 @@ const ProviderIcon = memo(function ProviderIcon({
           style={{
             objectFit: "contain",
             flex: "none",
-            width: "auto",
-            height: "auto",
-            maxWidth: size,
-            maxHeight: size,
+            width: size,
+            height: size,
           }}
           onError={() => setFailedAssets((current) => ({ ...current, [svgKey]: true }))}
         />

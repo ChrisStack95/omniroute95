@@ -156,17 +156,6 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "danger",
   },
   {
-    key: "ONEPROXY_ENABLED",
-    label: "OneProxy Enabled",
-    description: "Enable 1proxy request proxying.",
-    descriptionI18nKey: "settings.featureFlags.oneproxyEnabled",
-    category: "network",
-    defaultValue: "true",
-    type: "boolean",
-    requiresRestart: false,
-    warningLevel: "info",
-  },
-  {
     key: "PROXY_AUTO_SELECT_ENABLED",
     label: "Proxy Auto-Selection Fallback",
     description:
@@ -309,7 +298,19 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
 
-  // ──────────────── Runtime (16) ────────────────
+  // ──────────────── Runtime (17) ────────────────
+  {
+    key: "UNIVERSAL_CONTEXT_HANDOFF_ENABLED",
+    label: "Universal Context Handoff",
+    description:
+      "Generate and inject conversation summaries when combo routing switches models. Disable to treat model switches independently and prevent background handoff requests for all existing and future combos.",
+    descriptionI18nKey: "featureFlagUniversalContextHandoffEnabledDescription",
+    category: "runtime",
+    defaultValue: "true",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
   {
     key: "RESPONSES_PASSTHROUGH_DROP_COMMENTARY",
     label: "Drop Responses Commentary",
@@ -497,6 +498,30 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
   {
+    key: "NO_THINKING_ALIAS_ENABLED",
+    label: "No-Thinking Model Aliases",
+    description:
+      "Master switch for the no-think/<provider>/<model> gateway aliases. On (default): /v1/models advertises a no-thinking variant for every eligible thinking-capable Claude model, and a no-think/ id sent on a request resolves back to the real model with reasoning suppressed. Off: no variants are advertised and a no-think/ id is treated like any other unknown model id. The per-model ModelSpec.noThinkingAlias opt-in/opt-out still applies while this is on.",
+    descriptionI18nKey: "featureFlagNoThinkingAliasEnabledDescription",
+    category: "runtime",
+    defaultValue: "true",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS",
+    label: "Disable Thinking Level Variants",
+    description:
+      "Disable the generation of thinking level variants (e.g. -low, -medium, -high) in the /v1/models catalog.",
+    descriptionI18nKey: "featureFlagOmnirouteDisableThinkingLevelVariantsDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
     key: "OMNIROUTE_CHAT_VIRTUAL_LANES",
     label: "Adaptive Virtual Admission Lanes",
     description:
@@ -527,6 +552,30 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     description:
       "Enable balance detection for New-API / One-API / Sub2API aggregator compatible nodes. When enabled, compatible nodes with the aggregator flag set will report their balance in the dashboard and quota-preflight routing.",
     descriptionI18nKey: "featureFlagNewApiAggregatorBalanceDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "SERVER_OWNED_TOOL_LOOP_ENABLED",
+    label: "Server-Owned Tool Loop",
+    description:
+      "Continue non-streaming server-owned tool calls until the model returns a client-usable response.",
+    descriptionI18nKey: "featureFlagServerOwnedToolLoopDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
+  },
+  {
+    key: "SEARCH_STATS_HIDE_DELETED_CONNECTIONS",
+    label: "Hide Deleted Search Connections",
+    description:
+      "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
+    descriptionI18nKey: "featureFlagSearchStatsHideDeletedConnectionsDescription",
     category: "runtime",
     defaultValue: "false",
     type: "boolean",
@@ -585,7 +634,7 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     key: "OMNIROUTE_AUTO_SYNC_CLAUDE_PROFILES",
     label: "Auto-Sync Claude Code Profiles",
     description:
-      "After a provider model sync, automatically (re)write ~/.claude/profiles/<name>/settings.json Claude Code profiles from the live catalog. Never changes the active/default Claude config. Off by default.",
+      "After a provider model sync, automatically (re)write ~/.claude/profiles/'<name>'/settings.json Claude Code profiles from the live catalog. Never changes the active/default Claude config. Off by default.",
     descriptionI18nKey: "featureFlagOmnirouteAutoSyncClaudeProfilesDescription",
     category: "cli",
     defaultValue: "false",

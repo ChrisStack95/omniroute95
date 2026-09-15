@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, Button, Badge, ConfirmModal } from "@/shared/components";
 import { useLocale, useTranslations } from "next-intl";
 import DatabaseBackupRetentionCard from "./DatabaseBackupRetentionCard";
+import {
+  fetchDatabaseSettingsData,
+  isAuthRequiredResponse,
+  AuthRequiredBanner,
+} from "./systemStorageAuth";
 
 // Whitelist mirrored from src/lib/db/cleanup.ts::RESET_USAGE_HISTORY_PERIODS.
 const RESET_USAGE_PERIOD_VALUES = [
@@ -17,6 +22,17 @@ const RESET_USAGE_PERIOD_VALUES = [
   "30d",
   "all",
 ] as const;
+
+async function fetchStorageHealthData() {
+  try {
+    const res = await fetch("/api/storage/health");
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error("Failed to fetch storage health:", err);
+    return null;
+  }
+}
 
 export default function SystemStorageTab() {
   const [backups, setBackups] = useState([]);
@@ -87,6 +103,7 @@ export default function SystemStorageTab() {
   // Database settings state (tasks 23-26)
   const [dbSettings, setDbSettings] = useState<any>(null);
   const [dbSettingsLoading, setDbSettingsLoading] = useState(true);
+  const [dbSettingsAuthRequired, setDbSettingsAuthRequired] = useState(false);
   const [dbSettingsSaving, setDbSettingsSaving] = useState(false);
   const [dbStatsRefreshing, setDbStatsRefreshing] = useState(false);
 
@@ -103,34 +120,28 @@ export default function SystemStorageTab() {
     }
   };
 
+  const applyStorageHealth = useCallback((data) => {
+    if (!data) return;
+    setStorageHealth((prev) => ({ ...prev, ...data }));
+    setBackupCleanupOptions({
+      keepLatest: data.backupRetention?.maxFiles || 20,
+      retentionDays: data.backupRetention?.days || 0,
+    });
+  }, []);
+
   const loadStorageHealth = async () => {
-    try {
-      const res = await fetch("/api/storage/health");
-      if (!res.ok) return;
-      const data = await res.json();
-      setStorageHealth((prev) => ({ ...prev, ...data }));
-      setBackupCleanupOptions({
-        keepLatest: data.backupRetention?.maxFiles || 20,
-        retentionDays: data.backupRetention?.days || 0,
-      });
-    } catch (err) {
-      console.error("Failed to fetch storage health:", err);
-    }
+    applyStorageHealth(await fetchStorageHealthData());
   };
+
+  const applyDatabaseSettings = useCallback((result: { data: any; authRequired: boolean }) => {
+    if (result.data) setDbSettings(result.data);
+    setDbSettingsAuthRequired(result.authRequired);
+    setDbSettingsLoading(false);
+  }, []);
 
   const loadDatabaseSettings = async () => {
     setDbSettingsLoading(true);
-    try {
-      const res = await fetch("/api/settings/database");
-      if (res.ok) {
-        const data = await res.json();
-        setDbSettings(data);
-      }
-    } catch (err) {
-      console.error("Failed to load database settings:", err);
-    } finally {
-      setDbSettingsLoading(false);
-    }
+    applyDatabaseSettings(await fetchDatabaseSettingsData());
   };
 
   const saveDatabaseSettings = async () => {
@@ -480,9 +491,19 @@ export default function SystemStorageTab() {
   };
 
   useEffect(() => {
-    loadStorageHealth();
-    loadDatabaseSettings();
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      const data = await fetchStorageHealthData();
+      if (!cancelled) applyStorageHealth(data);
+    })();
+    void (async () => {
+      const data = await fetchDatabaseSettingsData();
+      if (!cancelled) applyDatabaseSettings(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyStorageHealth, applyDatabaseSettings]);
 
   /** Triggers a browser file download from an existing Blob. */
   const triggerDownload = (blob: Blob, filename: string) => {
@@ -565,6 +586,8 @@ export default function SystemStorageTab() {
           });
           await loadStorageHealth();
           if (backupsExpanded) await loadBackups();
+        } else if (isAuthRequiredResponse(res.status, data)) {
+          setImportStatus({ type: "error", message: t("jsonImportAuthRequired") });
         } else {
           setImportStatus({ type: "error", message: data.error || t("jsonImportFailed") });
         }
@@ -1266,6 +1289,7 @@ export default function SystemStorageTab() {
         </div>
       </div>
 
+      {dbSettingsAuthRequired && !dbSettingsLoading && <AuthRequiredBanner t={t} />}
       {renderDatabaseStatistics()}
 
       <div className="pt-3 border-t border-border/50 mb-4">

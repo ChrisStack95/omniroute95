@@ -12,7 +12,9 @@ if (!process.env.API_KEY_SECRET) {
 }
 
 const core = await import("../../src/lib/db/core.ts");
-const localDb = await import("../../src/lib/localDb.ts");
+const { updateSettings } = await import("@/lib/db/settings");
+const { setModelAlias, getModelAliases } = await import("@/lib/db/models");
+const localDb = { updateSettings, setModelAlias, getModelAliases };
 const apiKeysDb = await import("../../src/lib/db/apiKeys.ts");
 const providersDb = await import("../../src/lib/db/providers.ts");
 const modelsDb = await import("../../src/lib/db/models.ts");
@@ -300,7 +302,7 @@ test("model sync route reports invalid JSON /models responses without losing ups
   assert.equal(body.upstreamStatus, 200);
   assert.equal(logs.length, 1);
   assert.equal(logs[0].status, 200);
-  assert.equal(logs[0].error, "Invalid JSON response from /models");
+  assert.equal(logs[0].error, "Invalid JSON response from <path>");
 });
 
 test("model sync route preserves previously synced models when the upstream omits the models list", async () => {

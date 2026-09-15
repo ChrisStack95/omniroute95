@@ -6,11 +6,11 @@ lastUpdated: 2026-06-28
 
 # AgentBridge
 
-AgentBridge is OmniRoute's MITM (Man-in-the-Middle) proxy that intercepts HTTPS traffic from IDE AI agents and reroutes it through OmniRoute's unified routing engine. It supports **9 IDE agents** — Antigravity, Kiro, GitHub Copilot, OpenAI Codex, Cursor, Zed, Claude Code, Open Code, and Trae (investigating) — making OmniRoute the broadest-coverage MITM proxy for AI coding assistants on the market.
+AgentBridge is OmniRoute's MITM (Man-in-the-Middle) proxy that intercepts HTTPS traffic from IDE AI agents and reroutes it through OmniRoute's unified routing engine. It supports **10 IDE agents** — Antigravity, Kiro, GitHub Copilot, GHE Copilot, OpenAI Codex, Cursor, Zed, Claude Code, Open Code, and Trae (investigating) — making OmniRoute the broadest-coverage MITM proxy for AI coding assistants on the market.
 
 **Dashboard location:** `/dashboard/tools/agent-bridge`
 **Sidebar group:** Tools (after Cloud Agents)
-**See also:** [`TRAFFIC_INSPECTOR.md`](./TRAFFIC_INSPECTOR.md) — monitor all intercepted traffic in real-time; [`docs/security/MITM-TPROXY-DECRYPT.md`](../security/MITM-TPROXY-DECRYPT.md) — the Linux TPROXY transparent-decrypt capture mode driven by the `/api/tools/agent-bridge/tproxy` route.
+**See also:** [`TRAFFIC_INSPECTOR.md`](./TRAFFIC_INSPECTOR.md) — monitor all intercepted traffic in real-time; `docs/security/MITM-TPROXY-DECRYPT.md` (git; not compiled into `/docs`) — the Linux TPROXY transparent-decrypt capture mode driven by the `/api/tools/agent-bridge/tproxy` route.
 
 ---
 
@@ -22,7 +22,7 @@ When an IDE agent (e.g., GitHub Copilot, Cursor, Claude Code) makes an API call,
 
 This means you can:
 
-- **Reroute any agent to any provider**: Copilot talking to OpenAI? Redirect it to Anthropic Claude, Gemini, or any of OmniRoute's 338 providers.
+- **Reroute any agent to any provider**: Copilot talking to OpenAI? Redirect it to Anthropic Claude, Gemini, or any of OmniRoute's 352 providers.
 - **Apply model mappings**: `gemini-3-flash` → `claude-sonnet-4.7` transparently at the handler level.
 - **Observe all agent traffic**: every intercepted request is published to the [Traffic Inspector](./TRAFFIC_INSPECTOR.md).
 - **Apply OmniRoute resilience**: combo routing, circuit breakers, fallbacks, and cost tracking work for IDE agent traffic too.
@@ -527,7 +527,7 @@ Base path: `/api/tools/agent-bridge/`
 | GET                 | `/api/tools/agent-bridge/upstream-ca`          | Get configured upstream CA path                                                                                            |
 | POST                | `/api/tools/agent-bridge/upstream-ca`          | Validate + persist upstream CA path                                                                                        |
 | POST                | `/api/tools/agent-bridge/upstream-ca/test`     | Validate-only (dry-run) an upstream CA path — does not persist                                                             |
-| GET / POST / DELETE | `/api/tools/agent-bridge/tproxy`               | TPROXY transparent-decrypt capture mode — see [`docs/security/MITM-TPROXY-DECRYPT.md`](../security/MITM-TPROXY-DECRYPT.md) |
+| GET / POST / DELETE | `/api/tools/agent-bridge/tproxy`               | TPROXY transparent-decrypt capture mode — see `docs/security/MITM-TPROXY-DECRYPT.md` (git; not compiled into `/docs`) |
 
 Full OpenAPI schemas: `docs/openapi.yaml` → tag `AgentBridge`.
 

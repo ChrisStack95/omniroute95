@@ -11,6 +11,7 @@ import { getProxyRegistryGeneration, resolveProxyForScopeFromRegistry } from "./
 import { getComboModelProvider as getComboEntryProvider } from "@/lib/combos/steps";
 import { requestBodyLimitMbFromEnv } from "@/shared/constants/bodySize";
 import { DEFAULT_RESPONSES_PREVIOUS_RESPONSE_ID_MODE } from "@/shared/constants/responsesPreviousResponseId";
+import { decodeUserinfo } from "@/shared/utils/decodeUserinfo";
 import { type JsonRecord, toRecord } from "./settings/shared";
 import { resolveNoAuthSharedProviderProxy } from "./settings/noAuthProxyFallback";
 
@@ -251,6 +252,14 @@ export async function getSettings() {
     // #9418: Opt-in filter that hides no-think/* gateway variants from the /v1/models catalog.
     // Routing still works for hidden ids sent explicitly.
     hideNoThinkVariants: false,
+    // #11481: Opt-in explicit model exposure allow/deny list, mirrored into the
+    // auto/* combo candidate pool (open-sse/services/autoCombo/modelExposureFilter.ts)
+    // so a denied model can't sneak back in via combo routing — the same trap
+    // #6512 already fixed once for hidePaidModels. See
+    // src/shared/utils/modelExposureList.ts for the matching predicate. Empty
+    // arrays preserve prior behaviour; opt-in only.
+    modelVisibilityAllowlist: [],
+    modelVisibilityDenylist: [],
     // #6977: Opt-in per-connection auto-ping that warms a Codex OAuth connection's
     // quota window right after it resets, so the first real request doesn't land in
     // a cold window. `connections` maps connection id -> enabled. Default empty map
@@ -403,8 +412,8 @@ function migrateProxyEntry(value: unknown): JsonRecord | null {
       port:
         url.port ||
         (url.protocol === "socks5:" ? "1080" : url.protocol === "https:" ? "443" : "8080"),
-      username: url.username ? decodeURIComponent(url.username) : "",
-      password: url.password ? decodeURIComponent(url.password) : "",
+      username: url.username ? decodeUserinfo(url.username) : "",
+      password: url.password ? decodeUserinfo(url.password) : "",
     };
   } catch {
     const parts = value.split(":");
@@ -832,6 +841,8 @@ export {
   setLKGP,
   clearAllLKGP,
   clearLKGP,
+  deleteLKGPByComboName,
+  deleteLKGPRowsByComboName,
   deleteLKGPByConnectionIds,
 } from "./settings/lkgp";
 

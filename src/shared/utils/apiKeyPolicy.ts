@@ -9,12 +9,8 @@
  */
 
 import { extractApiKey } from "@/sse/services/auth";
-import {
-  getApiKeyMetadata,
-  getComboByName,
-  isModelAllowedForKey,
-  getApiKeyById,
-} from "@/lib/localDb";
+import { getApiKeyMetadata, isModelAllowedForKey, getApiKeyById } from "@/lib/db/apiKeys";
+import { getComboByName } from "@/lib/db/combos";
 import { isDashboardSessionAuthenticated } from "./apiAuth";
 import { resolveComboForModel } from "@/lib/db/modelComboMappings";
 import { checkBudget } from "@/domain/costRules";
@@ -258,8 +254,7 @@ async function isComboAllowedForKey(
 }
 
 function quotaPolicyResponse(message: string, code: string): Response {
-  const body = buildErrorBody(HTTP_STATUS.FORBIDDEN, message);
-  body.error.code = code;
+  const body = buildErrorBody(HTTP_STATUS.FORBIDDEN, message, undefined, { code });
   return new Response(JSON.stringify(body), {
     status: HTTP_STATUS.FORBIDDEN,
     headers: { "Content-Type": "application/json" },
@@ -477,7 +472,12 @@ function validateEndpointAccess(context: PolicyContext): Response | null {
   const { request, apiKeyInfo } = context;
   if (!apiKeyInfo.allowedEndpoints?.length) return null;
   try {
-    const category = resolveEndpointCategory(new URL(request.url).pathname);
+    // A route handler sees the client's original URL: `/v1/…` when the
+    // `/v1/:path*` rewrite fired, but `/api/v1/…` when the client hit the App
+    // Router path directly (no rewrite). The category prefixes are `/v1/…`, so
+    // strip the `/api` shape or a restricted key silently passes on that path.
+    const pathname = new URL(request.url).pathname.replace(/^\/api(?=\/v1\/)/, "");
+    const category = resolveEndpointCategory(pathname);
     if (category && !apiKeyInfo.allowedEndpoints.includes(category)) {
       return errorResponse(
         HTTP_STATUS.FORBIDDEN,

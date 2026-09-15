@@ -54,6 +54,7 @@ const PROVIDER_IDS_WITHOUT_LOCAL_ASSET_PROVENANCE = [
   "leonardo",
   "modal",
   "modelscope",
+  "nimble-search",
   "nlpcloud",
   "oauth",
   "oci",
@@ -69,7 +70,6 @@ const PROVIDER_IDS_WITHOUT_LOCAL_ASSET_PROVENANCE = [
   "serper-search",
   "soniox",
   "synthetic",
-  "theoldllm",
   "unorouter",
   "wandb",
   "youcom-search",
@@ -223,6 +223,24 @@ describe("ProviderIcon — custom remote icon URL (#2166)", () => {
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector('svg[data-provider-icon="generic"]')).not.toBeNull();
     expect(container.innerHTML).not.toContain("thesvg.org");
+  });
+});
+
+describe("ProviderIcon — local SVG dimensions", () => {
+  it.each([
+    ["cline", "/providers/cline.svg"],
+    ["kimi-coding", "/providers/kimi-logomark-light.svg"],
+    ["opper", "/providers/opper.svg"],
+  ])("gives %s a definite square layout size", (providerId, expectedSrc) => {
+    const container = renderIcon({ providerId, size: 24 });
+    const img = container.querySelector(`img[src="${expectedSrc}"]`);
+
+    expect(img).not.toBeNull();
+    expect(img?.style.width).toBe("24px");
+    expect(img?.style.height).toBe("24px");
+    expect(img?.style.objectFit).toBe("contain");
+    expect(img?.style.maxWidth).toBe("");
+    expect(img?.style.maxHeight).toBe("");
   });
 });
 

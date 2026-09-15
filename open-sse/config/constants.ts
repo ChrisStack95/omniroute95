@@ -55,6 +55,14 @@ export const SSE_HEARTBEAT_INTERVAL_MS = upstreamTimeouts.sseHeartbeatIntervalMs
 // Defaults to FETCH_TIMEOUT_MS. Override with FETCH_BODY_TIMEOUT_MS env var.
 export const FETCH_BODY_TIMEOUT_MS = upstreamTimeouts.fetchBodyTimeoutMs;
 
+// Hard byte cap on the HuggingChat NDJSON body accumulated by
+// open-sse/executors/huggingchat/jsonlStream.ts. Prevents a stalled/hostile upstream that
+// never emits a terminal `finalAnswer` / `status: finished` marker from buffering
+// indefinitely (#12577). Sized generously for legitimate long completions while staying
+// well below a heap-exhausting size — mirrors the readCappedBuffer/readBodyCapped pattern
+// already used by veoaifree-web.ts and context7-fetch.ts.
+export const HUGGINGCHAT_MAX_BODY_BYTES = 4 * 1024 * 1024;
+
 // Provider configurations
 // OAuth credentials read from env vars with hardcoded fallbacks for backward compatibility.
 // Use provider-credentials.json or env vars to override in production.
@@ -175,6 +183,7 @@ export const HTTP_STATUS = {
   REQUEST_TIMEOUT: 408,
   GONE: 410,
   RATE_LIMITED: 429,
+  PLAN_LIMIT_EXCEEDED: 432,
   SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
   SERVICE_UNAVAILABLE: 503,

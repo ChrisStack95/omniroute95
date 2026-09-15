@@ -1,7 +1,8 @@
 import { POST as postChatCompletion } from "@/app/api/v1/chat/completions/route";
 import type { PersistedEvalRun, EvalTargetType } from "@/lib/db/evals";
 import { saveEvalRun } from "@/lib/db/evals";
-import { getApiKeyById, getCombos } from "@/lib/localDb";
+import { getApiKeyById } from "@/lib/db/apiKeys";
+import { getCombos } from "@/lib/db/combos";
 import { getSuite, listSuites, runSuite } from "./evalRunner";
 
 export interface EvalTargetInput {
@@ -194,6 +195,11 @@ async function executeEvalCase(
   const model = resolveCaseModel(evalCase, target);
   const headers = new Headers({
     "Content-Type": "application/json",
+    // #13139 — Eval cases must measure the model, not injected context.
+    // Disable output-style injection (persona system messages) and memory
+    // injection (retrieved context + memory_* tools) so grading is clean.
+    "x-omniroute-compression": "off",
+    "x-omniroute-no-memory": "true",
   });
 
   if (apiKey) {

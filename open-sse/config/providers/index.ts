@@ -111,6 +111,7 @@ import { moonshotProvider } from "./registry/moonshot/index.ts";
 import { poeProvider } from "./registry/poe/index.ts";
 import { bazaarlinkProvider } from "./registry/bazaarlink/index.ts";
 import { perplexityProvider } from "./registry/perplexity/index.ts";
+import { perplexityAgentProvider } from "./registry/perplexity/agent/index.ts";
 import { perplexity_webProvider } from "./registry/perplexity/web/index.ts";
 import { minimaxProvider } from "./registry/minimax/index.ts";
 import { minimax_cnProvider } from "./registry/minimax/cn/index.ts";
@@ -121,6 +122,7 @@ import { blackbox_webProvider } from "./registry/blackbox/web/index.ts";
 import { uncloseaiProvider } from "./registry/uncloseai/index.ts";
 import { nscaleProvider } from "./registry/nscale/index.ts";
 import { chatgpt_web_codexProvider } from "./registry/chatgpt-web-codex/index.ts";
+import { chatgpt_webProvider } from "./registry/chatgpt-web/index.ts";
 import { openrouterProvider } from "./registry/openrouter/index.ts";
 import { cheaperinferenceProvider } from "./registry/cheaperinference/index.ts";
 import { openvectaProvider } from "./registry/openvecta/index.ts";
@@ -134,6 +136,7 @@ import { freemodel_devProvider } from "./registry/freemodel-dev/index.ts";
 import { gitlawb_gmiProvider } from "./registry/gitlawb/gmi/index.ts";
 import { gitlawbProvider } from "./registry/gitlawb/index.ts";
 import { liquidProvider } from "./registry/liquid/index.ts";
+import { arceeAiProvider } from "./registry/arcee-ai/index.ts";
 import { deepinfraProvider } from "./registry/deepinfra/index.ts";
 import { agyProvider } from "./registry/agy/index.ts";
 import { agnesProvider } from "./registry/agnes/index.ts";
@@ -200,15 +203,18 @@ import { maritalkProvider } from "./registry/maritalk/index.ts";
 import { basetenProvider } from "./registry/baseten/index.ts";
 import { geminiProvider } from "./registry/gemini/index.ts";
 import { gemini_webProvider } from "./registry/gemini/web/index.ts";
+import { gemini_businessProvider } from "./registry/gemini/business/index.ts";
 import { clineProvider } from "./registry/cline/index.ts";
 import { herokuProvider } from "./registry/heroku/index.ts";
 import { bluesmindsProvider } from "./registry/bluesminds/index.ts";
-import { theoldllmProvider } from "./registry/theoldllm/index.ts";
 import { baiduProvider } from "./registry/baidu/index.ts";
 import { pollinationsProvider } from "./registry/pollinations/index.ts";
 import { veoaifree_webProvider } from "./registry/veoaifree-web/index.ts";
 import { codexProvider } from "./registry/codex/index.ts";
 import { codexAppServerProvider } from "./registry/codex-app-server/index.ts";
+import { maxaiProvider } from "./registry/maxai/index.ts";
+import { ucProvider } from "./registry/uc/index.ts";
+import { ucDirectProvider } from "./registry/uc-direct/index.ts";
 import { veniceProvider } from "./registry/venice/index.ts";
 import { kiroProvider } from "./registry/kiro/index.ts";
 import { openadapterProvider } from "./registry/openadapter/index.ts";
@@ -244,6 +250,8 @@ import { electronhubProvider } from "./registry/electronhub/index.ts";
 import { llmgatewayProvider } from "./registry/llmgateway/index.ts";
 import { llmKiwiProvider } from "./registry/llm-kiwi/index.ts";
 import { literouterProvider } from "./registry/literouter/index.ts";
+import { greenptProvider } from "./registry/greenpt/index.ts";
+import { eurouterProvider } from "./registry/eurouter/index.ts";
 import { mnnAiProvider } from "./registry/mnn-ai/index.ts";
 import { meganovaAiProvider } from "./registry/meganova-ai/index.ts";
 import { mixlayerProvider } from "./registry/mixlayer/index.ts";
@@ -265,6 +273,7 @@ import { voidAiProvider } from "./registry/void-ai/index.ts";
 import { helixmindProvider } from "./registry/helixmind/index.ts";
 import { tabitokenProvider } from "./registry/tabitoken/index.ts";
 import { logfareProvider } from "./registry/logfare/index.ts";
+import { seekaiProvider } from "./registry/seekai/index.ts";
 
 export const REGISTRY: Record<string, RegistryEntry> = {
   aimlapi: aimlapiProvider,
@@ -376,6 +385,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   poe: poeProvider,
   bazaarlink: bazaarlinkProvider,
   perplexity: perplexityProvider,
+  "perplexity-agent": perplexityAgentProvider,
   "perplexity-web": perplexity_webProvider,
   minimax: minimaxProvider,
   "minimax-cn": minimax_cnProvider,
@@ -386,6 +396,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   uncloseai: uncloseaiProvider,
   nscale: nscaleProvider,
   "chatgpt-web-codex": chatgpt_web_codexProvider,
+  "chatgpt-web": chatgpt_webProvider,
   openrouter: openrouterProvider,
   cheaperinference: cheaperinferenceProvider,
   openvecta: openvectaProvider,
@@ -399,6 +410,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   "gitlawb-gmi": gitlawb_gmiProvider,
   gitlawb: gitlawbProvider,
   liquid: liquidProvider,
+  "arcee-ai": arceeAiProvider,
   deepinfra: deepinfraProvider,
   agy: agyProvider,
   agnes: agnesProvider,
@@ -466,15 +478,18 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   baseten: basetenProvider,
   gemini: geminiProvider,
   "gemini-web": gemini_webProvider,
+  "gemini-business": gemini_businessProvider,
   cline: clineProvider,
   heroku: herokuProvider,
   bluesminds: bluesmindsProvider,
-  theoldllm: theoldllmProvider,
   baidu: baiduProvider,
   pollinations: pollinationsProvider,
   "veoaifree-web": veoaifree_webProvider,
   codex: codexProvider,
   "codex-app-server": codexAppServerProvider,
+  maxai: maxaiProvider,
+  uc: ucProvider,
+  "uc-direct": ucDirectProvider,
   venice: veniceProvider,
   kiro: kiroProvider,
   byteplus: byteplusProvider,
@@ -513,6 +528,8 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   llmgateway: llmgatewayProvider,
   "llm-kiwi": llmKiwiProvider,
   literouter: literouterProvider,
+  greenpt: greenptProvider,
+  eurouter: eurouterProvider,
   "mnn-ai": mnnAiProvider,
   "meganova-ai": meganovaAiProvider,
   mixlayer: mixlayerProvider,
@@ -534,4 +551,5 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   helixmind: helixmindProvider,
   tabitoken: tabitokenProvider,
   logfare: logfareProvider,
+  seekai: seekaiProvider,
 };

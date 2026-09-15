@@ -16,6 +16,13 @@ import path from "path";
 import { retryProbeIfTransient } from "./probeUtils";
 import fs from "fs";
 import { resolveWritableDataDir, getLegacyDotDataDir } from "../dataPaths";
+import {
+  MAX_DB_BACKUPS,
+  DEFAULT_DB_BACKUP_RETENTION_DAYS,
+  parsePositiveInt,
+  parseNonNegativeInt,
+  pruneBackupDirectory,
+} from "./backupRetention";
 import { isNextBuildPhase } from "../buildPhase";
 import { runMigrations } from "./migrationRunner";
 import { runDbHealthCheck } from "./healthCheck";
@@ -40,6 +47,15 @@ import { invalidateDbCache } from "./readCache";
 import { rowToCamel } from "./caseMapping";
 import { isAutomatedTestProcess } from "@/shared/utils/testProcess";
 import { parseModelAccessMode } from "./apiKeys/modelAccessMode";
+import { getExistingDbInstance as getDb, setDbInstance as setDb } from "./singleton";
+import type { WalCheckpointMode } from "./walMaintenance";
+import {
+  startWalMaintenance,
+  stopWalMaintenance,
+  runCheckpointNow,
+  getWalMaintenanceState,
+  logCheckpointOutcome,
+} from "./walMaintenance";
 // Re-exported so existing call sites that pull these helpers off the core module keep working.
 export { toSnakeCase, toCamelCase, objToSnake, rowToCamel, cleanNulls } from "./caseMapping";
 import {
@@ -54,7 +70,6 @@ import {
 
 type SqliteDatabase = SqliteAdapter;
 type JsonRecord = Record<string, unknown>;
-type CheckpointMode = "PASSIVE" | "FULL" | "RESTART" | "TRUNCATE";
 type DatabaseOptimizationSettings = DatabaseSettings["optimization"];
 type PreservedTableSnapshot = {
   table: string;
@@ -399,6 +414,13 @@ const SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS idx_cl_timestamp ON call_logs(timestamp);
   CREATE INDEX IF NOT EXISTS idx_cl_status ON call_logs(status);
+  CREATE INDEX IF NOT EXISTS idx_cl_provider_timestamp ON call_logs(provider, timestamp);
+  -- idx_cl_request_provider is NOT declared here: SCHEMA_SQL runs before
+  -- ensureCallLogsColumns() heals a legacy call_logs table, and a lineage that
+  -- predates the request_type column has none yet — the CREATE INDEX would abort
+  -- the whole schema exec with "no such column: request_type" and the server would
+  -- never boot. It is created next to the other request_type/combo indexes in
+  -- ensureCallLogsColumns() (db/schemaColumns.ts), after the columns exist.
 
   CREATE TABLE IF NOT EXISTS proxy_logs (
     id TEXT PRIMARY KEY,
@@ -509,12 +531,34 @@ const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_quota_snapshots_created_at ON quota_snapshots(created_at);
 `;
 
+// `CREATE TABLE IF NOT EXISTS` is a no-op against a legacy database that already owns the
+// table with an older column set — but the `CREATE INDEX` statements that follow it are
+// not: they still reference columns the ensure*Columns() healers have yet to backfill, so
+// running the whole schema in one exec aborts startup with "no such column". That is how
+// the composite idx_cl_request_provider index (#12832) broke booting on a pre-007
+// `call_logs` lineage. Split the inline schema so the boot order can be: create tables →
+// heal legacy columns → create indexes.
+function splitSchemaStatements(schemaSql: string): { tables: string; indexes: string } {
+  const tables: string[] = [];
+  const indexes: string[] = [];
+  for (const rawStatement of schemaSql.split(";")) {
+    const statement = rawStatement.trim();
+    if (!statement) continue;
+    // Classify on the first SQL keyword, ignoring any leading `--` comment lines.
+    const sql = statement.replace(/^(?:[ \t]*--[^\n]*\n)+/, "").trimStart();
+    (/^CREATE\s+(?:UNIQUE\s+)?INDEX\b/i.test(sql) ? indexes : tables).push(`${statement};`);
+  }
+  return { tables: tables.join("\n"), indexes: indexes.join("\n") };
+}
+
+const { tables: SCHEMA_TABLES_SQL, indexes: SCHEMA_INDEXES_SQL } =
+  splitSchemaStatements(SCHEMA_SQL);
+
 // ──────────────── Singleton DB Instance ────────────────
 // Use globalThis to survive Next.js dev HMR module re-evaluation.
 // Module-level `let` resets on every webpack recompile, causing connection leaks.
 
 declare global {
-  var __omnirouteDb: SqliteAdapter | undefined;
   // Cycle-breaker counter for the probe-failed/restore cascade. Survives
   // Next.js HMR re-evaluations so concurrent subsystems all see the same
   // count and we abort with a clear error instead of looping forever.
@@ -527,24 +571,6 @@ declare global {
   // (BATCH, HealthCheck, ProviderLimitsSync, ModelSync) re-throws the same
   // OOM error forever with no terminal diagnostic.
   var __omnirouteDbOomFailureCount: number | undefined;
-}
-
-function getDb(): SqliteDatabase | null {
-  return globalThis.__omnirouteDb ?? null;
-}
-
-function setDb(db: SqliteDatabase | null): void {
-  if (db) {
-    globalThis.__omnirouteDb = db;
-  } else {
-    delete globalThis.__omnirouteDb;
-  }
-}
-
-function checkpointDb(db: SqliteDatabase, mode: CheckpointMode = "TRUNCATE"): boolean {
-  if (isCloud || isBuildPhase || !SQLITE_FILE) return false;
-  db.pragma(`wal_checkpoint(${mode})`);
-  return true;
 }
 
 function summarizePreservedTables(tables: PreservedTableSnapshot[]): string {
@@ -869,6 +895,25 @@ function createManagedDbBackup(db: SqliteDatabase, reason: string): boolean {
 
     db.exec(`VACUUM INTO '${escapedBackupPath}'`);
     console.log(`[DB] Backup created (${reason}): ${backupPath}`);
+
+    // Prune old backups to prevent the directory from growing without bound.
+    // This mirrors the post-backup pruning in backup.ts but avoids a circular
+    // dependency by importing directly from backupRetention.ts.
+    try {
+      const maxFiles = process.env.DB_BACKUP_MAX_FILES
+        ? parsePositiveInt(process.env.DB_BACKUP_MAX_FILES, MAX_DB_BACKUPS)
+        : MAX_DB_BACKUPS;
+      const retentionDays = process.env.DB_BACKUP_RETENTION_DAYS
+        ? parseNonNegativeInt(
+            process.env.DB_BACKUP_RETENTION_DAYS,
+            DEFAULT_DB_BACKUP_RETENTION_DAYS
+          )
+        : DEFAULT_DB_BACKUP_RETENTION_DAYS;
+      pruneBackupDirectory({ backupDir, maxFiles, retentionDays });
+    } catch {
+      // Retention is best-effort; never let a pruning failure obscure the backup result.
+    }
+
     return true;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -974,50 +1019,9 @@ function startDbHealthCheckScheduler(db: SqliteDatabase) {
   dbHealthCheckTimer.unref?.();
 }
 
-let walTruncateTimer: NodeJS.Timeout | null = null;
-
-function getWalTruncateIntervalMs(): number {
-  const rawValue = process.env.OMNIROUTE_WAL_TRUNCATE_INTERVAL_MS;
-  if (typeof rawValue === "string" && rawValue.trim().length > 0) {
-    const parsed = Number(rawValue);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-  return 6 * 60 * 60 * 1000;
-}
-
-function clearWalTruncateScheduler() {
-  if (walTruncateTimer) {
-    clearInterval(walTruncateTimer);
-    walTruncateTimer = null;
-  }
-}
-
 // Auto-checkpoint moves WAL pages back into the main DB file but never shrinks the WAL
 // file itself; only wal_checkpoint(TRUNCATE) does, and a long-running server never closes its DB.
-function startWalTruncateScheduler(db: SqliteDatabase) {
-  clearWalTruncateScheduler();
-  if (isCloud || isBuildPhase || isAutomatedTestProcess()) return;
-
-  const intervalMs = getWalTruncateIntervalMs();
-  if (intervalMs <= 0) return;
-
-  walTruncateTimer = setInterval(() => {
-    try {
-      if (!db.open) return;
-      // TRUNCATE waits for readers; under concurrent write load it can no-op without
-      // shrinking the file. That is expected — it retries on the next tick.
-      if (checkpointDb(db, "TRUNCATE")) {
-        console.log("[DB] Periodic SQLite WAL checkpoint completed (TRUNCATE).");
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn("[DB] Periodic WAL truncate failed:", message);
-    }
-  }, intervalMs);
-  walTruncateTimer.unref?.();
-}
+// The scheduler lives in ./walMaintenance (periodic TRUNCATE + busy warn + PASSIVE retry).
 
 export function runManagedDbHealthCheck(options?: { autoRepair?: boolean }) {
   const db = getDbInstance();
@@ -1130,10 +1134,10 @@ export function getDbInstance(): SqliteDatabase {
   // This is needed so the migration runner skips the mass-migration safety abort
   // that would otherwise trigger because heuristic seeding marks some migrations
   // as applied, making the fresh DB look like a wiped existing DB (#1328).
-  // #9934: also classify as fresh a file that `omniroute setup` created with
-  // only the clipped skeleton schema (see the probe below) — even though the
-  // file exists, it has never had migrations run.
-  let isNewDb = !fs.existsSync(sqliteFile);
+  // #9934: also classify a setup-created skeleton as logically fresh for the mass guard,
+  // while tracking its pre-existing file independently for mandatory snapshot safety.
+  const databaseExistedBeforeInitialization = fs.existsSync(sqliteFile);
+  let isNewDb = !databaseExistedBeforeInitialization;
 
   // Detect and handle old schema format — preserve data when possible (#146)
   // Uses a single probe connection that becomes the real connection when possible.
@@ -1289,20 +1293,30 @@ export function getDbInstance(): SqliteDatabase {
   // selected on the server's primary DB path too, not only the backup-import
   // route.
   console.log(`[DB] Driver: ${db.driver} | file: ${sqliteFile}`);
-  db.pragma("journal_mode = WAL");
   // better-sqlite3 is synchronous, so a contended write parks the Node event loop for up to
   // busy_timeout ms (a 0-CPU freeze that stacks under load → /health stops responding). The
   // hot-path writers here (usage_history, call_logs) are best-effort and the WinUI host opens
   // the same DB, so cap the block at 2s instead of 5s: normal writes complete in <1ms, and a
   // contended op can no longer freeze the loop past the host watchdog's 6s liveness probe.
+  //
+  // Install the busy handler before the connection's first statement. `journal_mode = WAL`
+  // needs a SHARED lock, and another process closing its WAL connection briefly holds the
+  // file EXCLUSIVE (checkpoint + WAL delete); node:sqlite opens with busy timeout 0, so with
+  // the pragmas in the other order that window surfaced as `database is locked` at startup.
   db.pragma("busy_timeout = 2000");
+  db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.pragma(`cache_size = -${DEFAULT_DATABASE_SETTINGS.optimization.cacheSize}`);
   db.pragma("temp_store = MEMORY");
-  db.exec(SCHEMA_SQL);
+  // Tables first, then the legacy-column healers, and only then the indexes: an upgraded
+  // database can already own call_logs/usage_history/provider_connections with an older
+  // column set, where the CREATE TABLE is a no-op but the indexes still reference columns
+  // the healers below are the ones adding.
+  db.exec(SCHEMA_TABLES_SQL);
   ensureProviderConnectionsColumns(db);
   ensureUsageHistoryColumns(db);
   ensureCallLogsColumns(db);
+  db.exec(SCHEMA_INDEXES_SQL);
 
   // ── Versioned Migrations ──
   // Auto-seed 001 as applied (the inline SCHEMA_SQL already created these tables)
@@ -1317,7 +1331,7 @@ export function getDbInstance(): SqliteDatabase {
     VALUES ('001', 'initial_schema');
   `);
 
-  runMigrations(db, { isNewDb });
+  runMigrations(db, { isNewDb, databaseExistedBeforeInitialization });
   // Fresh installs need the same post-migration index guarantee as upgraded
   // databases, including recovery from an interrupted migration 127 attempt.
   ensureUsageHistoryAccountIndex(db);
@@ -1397,7 +1411,7 @@ export function getDbInstance(): SqliteDatabase {
   }
 
   startDbHealthCheckScheduler(db);
-  startWalTruncateScheduler(db);
+  startWalMaintenance(db, SQLITE_FILE);
   // Log the resolved absolute DATA_DIR + SQLITE_FILE once at init so a
   // multi-replica / Docker volume-topology mismatch (each replica opening a
   // different on-disk DB → "phantom"/missing combos & connections) is
@@ -1423,9 +1437,10 @@ export function pingDb(): boolean {
   }
 }
 
-export function closeDbInstance(options?: { checkpointMode?: CheckpointMode | null }): boolean {
+export function closeDbInstance(options?: { checkpointMode?: WalCheckpointMode | null }): boolean {
   clearDbHealthCheckScheduler();
-  clearWalTruncateScheduler();
+  const streakBefore = getWalMaintenanceState().busyStreak;
+  stopWalMaintenance();
   const db = getDb();
   if (!db) return false;
 
@@ -1434,9 +1449,12 @@ export function closeDbInstance(options?: { checkpointMode?: CheckpointMode | nu
   try {
     if (checkpointMode) {
       try {
-        if (checkpointDb(db, checkpointMode)) {
-          console.log(`[DB] SQLite WAL checkpoint completed (${checkpointMode}).`);
-        }
+        const outcome = runCheckpointNow(db, checkpointMode, {
+          sqliteFile: SQLITE_FILE,
+          isCloud,
+          isBuildPhase,
+        });
+        logCheckpointOutcome(outcome, checkpointMode, streakBefore);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[DB] WAL checkpoint failed during close (${checkpointMode}):`, message);

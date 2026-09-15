@@ -14,6 +14,7 @@ import { getAntigravityEnvelopeUserAgent } from "../services/antigravityIdentity
 import { kieExecutor } from "../executors/kie.ts";
 import { mapImageSize } from "../translator/image/sizeMapper.ts";
 import { getCodexClientVersion, getCodexUserAgent } from "../config/codexClient.ts";
+import { isCodexFreePlan } from "../executors/codex/tools.ts";
 import { saveCallLog } from "@/lib/usageDb";
 import { sleep } from "../utils/sleep.ts";
 import {
@@ -53,8 +54,10 @@ import { handleLeonardoImageGeneration } from "./imageGeneration/providers/leona
 import { handleMagnificImageGeneration } from "./imageGeneration/providers/magnific.ts";
 import { handleNvidiaNimImageGeneration } from "./imageGeneration/providers/nvidiaNim.ts";
 import { handleSegmindImageGeneration } from "./imageGeneration/providers/segmind.ts";
+import { handleUcImageGeneration } from "./imageGeneration/providers/ucImage.ts";
 import { handleCursorAgentImageGeneration } from "./imageGeneration/providers/cursorAgentImage.ts";
 import { handleMinimaxImageGeneration } from "./imageGeneration/providers/minimax.ts";
+import { handleMaxaiImageGeneration } from "./imageGeneration/providers/maxaiImage.ts";
 import { handleAdobeFireflyImageGeneration } from "./imageGeneration/providers/adobeFirefly.ts";
 import { handleAlibabaImageGeneration } from "./imageGeneration/providers/alibabaImage.ts";
 import { handleAiHordeImageGeneration } from "./imageGeneration/providers/aihorde.ts";
@@ -119,20 +122,21 @@ interface KieImageOptions {
 //     ideogram/v3-reframe has no dedicated docs.kie.ai page as of this sweep
 //     (its 3 siblings above are all direct id matches, so it is assumed
 //     correct by pattern, not independently confirmed).
-// Two catalog entries remain UNRESOLVED after this sweep and are
-// deliberately left untouched pending a follow-up (see #11296 discussion):
+// One catalog entry remains UNRESOLVED after this sweep and is deliberately
+// left untouched pending a follow-up (see #11296 discussion):
 //   - z-image/4.0-text-to-image and z-image/4.5-text-to-image: the only
 //     documented Z-Image Market page (docs.kie.ai/market/z-image/z-image)
 //     shows a single fixed `model` enum value `"z-image"` with no
 //     version-specific id or "version" input field found — unclear whether
 //     both catalog ids should collapse to the same upstream call.
-//   - flux/kontext: no `docs.kie.ai/market/flux2/kontext` (or similar)
-//     Market page exists; Flux Kontext is documented under the separate
-//     `/flux-kontext-api/*` docs tree with its own endpoint
-//     (`POST /api/v1/flux/kontext/generate`, models `flux-kontext-pro`/
-//     `flux-kontext-max`), not the Market `createTask` flow this map feeds.
-//     This entry may be miscatalogued as `isMarket: true` and need a
-//     dedicated reroute rather than an id rewrite.
+// flux/kontext is RESOLVED (#11296): it is catalogued with `isMarket: true`
+// but has no `docs.kie.ai/market/flux2/kontext` (or similar) Market page —
+// Flux Kontext is documented under the separate `/flux-kontext-api/*` docs
+// tree with its own endpoint (`POST /api/v1/flux/kontext/generate`, poll
+// `GET /api/v1/flux/kontext/record-info`, models `flux-kontext-pro`/
+// `flux-kontext-max`), not the Market `createTask` flow this map feeds. It is
+// NOT in KIE_MARKET_UPSTREAM_MODEL_IDS below on purpose — handleKieImageGeneration
+// reroutes it to the dedicated endpoint instead of rewriting its id.
 export const KIE_MARKET_UPSTREAM_MODEL_IDS: ReadonlyMap<string, string> = new Map([
   ["google-imagen/nano-banana", "google/nano-banana"],
   ["google-imagen/nano-banana-2", "nano-banana-2"],
@@ -174,6 +178,7 @@ const OPENAI_IMAGE_TO_IMAGE_MODELS = new Set([
 ]);
 
 const IMAGE_ASPECT_RATIO_PATTERN = /^\d+:\d+$/;
+const IMAGE_SIZE_PATTERN = /^(?:1K|2K|4K)$/;
 
 /**
  * Resolve the upstream images endpoint for a custom (OpenAI-compatible) image
@@ -232,6 +237,13 @@ function normalizeImageAspectRatio(value: unknown, fallbackSize: unknown): strin
     if (IMAGE_ASPECT_RATIO_PATTERN.test(trimmedValue)) return trimmedValue;
   }
   return mapImageSize(typeof fallbackSize === "string" ? fallbackSize : null);
+}
+
+function normalizeImageGenerationSize(snakeCaseValue: unknown, camelCaseValue: unknown): string {
+  const value = snakeCaseValue ?? camelCaseValue;
+  if (typeof value !== "string") return "1K";
+  const normalized = value.trim().toUpperCase();
+  return IMAGE_SIZE_PATTERN.test(normalized) ? normalized : "1K";
 }
 
 function parseJsonOrNull(value: string): unknown | null {
@@ -606,6 +618,28 @@ export async function handleImageGeneration({
     });
   }
 
+  if (providerConfig.format === "maxai-image") {
+    return handleMaxaiImageGeneration({
+      model,
+      provider,
+      body,
+      credentials,
+      log,
+      signal,
+    });
+  }
+
+  if (providerConfig.format === "uc-image") {
+    return handleUcImageGeneration({
+      model,
+      provider,
+      body,
+      credentials,
+      log,
+      signal,
+    });
+  }
+
   if (providerConfig.format === "adobe-firefly-image") {
     return handleAdobeFireflyImageGeneration({
       model,
@@ -815,13 +849,29 @@ async function handleKieImageGeneration({
   // Check if model is a Market model (unified API)
   const fullRegistry = getImageProvider(provider);
   const modelEntry = fullRegistry?.models?.find((m) => m.id === model);
-  const isMarket = modelEntry?.isMarket || model.includes("/");
+  // #11296 — flux/kontext is catalogued with `isMarket: true`, but KIE does not
+  // expose it through the Market catalog at all: it lives under a dedicated API
+  // tree (POST /api/v1/flux/kontext/generate, poll .../flux/kontext/record-info)
+  // that rejects the Market createTask flow with "model name not supported". Route
+  // it there instead of treating it as a Market entry (see KIE_MARKET_UPSTREAM_MODEL_IDS
+  // comment above for the same finding).
+  const isFluxKontext = model === "flux/kontext";
+  const isMarket = !isFluxKontext && (modelEntry?.isMarket || model.includes("/"));
 
   const { imageUrl } = extractImageInputs(body);
   let baseUrl = "";
   let payload: Record<string, unknown> = {};
 
-  if (isMarket) {
+  if (isFluxKontext) {
+    // Dedicated Flux Kontext API endpoint (not part of the Market catalog).
+    baseUrl = `${providerConfig.baseUrl.replace(/\/$/, "")}/api/v1/flux/kontext/generate`;
+    payload = {
+      prompt,
+      aspectRatio: mapImageSize(size),
+      model: "flux-kontext-pro",
+      ...(imageUrl ? { inputImage: imageUrl } : {}),
+    };
+  } else if (isMarket) {
     // Unified Market API endpoint
     baseUrl = `${providerConfig.baseUrl.replace(/\/$/, "")}/api/v1/jobs/createTask`;
     const input: Record<string, unknown> = {
@@ -853,13 +903,18 @@ async function handleKieImageGeneration({
     const promptPreview = String(body.prompt ?? "").slice(0, 60);
     log.info(
       "IMAGE",
-      `${provider}/${model} (${isMarket ? "market" : "direct"}) | prompt: "${promptPreview}..."`
+      `${provider}/${model} (${isFluxKontext ? "flux-kontext" : isMarket ? "market" : "direct"}) | prompt: "${promptPreview}..."`
     );
   }
 
   try {
-    const endpoint = isMarket ? "/api/v1/jobs/createTask" : new URL(baseUrl).pathname;
-    const createBaseUrl = isMarket ? providerConfig.baseUrl : baseUrl.replace(endpoint, "");
+    const endpoint = isFluxKontext
+      ? "/api/v1/flux/kontext/generate"
+      : isMarket
+        ? "/api/v1/jobs/createTask"
+        : new URL(baseUrl).pathname;
+    const createBaseUrl =
+      isFluxKontext || isMarket ? providerConfig.baseUrl : baseUrl.replace(endpoint, "");
     const createData = await kieExecutor.createTask({
       baseUrl: createBaseUrl,
       token,
@@ -888,11 +943,13 @@ async function handleKieImageGeneration({
     }
 
     // Use statusUrl from providerConfig if available, fallback to dynamic derivation
-    const statusUrl = isMarket
-      ? `${providerConfig.baseUrl.replace(/\/$/, "")}/api/v1/jobs/recordInfo`
-      : providerConfig.statusUrl && !providerConfig.statusUrl.includes("jobs/recordInfo")
-        ? providerConfig.statusUrl
-        : baseUrl.replace(/\/generate$/, "/record-info");
+    const statusUrl = isFluxKontext
+      ? `${providerConfig.baseUrl.replace(/\/$/, "")}/api/v1/flux/kontext/record-info`
+      : isMarket
+        ? `${providerConfig.baseUrl.replace(/\/$/, "")}/api/v1/jobs/recordInfo`
+        : providerConfig.statusUrl && !providerConfig.statusUrl.includes("jobs/recordInfo")
+          ? providerConfig.statusUrl
+          : baseUrl.replace(/\/generate$/, "/record-info");
 
     const { data: recordData, state } = await kieExecutor.pollTask({
       statusUrl,
@@ -972,12 +1029,16 @@ async function handleGeminiImageGeneration({ model, providerConfig, body, creden
   const candidateCount =
     typeof body.n === "number" && Number.isFinite(body.n) && body.n > 0 ? Math.floor(body.n) : 1;
   const promptText = typeof body.prompt === "string" ? body.prompt : String(body.prompt ?? "");
+  const aspectRatio = normalizeImageAspectRatio(body.aspect_ratio, body.size);
+  const imageSize = normalizeImageGenerationSize(body.image_size, body.imageSize);
 
   // Summarized request for call log
   const logRequestBody = {
     model: body.model,
     prompt: promptText.slice(0, 200),
     size: body.size || "default",
+    aspect_ratio: aspectRatio,
+    image_size: imageSize,
     n: candidateCount,
   };
 
@@ -1006,7 +1067,8 @@ async function handleGeminiImageGeneration({ model, providerConfig, body, creden
       generationConfig: {
         candidateCount,
         imageConfig: {
-          aspectRatio: normalizeImageAspectRatio(body.aspect_ratio, body.size),
+          aspectRatio,
+          imageSize,
         },
       },
     },
@@ -1026,7 +1088,7 @@ async function handleGeminiImageGeneration({ model, providerConfig, body, creden
     const promptPreview = promptText.slice(0, 60);
     log.info(
       "IMAGE",
-      `antigravity/${model} (gemini) | prompt: "${promptPreview}..." | format: gemini-image`
+      `antigravity/${model} (gemini) | prompt: "${promptPreview}..." | ${aspectRatio} ${imageSize}`
     );
   }
 
@@ -2181,7 +2243,15 @@ async function resolveImageSource(source) {
   }
 
   if (isHttpUrl(trimmed)) {
-    const remoteImage = await fetchRemoteImage(trimmed);
+    // GHSA-34rg-3pqj-35g9: this URL is caller input (`image_url` / `mask_url` / message
+    // parts) — pin `public-only` explicitly (string check + DNS validation of every
+    // resolved answer). Never let it fall back to the operator outbound policy
+    // (`getProviderOutboundGuard()`), which is `block-metadata` on a local-first default
+    // install and would let a request body make the server fetch loopback/LAN URLs and
+    // forward the bytes upstream. `pinDns` stays off on purpose: this handler's only
+    // transport is `globalThis.fetch` (no `fetchImpl` seam) and connection pinning
+    // replaces it with a raw undici fetch — same shape as the AI Horde result download.
+    const remoteImage = await fetchRemoteImage(trimmed, { guard: "public-only" });
     return {
       buffer: remoteImage.buffer,
       base64: remoteImage.buffer.toString("base64"),
@@ -2443,6 +2513,18 @@ async function handleCodexImageGeneration({
     });
   }
 
+  if (isCodexFreePlan(credentials?.providerSpecificData)) {
+    return saveImageErrorResult({
+      provider,
+      model,
+      status: 403,
+      startTime,
+      error: "Codex image_generation is unavailable on free-plan accounts",
+      path: logPath,
+      retryable: true,
+    });
+  }
+
   const workspaceId =
     credentials?.providerSpecificData &&
     typeof credentials.providerSpecificData === "object" &&
@@ -2605,7 +2687,11 @@ async function handleCodexImageGeneration({
     }
   }
 
-  const wantsUrl = body.response_format !== "b64_json";
+  // OpenAI returns b64_json for the gpt-image-* family and reserves `url` for
+  // fetchable HTTPS links, so clients that omit response_format (Codex CLI's
+  // built-in image_gen among them) expect the bytes in b64_json. Only emit the
+  // data: URI when the caller explicitly asks for `url` (#12268).
+  const wantsUrl = body.response_format === "url";
   const data = wantsUrl
     ? collected.map((item) => ({
         url: `data:image/png;base64,${item.b64_json}`,
@@ -2700,6 +2786,40 @@ export function saveImageSuccessResult({
   };
 }
 
+/**
+ * Render an arbitrary `error` value as a call-log string.
+ *
+ * `saveImageErrorResult` takes `error: unknown`, and the Codex fan-out forwards
+ * whatever `sanitizeImageProviderError()` produced — i.e. the output of
+ * `sanitizeUpstreamDetails()`, which builds every object with
+ * `Object.create(null)` on purpose (#12506) so a hostile upstream key such as
+ * `__proto__` or `constructor` can never reach a real prototype. That object
+ * therefore has NO `toString`/`Symbol.toPrimitive`, so a bare `String(value)`
+ * throws `TypeError: Cannot convert object to primitive value` and turned every
+ * Codex image failure into an unhandled crash instead of the sanitized error.
+ * The null prototype is the correct behavior at the source, so the sink is what
+ * has to be total: serialize objects structurally (the same way the Antigravity
+ * branch already logs its sanitized payload) and keep `String()` semantics for
+ * everything else.
+ */
+function stringifyImageErrorForLog(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  if (value !== null && typeof value === "object") {
+    try {
+      const serialized = JSON.stringify(value);
+      if (typeof serialized === "string") return serialized;
+    } catch {
+      // Circular graph or a throwing toJSON — fall through to String().
+    }
+  }
+  try {
+    return String(value);
+  } catch {
+    return "[unserializable error]";
+  }
+}
+
 export function saveImageErrorResult({
   provider,
   model,
@@ -2732,7 +2852,7 @@ export function saveImageErrorResult({
     model: `${provider}/${model}`,
     provider,
     duration: Date.now() - startTime,
-    error: typeof error === "string" ? error.slice(0, 500) : String(error).slice(0, 500),
+    error: stringifyImageErrorForLog(error).slice(0, 500),
     requestBody,
   }).catch(() => {});
 
@@ -3130,7 +3250,10 @@ async function normalizeNanoBananaTaskResult(taskData, body, log) {
 
     if (urlCandidates.length > 0) {
       const firstUrl = urlCandidates[0];
-      const remoteImage = await fetchRemoteImage(firstUrl);
+      // GHSA-34rg-3pqj-35g9: upstream-supplied result URL, not an OmniRoute-controlled
+      // host — pin `public-only` exactly like the AI Horde result download does, never
+      // the operator outbound policy (see `resolveImageSource` for why `pinDns` is off).
+      const remoteImage = await fetchRemoteImage(firstUrl, { guard: "public-only" });
       const base64 = remoteImage.buffer.toString("base64");
       return [{ b64_json: base64, revised_prompt: body.prompt }];
     }
