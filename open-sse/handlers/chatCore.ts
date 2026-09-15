@@ -170,11 +170,7 @@ import {
 import { shouldUseMidConversationSystem } from "../executors/claudeIdentity.ts";
 import { normalizeClaudeHaikuConstraints } from "../services/claudeHaikuConstraints.ts";
 import { applyDefaultReasoningEffort } from "../services/defaultReasoningEffort.ts";
-import {
-  applyAdaptiveEffort,
-  hasExplicitReasoningField,
-  isAdaptiveEffort,
-} from "../services/adaptiveEffort.ts";
+import { wireAdaptiveEffort } from "./chatCore/adaptiveEffortWiring.ts";
 import { echoModelInObject } from "../services/responseModelEcho.ts";
 import {
   stripGpt5SamplingWhenReasoning,
@@ -2730,29 +2726,10 @@ export async function handleChatCore({
         (modelInfo as { defaultThinkingEffort?: string })?.defaultThinkingEffort
       );
     }
-    // Adaptive effort (gateway counterpart of hermes-agent#109044): when the
-    // request carries NO reasoning field and either the X-OmniRoute-Effort
-    // header or the model's defaultReasoningEffort opts into "auto", resolve
-    // a concrete level from turn-scoped request-shape signals (stateless
-    // per-turn pin — see services/adaptiveEffort.ts). Runs on the pre-
-    // translation body so source-format differences are handled by the
-    // existing translators, and AFTER applyDefaultReasoningEffort so its
-    // explicit-value precedence and alias-suffix priority are preserved.
-    if (!hasExplicitReasoningField(translatedBody)) {
-      // Lever A: #6879 above may have just injected the literal "auto" from
-      // ModelSpec.defaultReasoningEffort — that is an opt-in marker, not a
-      // wire value. Resolve it (and the header) to a concrete level.
-      const modelDefaultAuto = translatedBody.reasoning_effort === "auto";
-      if (modelDefaultAuto || isAdaptiveEffort(adaptiveEffortHeader)) {
-        const stripped = modelDefaultAuto ? { ...translatedBody } : translatedBody;
-        if (modelDefaultAuto) delete (stripped as Record<string, unknown>).reasoning_effort;
-        translatedBody = applyAdaptiveEffort(stripped, {
-          messages: body?.messages,
-          headerEffort: adaptiveEffortHeader,
-          modelDefaultEffort: modelDefaultAuto ? "auto" : null,
-        });
-      }
-    }
+    translatedBody = wireAdaptiveEffort(translatedBody, {
+      rawBody: body,
+      headerEffort: adaptiveEffortHeader,
+    });
   }
 
   // Xiaomi MiMo controls reasoning ONLY via `thinking:{type:"enabled"|"disabled"}` and
