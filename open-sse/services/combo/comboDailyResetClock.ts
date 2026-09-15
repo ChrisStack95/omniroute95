@@ -1,63 +1,33 @@
 /**
- * Operator daily-reset clock lookup for combo dispatch paths.
+ * Operator daily-reset clock lookup for the combo failure paths.
  *
- * Resolves the per-provider `{ timezone, hour }` clock from the cached
- * provider nodes, keyed by node id and prefix. Null when unconfigured —
- * the `checkFallbackError`/`recordModelLockoutFailure` dailyReset params
- * already fall back to legacy host-midnight then, so null is behavior-neutral.
+ * Combo targets classify upstream failures with `checkFallbackError` directly,
+ * so they need the same per-provider `{ timezone, hour }` clock that the
+ * single-model path resolves in `src/sse/services/auth.ts`
+ * (`resolveDailyResetForProvider`): the provider node matched by id or prefix.
  *
- * Single-flight + process-lifetime cache: the node table changes only via
- * operator action, and every combo failure path shares one in-flight lookup
- * instead of stampeding the DB. Dynamic import keeps the combo leaf free of
- * a static edge into the DB read-cache layer.
+ * Resolved on every failure through `getCachedProviderNodes`, which already
+ * owns caching (short TTL, invalidated on every provider_nodes write). There is
+ * deliberately no second cache here: a timezone/hour edit reaches combos
+ * without a restart, and a failed lookup returns null (host-midnight fallback in
+ * `checkFallbackError`) without being remembered.
  *
- * @internal — not part of the public combo.ts barrel.
+ * Dynamic import keeps the combo leaf free of a static edge into the DB layer.
  */
 
-type DailyResetClock = { timezone?: unknown; hour?: unknown };
+export type ComboDailyResetClock = { timezone?: unknown; hour?: unknown };
 
-let clockCache: Record<string, DailyResetClock> | null = null;
-let clockInflight: Promise<Record<string, DailyResetClock>> | null = null;
-
-export async function resolveComboDailyResetClock(): Promise<
-  Record<string, DailyResetClock>
-> {
-  if (clockCache) return clockCache;
-  if (!clockInflight) {
-    clockInflight = (async () => {
-      try {
-        const { getCachedProviderNodes } = await import(
-          "../../../src/lib/db/readCache.ts"
-        );
-        const nodes = await getCachedProviderNodes();
-        const clock: Record<string, DailyResetClock> = {};
-        for (const node of nodes) {
-          if (!node || typeof node !== "object") continue;
-          const rec = node as Record<string, unknown>;
-          const entry = {
-            timezone: rec.dailyQuotaResetTimezone,
-            hour: rec.dailyQuotaResetHour,
-          };
-          if (typeof rec.id === "string" && rec.id) clock[rec.id] = entry;
-          if (typeof rec.prefix === "string" && rec.prefix) clock[rec.prefix] = entry;
-        }
-        clockCache = clock;
-        return clock;
-      } catch {
-        clockCache = {};
-        return clockCache;
-      } finally {
-        clockInflight = null;
-      }
-    })();
+export async function resolveComboDailyReset(
+  provider: string | null | undefined
+): Promise<ComboDailyResetClock | null> {
+  if (!provider || provider === "unknown") return null;
+  try {
+    const { getCachedProviderNodes } = await import("@/lib/db/readCache");
+    const nodes = await getCachedProviderNodes();
+    const node = nodes.find((n) => n && (n.id === provider || n.prefix === provider));
+    if (!node) return null;
+    return { timezone: node.dailyQuotaResetTimezone, hour: node.dailyQuotaResetHour };
+  } catch {
+    return null;
   }
-  return clockInflight;
-}
-
-export function dailyResetForProvider(
-  clock: Record<string, DailyResetClock> | null | undefined,
-  provider: string | null | undefined,
-): DailyResetClock | null {
-  if (!clock || !provider || provider === "unknown") return null;
-  return clock[provider] ?? null;
 }

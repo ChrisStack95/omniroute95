@@ -1,1 +1,1 @@
-- **fix(resilience):** daily-quota lockouts honor the provider's configured reset time instead of server midnight ([#13440](https://github.com/diegosouzapw/OmniRoute/pull/13440)) — thanks @maxmad64bis
+- **fix(resilience):** non-TPD daily-quota cooldowns honor the provider node's configured daily-reset clock (timezone + hour) instead of server midnight, on single-model and combo (priority and round-robin) paths; timezone edits apply without a restart ([#13440](https://github.com/diegosouzapw/OmniRoute/pull/13440)) — thanks @maxmad64bis
