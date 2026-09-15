@@ -46,7 +46,7 @@ A boolean flag is considered **enabled** when its effective value is `"true"`,
 
 ## Flag Catalog
 
-55 flags across 6 categories. **Default** is the definition default — the value
+56 flags across 6 categories. **Default** is the definition default — the value
 used when neither a DB override nor an environment variable is present.
 
 ### Security (10)
@@ -88,7 +88,7 @@ used when neither a DB override nor an environment variable is present.
 | `CAPABILITY_FILTER_ENABLED`     | boolean | `false`    | Reject requests before dispatch when the target model lacks required capabilities (vision, tools, structured output, context window). Protects direct single-provider requests that bypass the combo-layer compatibility filter. |
 | `RADAR_ENABLED`                 | boolean | `false`    | Enable the OmniRoute Radar module (catalog feed screens and sync). Off by default; enabling only unlocks the UI — data sync remains a separate opt-in.                                                                           |
 
-### Runtime (23)
+### Runtime (24)
 
 | Key                                         | Type    | Default | Restart | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -115,6 +115,7 @@ used when neither a DB override nor an environment variable is present.
 | `EXPOSE_FUNCTIONAL_GATEWAY_MIRRORS`         | boolean | `false` |         | Advertise <gateway-alias>/<model> mirror ids on /v1/models for models whose canonical owner has no active credential but a passthrough gateway with an active credential routes them. Warning: adds catalog entries for all clients when enabled globally.                                                                                                                                                                                                           |
 | `NEWAPI_AGGREGATOR_BALANCE`                 | boolean | `false` |         | Enable balance detection for New-API / One-API / Sub2API aggregator compatible nodes. When enabled, compatible nodes with the aggregator flag set will report their balance in the dashboard and quota-preflight routing.                                                                                                                                                                                                                                            |
 | `SERVER_OWNED_TOOL_LOOP_ENABLED`            | boolean | `false` |         | Continue non-streaming server-owned tool calls until the model returns a client-usable response.                                                                                                                                                                                                                                                                                                                                                                     |
+| `MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT`        | boolean | `false` |         | A bare Mistral 401 (`{"detail":"Unauthorized"}`, no explicit auth signal) is identical for a revoked key and for exhausted quota. When on, it cools the connection down instead of parking it as `expired`, at most 3 times per hour per connection; the next one parks it, so a revoked key still converges. Off by default: every bare Mistral 401 parks the connection as before.                                                                                 |
 
 ### CLI (5)
 
@@ -195,7 +196,7 @@ Returns every flag with its effective value, source, and a summary.
       "requiresRestart": false,
       "warningLevel": "caution",
     },
-    // ... all 55 flags
+    // ... all 56 flags
   ],
   "summary": {
     "total": 54,

@@ -570,6 +570,18 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     requiresRestart: false,
     warningLevel: "caution",
   },
+  {
+    key: "MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT",
+    label: "Mistral Ambiguous 401 Soft Lockout",
+    description:
+      'A bare Mistral 401 ({"detail":"Unauthorized"}, no explicit auth signal) is byte-identical for a revoked key and for exhausted quota. When enabled, such a 401 cools the connection down instead of parking it as expired, up to 3 times within an hour; the next one still parks it as expired, so a revoked key converges. Off by default: every bare Mistral 401 parks the connection as expired, as before.',
+    descriptionI18nKey: "featureFlagMistralAmbiguous401SoftLockoutDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
+  },
 
   // ──────────────── CLI (5) ────────────────
   {

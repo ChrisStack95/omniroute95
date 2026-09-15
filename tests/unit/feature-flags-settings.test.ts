@@ -39,7 +39,8 @@ const {
 // OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS bumped it from 53 to 54;
 // the dead ONEPROXY_ENABLED (readerless since the 1proxy purge, #12091)
 // brought it back to 53. UNIVERSAL_CONTEXT_HANDOFF_ENABLED bumped it to 54.
-const EXPECTED_FEATURE_FLAG_COUNT = 55;
+// MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT (opt-in, default off) bumped it from 55 to 56.
+const EXPECTED_FEATURE_FLAG_COUNT = 56;
 
 // ──────────────────────────────────────────────────────
 // Test group 1 — Flag definitions registry
@@ -168,6 +169,17 @@ describe("featureFlagDefinitions", () => {
     assert.strictEqual(def.defaultValue, "false");
     assert.strictEqual(def.requiresRestart, false);
     assert.strictEqual(def.warningLevel, "danger");
+  });
+
+  it("defines MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT as an opt-in runtime boolean flag disabled by default", () => {
+    const def = FEATURE_FLAG_DEFINITIONS.find(
+      (d) => d.key === "MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT"
+    );
+    assert.ok(def, "MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT should exist");
+    assert.strictEqual(def.category, "runtime");
+    assert.strictEqual(def.type, "boolean");
+    assert.strictEqual(def.defaultValue, "false");
+    assert.strictEqual(def.requiresRestart, false);
   });
 
   it("defines network rotation shared-egress guard as a network boolean flag enabled by default", () => {
