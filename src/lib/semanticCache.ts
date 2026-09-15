@@ -171,10 +171,19 @@ export function outputContractOf(body: unknown): SignatureConstraints | null {
   const record = asRecord(body);
   const text = asRecord(record.text);
   const contract: SignatureConstraints = {};
-  if (record.response_format != null) contract.response_format = record.response_format;
+  // Both spellings are set for each field so callers built against either the
+  // pre-existing (#12734) camelCase constraints shape or this snake_case one
+  // (matching the raw request body) can read the field they expect.
+  if (record.response_format != null) {
+    contract.response_format = record.response_format;
+    contract.responseFormat = record.response_format;
+  }
   if (text.format != null) contract.text_format = text.format;
   if (record.tools != null) contract.tools = record.tools;
-  if (record.tool_choice != null) contract.tool_choice = record.tool_choice;
+  if (record.tool_choice != null) {
+    contract.tool_choice = record.tool_choice;
+    contract.toolChoice = record.tool_choice;
+  }
   return Object.keys(contract).length > 0 ? contract : null;
 }
 
