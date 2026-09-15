@@ -126,3 +126,44 @@ test("schema_invalid does not throw when required_gates is missing", async () =>
   assert.equal(report.verdict, "UNVERIFIED");
   assert.ok(report.evidence_errors.some((e) => e.code === "schema_invalid"));
 });
+
+test("schema_invalid keeps FAILED when reduce already failed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "acc-fail-"));
+  const plan = {
+    required_gates: [key("a")],
+    identity: {
+      repository: "diegosouzapw/OmniRoute",
+      run_id: "1",
+      run_attempt: 1,
+      workflow: "release-acceptance.yml",
+      trigger: "push",
+      scope: "release",
+      requested_ref: "refs/heads/release/v3.8.51",
+      base_sha: SHA,
+      candidate_sha: SHA,
+      tested_sha: SHA,
+    },
+    artifact: null,
+  };
+  writeFileSync(join(dir, "plan.json"), JSON.stringify(plan));
+  const man = join(dir, "m");
+  mkdirSync(man);
+  const g = gate("a", "FAIL");
+  g.unexpected = true;
+  writeFileSync(join(man, "a.json"), JSON.stringify({ gates: [g] }));
+  const out = join(dir, "report.json");
+  const code = await main([
+    "node",
+    "cli",
+    "--plan",
+    join(dir, "plan.json"),
+    "--manifests",
+    man,
+    "--out",
+    out,
+  ]);
+  assert.equal(code, 1);
+  const report = JSON.parse(readFileSync(out, "utf8"));
+  assert.equal(report.verdict, "FAILED");
+  assert.ok(report.evidence_errors.some((e) => e.code === "schema_invalid"));
+});

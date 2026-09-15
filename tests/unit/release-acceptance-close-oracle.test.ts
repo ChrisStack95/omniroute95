@@ -19,4 +19,5 @@ test("nightly has no tracker closes; legacy fixture still has two", () => {
 test("Fixes #12732 is a closing keyword; Related to #12732 is not", () => {
   assert.equal(closingKeywordInBody("Fixes #12732.\n"), true);
   assert.equal(closingKeywordInBody("Related to #12732.\n"), false);
+  assert.equal(closingKeywordInBody("Fixes #1. Closes #12732\n"), true);
 });

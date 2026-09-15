@@ -81,3 +81,46 @@ test("plan that marks a required gate's prerequisite optional is rejected", () =
   };
   assert.throws(() => reduce(illegalPlan, []), /optional prerequisite/);
 });
+
+test("required SKIPPED prerequisite classifies dependent as SKIPPED, does not throw", () => {
+  const out = reduce(planPack, [
+    record({
+      gate_id: "pack-artifact",
+      status: "SKIPPED",
+      reason: "runner skipped",
+      gate_type: "artifact",
+    }),
+  ]);
+  const boot = out.gates.find((g) => g.gate_id === "pack-boot");
+  assert.equal(boot.status, "SKIPPED");
+  assert.equal(boot.cause.gate_id, "pack-artifact");
+  assert.equal(out.verdict, "UNVERIFIED");
+});
+
+test("INFRA_ERROR artifact reclassifies an already-emitted FAIL boot to INFRA_ERROR", () => {
+  const out = reduce(planPack, [
+    record({
+      gate_id: "pack-artifact",
+      status: "INFRA_ERROR",
+      gate_type: "artifact",
+    }),
+    record({
+      gate_id: "pack-boot",
+      status: "FAIL",
+      gate_type: "artifact",
+    }),
+  ]);
+  const boot = out.gates.find((g) => g.gate_id === "pack-boot");
+  assert.equal(boot.status, "INFRA_ERROR");
+  assert.equal(boot.cause.gate_id, "pack-artifact");
+  assert.equal(out.verdict, "UNVERIFIED");
+});
+
+test("empty required_gates is UNVERIFIED", () => {
+  const out = reduce(
+    { required_gates: [], identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 } },
+    [record({ gate_id: "lint", status: "PASS" })]
+  );
+  assert.equal(out.verdict, "UNVERIFIED");
+  assert.ok(out.evidence_errors.some((e) => e.code === "empty_required_set"));
+});

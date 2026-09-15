@@ -1,4 +1,4 @@
-import { gateKey, keyId, sameKey } from "./types.mjs";
+import { gateKey, sameKey } from "./types.mjs";
 
 export function classifyDependent(prereqStatus, dependentKey, prereqKey) {
   if (prereqStatus === "FAIL") {
@@ -19,7 +19,7 @@ export function classifyDependent(prereqStatus, dependentKey, prereqKey) {
     };
   }
   if (prereqStatus === "SKIPPED") {
-    throw new Error("optional prerequisite");
+    return { status: "SKIPPED", cause: prereqKey };
   }
   return { status: "RUN", cause: null };
 }
@@ -54,14 +54,8 @@ export function reduce(plan, records) {
     }
   }
 
-  const byId = new Map();
-  for (const rec of records) {
-    byId.set(keyId(gateKey(rec)), rec);
-  }
-
   const gates = [];
   const evidence_errors = [];
-  const emitted = new Set();
 
   for (const rec of records) {
     const k = gateKey(rec);
@@ -70,16 +64,25 @@ export function reduce(plan, records) {
       copy.reason = "required skipped";
     }
     gates.push(copy);
-    emitted.add(keyId(k));
   }
 
   for (const [depId, prereqId] of Object.entries(deps)) {
     const depKey = { gate_id: depId, suite_id: null, shard_index: null, shard_total: null };
     const prereqKey = { gate_id: prereqId, suite_id: null, shard_index: null, shard_total: null };
-    if (emitted.has(keyId(depKey))) continue;
     const prereq = findRecord(records, prereqKey);
     const classified = classifyDependent(prereq?.status ?? null, depKey, prereqKey);
     if (classified.status === "RUN") continue;
+    const existing = gates.find((g) => sameKey(gateKey(g), depKey));
+    if (existing) {
+      existing.status = classified.status;
+      existing.cause = classified.cause;
+      existing.exit_code = classified.status === "FAIL" ? 1 : 2;
+      if (classified.status === "SKIPPED" && !existing.reason) {
+        existing.reason = `classified from ${prereqKey.gate_id}`;
+      }
+      if (classified.evidence_error) evidence_errors.push(classified.evidence_error);
+      continue;
+    }
     const identity = plan.identity ?? {};
     gates.push({
       gate_id: depKey.gate_id,
@@ -93,12 +96,15 @@ export function reduce(plan, records) {
       gate_type: "artifact",
       status: classified.status,
       cause: classified.cause,
+      reason:
+        classified.status === "SKIPPED"
+          ? `classified from ${prereqKey.gate_id}`
+          : undefined,
       exit_code: classified.status === "FAIL" ? 1 : 2,
       duration_ms: 0,
       evidence: [],
     });
     if (classified.evidence_error) evidence_errors.push(classified.evidence_error);
-    emitted.add(keyId(depKey));
   }
 
   for (const k of requiredSet(plan)) {
@@ -118,6 +124,15 @@ export function reduce(plan, records) {
     }
   }
 
+  const required = requiredSet(plan);
+  if (required.length === 0) {
+    evidence_errors.push({
+      code: "empty_required_set",
+      gate: { gate_id: "schema", suite_id: null, shard_index: null, shard_total: null },
+      detail: "required_gates is empty",
+    });
+  }
+
   let verdict = "VERIFIED";
   const hasFail = gates.some((g) => g.status === "FAIL" && isRequired(plan, gateKey(g)));
   const hasUnverified =
@@ -129,7 +144,7 @@ export function reduce(plan, records) {
     );
   if (hasFail) verdict = "FAILED";
   else if (hasUnverified) verdict = "UNVERIFIED";
-  else if (requiredSet(plan).some((k) => !gates.some((g) => sameKey(gateKey(g), k)))) {
+  else if (required.some((k) => !gates.some((g) => sameKey(gateKey(g), k)))) {
     verdict = "UNVERIFIED";
   }
 

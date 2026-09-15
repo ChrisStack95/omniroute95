@@ -5,12 +5,6 @@ import {
   globToRegExp,
 } from "../../check/check-test-discovery.mjs";
 
-const SCOPE_SOURCES = {
-  "test:unit:ci": new Set(["package.json"]),
-  "test:vitest": new Set(["vitest.mcp.config.ts"]),
-  "test:integration": new Set(["package.json"]),
-};
-
 const UNIT_CI_GLOBS = new Set([
   "tests/unit/*.test.ts",
   "tests/unit/{api,auth,authz,build,cli,cli-helper,combo,compression,correctness,cors,db,db-adapters,docs,gamification,guardrails,lib,mcp,memory,runtime,security,services,settings,shared,translator,ui,usage}/**/*.test.ts",
@@ -19,7 +13,10 @@ const UNIT_CI_GLOBS = new Set([
   "tests/unit/**/*.test.mjs",
 ]);
 
-const INTEGRATION_GLOBS = new Set(["tests/integration/*.test.ts"]);
+const INTEGRATION_GLOBS = new Set([
+  "tests/integration/*.test.ts",
+  "tests/integration/combo-matrix/*.test.ts",
+]);
 
 function inScope(collector, scopeSuites) {
   const suites = new Set(scopeSuites);

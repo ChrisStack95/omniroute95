@@ -26,3 +26,15 @@ test("omitting a collector without listing it is an inventory error", () => {
   const errors = inventoryErrors(RELEASE_SUITES, collectors, baseline, discoveredFiles);
   assert.ok(errors.some((e) => e.code === "collector_omitted"));
 });
+
+test("combo-matrix glob is in release integration scope, not known_unexecuted", () => {
+  const ku = knownUnexecuted(RELEASE_SUITES, COLLECTORS, baseline);
+  assert.equal(
+    ku.collectors.some((c) => c.glob === "tests/integration/combo-matrix/*.test.ts"),
+    false
+  );
+  const combo = COLLECTORS.find(
+    (c) => c.glob === "tests/integration/combo-matrix/*.test.ts"
+  );
+  assert.ok(combo);
+});

@@ -93,7 +93,7 @@
         "member": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^(?!/)(?!.*\\.\\./)[^\\s]+$"
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\s]+$"
         },
         "algorithm": { "const": "sha256" },
         "digest": { "$ref": "#/$defs/digest" }
@@ -161,8 +161,7 @@
         "evidence": {
           "type": "array",
           "items": { "$ref": "#/$defs/evidenceRef" }
-        },
-        "extensions": { "type": "object" }
+        }
       },
       "allOf": [
         {

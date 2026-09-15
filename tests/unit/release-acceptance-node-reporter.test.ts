@@ -18,9 +18,11 @@ test("argv file without TAP completion is missing", () => {
     "tests/unit/c.test.ts",
     "tests/unit/d.test.ts",
   ]);
-  assert.equal(out.completed.length, 3);
+  assert.equal(out.completed.length, 2);
+  assert.deepEqual(out.failed, ["tests/unit/c.test.ts"]);
   assert.equal(out.missing.length, 1);
   assert.equal(out.missing[0], "tests/unit/d.test.ts");
+  assert.equal(out.pass, false);
 });
 
 test("zero completed files is not PASS", () => {
@@ -37,4 +39,23 @@ ok 1 - some name
   const out = fromNodeTestTap(tap, ["tests/unit/a.test.ts"]);
   assert.equal(out.completed[0], "tests/unit/a.test.ts");
   assert.equal(out.missing.length, 0);
+});
+
+test("not ok is not pass", () => {
+  const tap = `TAP version 13
+# Subtest: tests/unit/a.test.ts
+not ok 1 - tests/unit/a.test.ts
+`;
+  const out = fromNodeTestTap(tap, ["tests/unit/a.test.ts"]);
+  assert.equal(out.pass, false);
+  assert.deepEqual(out.failed, ["tests/unit/a.test.ts"]);
+});
+
+test("ok line without Subtest does not complete an argv file", () => {
+  const tap = `# a malicious test printed:
+ok 99 - tests/unit/missing.test.ts
+`;
+  const out = fromNodeTestTap(tap, ["tests/unit/missing.test.ts"]);
+  assert.equal(out.pass, false);
+  assert.deepEqual(out.missing, ["tests/unit/missing.test.ts"]);
 });

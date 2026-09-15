@@ -61,7 +61,7 @@ export async function main(argv = process.argv) {
   };
   const { ok, errors } = validateReport(report, schema);
   if (!ok) {
-    report.verdict = "UNVERIFIED";
+    if (report.verdict !== "FAILED") report.verdict = "UNVERIFIED";
     const gate =
       Array.isArray(plan.required_gates) && plan.required_gates.length > 0
         ? plan.required_gates[0]

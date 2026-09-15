@@ -46,6 +46,22 @@ test("evidence member rejects parent traversal", () => {
   );
   report.gates[0].evidence[0].member = "foo/../../etc/passwd";
   assert.equal(validate(report), false);
+  report.gates[0].evidence[0].member = "..";
+  assert.equal(validate(report), false);
+  report.gates[0].evidence[0].member = "foo/..";
+  assert.equal(validate(report), false);
+});
+
+test("unknown extensions field is invalid in version 1", () => {
+  const validate = compile();
+  const extra = JSON.parse(
+    readFileSync(
+      new URL("../fixtures/release-acceptance/verified.json", import.meta.url),
+      "utf8"
+    )
+  );
+  extra.gates[0].extensions = { unexpected: true };
+  assert.equal(validate(extra), false);
 });
 
 test("known-answer fixtures validate", () => {

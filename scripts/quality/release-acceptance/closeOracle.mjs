@@ -20,7 +20,11 @@ export function findTrackerCloses(workflowText) {
 }
 
 export function closingKeywordInBody(body, tracker = 12732) {
-  const m = String(body ?? "").match(KEYWORD_RE);
-  if (!m) return false;
-  return Number(m[1]) === Number(tracker);
+  const re = new RegExp(KEYWORD_RE.source, KEYWORD_RE.flags.includes("g") ? KEYWORD_RE.flags : `${KEYWORD_RE.flags}g`);
+  const text = String(body ?? "");
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (Number(m[1]) === Number(tracker)) return true;
+  }
+  return false;
 }
