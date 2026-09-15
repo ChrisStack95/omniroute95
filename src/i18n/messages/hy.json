@@ -13028,6 +13028,9 @@
       "PROTECTED_PRIORITY_INFRA_502_ENABLED": {
         "description": "__MISSING__:Answer 502 instead of 503 when a quota-only-fallback priority target stops the combo for a cause that is provably not quota: an open provider circuit breaker or a predictive latency skip.",
         "label": "__MISSING__:Protected-Priority Infra Stops as 502"
+      },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       }
     }
   },
