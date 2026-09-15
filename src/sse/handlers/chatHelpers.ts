@@ -3,7 +3,12 @@ import {
   getComboForModel,
   getModelInfoOrRetirementResponse,
 } from "../services/model";
-import { clearAccountError, markAccountUnavailable } from "../services/auth";
+import {
+  clearAccountError,
+  markAccountUnavailable,
+  buildExhaustionOptions,
+} from "../services/auth";
+import { maybeReactivateAfterExplicitProbe } from "../services/explicitInactiveProbe";
 import { connectionHasExtraKeys } from "@omniroute/open-sse/services/apiKeyRotator.ts";
 import { clearRequestRejectedStreak } from "@omniroute/open-sse/services/requestRejectedStreak.ts";
 import { createBuiltinAutoCombo } from "@omniroute/open-sse/services/autoCombo/builtinCatalog.ts";
@@ -42,6 +47,7 @@ import {
 } from "../../shared/utils/circuitBreaker";
 import { classify429FromError, type FailureKind } from "../../shared/utils/classify429";
 import { resolveUseUpstream429BreakerHints } from "../../shared/utils/providerHints";
+import { isFeatureFlagEnabled } from "../../shared/utils/featureFlags";
 
 import { logProxyEvent } from "../../lib/proxyLogger";
 import { logTranslationEvent } from "../../lib/translatorEvents";
@@ -335,7 +341,15 @@ export async function resolveModelOrError(
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}${ctxTag}`);
   }
 
-  return { provider, model, sourceFormat, targetFormat, extendedContext, apiFormat };
+  return {
+    provider,
+    model,
+    sourceFormat,
+    targetFormat,
+    customModelTargetFormat,
+    extendedContext,
+    apiFormat,
+  };
 }
 
 export async function checkPipelineGates(
@@ -444,6 +458,7 @@ export async function executeChatWithBreaker({
   // for every non-video request. Passed straight through to handleChatCore;
   // see its own destructure default for the shape and consumers.
   videoBridgeLog = undefined,
+  fallbackAttempts = undefined,
 }: ExecuteChatWithBreakerOptions): Promise<ExecuteChatWithBreakerResult> {
   let tlsFingerprintUsed = false;
   const normalizedTrafficType: TrafficType =
@@ -504,6 +519,7 @@ export async function executeChatWithBreaker({
             reasoningTransportFallback,
             managedLease,
             videoBridgeLog,
+            fallbackAttempts,
             skipResourcePressureGuard: true,
             onCredentialsRefreshed: async (newCreds: any) => {
               await updateProviderCredentials(credentials.connectionId, {
@@ -525,6 +541,13 @@ export async function executeChatWithBreaker({
               // (#12859) — only a real success does, not an elapsed cooldown.
               if (credentials.connectionId) clearRequestRejectedStreak(credentials.connectionId);
               await clearAccountError(credentials.connectionId, credentials);
+              await maybeReactivateAfterExplicitProbe({
+                connectionId: credentials.connectionId,
+                reactivatedFromInactive: credentials.reactivatedFromInactive,
+                isShadowTraffic,
+                requestedModel: model,
+                provider,
+              });
             },
             onStreamFailure: async (failure: any) => {
               if (isShadowTraffic) return;
@@ -559,7 +582,7 @@ export async function executeChatWithBreaker({
                 provider,
                 model,
                 providerProfile,
-                { isCombo }
+                buildExhaustionOptions(correlationId ?? null, { isCombo })
               );
             },
           })
@@ -735,7 +758,8 @@ export function handleNoCredentials(
   lastStatus: number | null,
   candidateAliases?: readonly string[],
   isCombo: boolean = false,
-  shadowedNode: ShadowedProviderNode | null = null
+  shadowedNode: ShadowedProviderNode | null = null,
+  correlationId?: string | null
 ) {
   if (credentials?.allRateLimited) {
     const errorMsg = lastError || credentials.lastError || "Unavailable";
@@ -776,6 +800,7 @@ export function handleNoCredentials(
       provider,
       model,
       lastStatus,
+      ...(correlationId ? { correlationId } : {}),
     });
     return errorResponse(lastStatus, lastError);
   }
@@ -903,6 +928,20 @@ export function shouldRetryStreamEarlyEof(
   attempt: number
 ): boolean {
   return errorCode === "STREAM_EARLY_EOF" && attempt < STREAM_EARLY_EOF_MAX_RETRIES;
+}
+
+// The sibling hop widens the terminal/failover boundary, so it ships off
+// behind STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED until observed live.
+export function isEarlyEofSiblingFailoverOn(): boolean {
+  try {
+    return isFeatureFlagEnabled("STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
 }
 
 export function decideProxyResolutionFailure(

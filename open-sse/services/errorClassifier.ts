@@ -95,7 +95,20 @@ export const PROVIDER_ERROR_TYPES = {
   // First case: Anthropic's OAuth 403 "Request not allowed" (#12859), which
   // lands on a handful of requests between thousands of 200s on the same token.
   REQUEST_REJECTED: "request_rejected",
-};
+} as const;
+
+export type ProviderErrorType = (typeof PROVIDER_ERROR_TYPES)[keyof typeof PROVIDER_ERROR_TYPES];
+
+// Versioned vocabulary persisted in `call_logs.error_type`: every provider error
+// family plus the explicit `unknown` for a failure the classifier could not place.
+// Derived from PROVIDER_ERROR_TYPES so the two cannot drift. Bump the version when
+// a value is removed or renamed (adding a family is backwards compatible).
+export type ErrorTypeContract = ProviderErrorType | "unknown";
+export const ERROR_TYPE_CONTRACT: readonly ErrorTypeContract[] = Object.freeze([
+  ...Object.values(PROVIDER_ERROR_TYPES),
+  "unknown",
+]);
+export const ERROR_TYPE_CONTRACT_VERSION = 1;
 
 export const CONTEXT_OVERFLOW_SIGNALS = [
   "context overflow",
@@ -274,7 +287,7 @@ export function classifyProviderError(
   statusCode: number,
   responseBody: unknown,
   provider?: string | null
-): string | null {
+): ProviderErrorType | null {
   const bodyStr = responseBodyToString(responseBody);
   const creditsExhausted = isCreditsExhausted(bodyStr);
   const subscriptionQuotaExhausted = isSubscriptionQuotaText(bodyStr.toLowerCase());
