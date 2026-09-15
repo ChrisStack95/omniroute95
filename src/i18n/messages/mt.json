@@ -12952,6 +12952,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Ħalli l-irkupru tal-fluss jitlob it-tweġiba mill-ġdid u jgħaqqadha wara li l-bytes ikunu diġà waslu għand il-klijent."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Inkludi oqsma tal-isem adattati għall-wiri fit-tweġibiet ta’ /v1/models. Iddiżattiva dan għal klijenti li jaċċettaw biss IDs tal-mudelli."
       },

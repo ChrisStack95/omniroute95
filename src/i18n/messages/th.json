@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "อนุญาตให้การกู้คืนสตรีมขอรับการตอบกลับอีกครั้งและต่อข้อมูลเข้าด้วยกันหลังจากที่ไบต์ไปถึงไคลเอนต์แล้ว"
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "รวมฟิลด์ชื่อที่แสดงผลได้ง่ายในการตอบกลับ /v1/models ปิดใช้งานตัวเลือกนี้สำหรับไคลเอนต์ที่ยอมรับเฉพาะ ID โมเดลเท่านั้น"
       },

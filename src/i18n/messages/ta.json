@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "பைட்டுகள் ஏற்கனவே கிளையண்டை அடைந்த பிறகும், பதிலை மீண்டும் கோரவும் அதை இணைக்கவும் ஸ்ட்ரீம் மீட்டெடுப்பை அனுமதிக்கவும்."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models பதில்களில் காட்சிக்கு ஏற்ற பெயர் புலங்களைச் சேர்க்கவும். மாடல் ஐடிகளை மட்டுமே ஏற்கும் கிளையண்டுகளுக்கு இதை முடக்கவும்."
       },

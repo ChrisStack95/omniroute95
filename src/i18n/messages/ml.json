@@ -12974,6 +12974,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "ബൈറ്റുകൾ ഇതിനകം ക്ലയന്റിൽ എത്തിയതിനുശേഷവും പ്രതികരണം വീണ്ടും അഭ്യർത്ഥിച്ച് കൂട്ടിച്ചേർക്കാൻ സ്ട്രീം വീണ്ടെടുക്കലിനെ അനുവദിക്കുക."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models പ്രതികരണങ്ങളിൽ പ്രദർശനത്തിന് അനുയോജ്യമായ നാമ ഫീൽഡുകൾ ഉൾപ്പെടുത്തുക. മോഡൽ ID-കൾ മാത്രം സ്വീകരിക്കുന്ന ക്ലയന്റുകൾക്കായി ഇത് പ്രവർത്തനരഹിതമാക്കുക."
       },

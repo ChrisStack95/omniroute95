@@ -12952,6 +12952,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Obnovi toka omogoči, da znova zahteva odgovor in ga sestavi, potem ko so bajti že dosegli odjemalca."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "V odgovore /v1/models vključi uporabniku prijazna polja z imeni. To onemogočite za odjemalce, ki sprejemajo samo ID-je modelov."
       },
