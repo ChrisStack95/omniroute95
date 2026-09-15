@@ -3,12 +3,6 @@
   "_measured": "2026-09-10 — cada arquivo rodado isoladamente com as exclusões removidas",
   "excluded": [
     {
-      "file": "tests/unit/ui/request-logger-autorefresh-visibility-3972.test.tsx",
-      "issue": "#13204",
-      "measured": "2026-09-10",
-      "status": "Tests 1 failed | 5 passed (6)"
-    },
-    {
       "file": "src/app/(dashboard)/dashboard/webhooks/__tests__/webhook-wizard.test.tsx",
       "issue": "#13204",
       "measured": "2026-09-10",
