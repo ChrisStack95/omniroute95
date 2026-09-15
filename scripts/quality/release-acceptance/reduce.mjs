@@ -36,16 +36,41 @@ function isRequired(plan, k) {
   return requiredSet(plan).some((r) => sameKey(r, k));
 }
 
-function isOptional(plan, k) {
-  return optionalSet(plan).some((r) => sameKey(r, k));
-}
-
 function copies(gates, k) {
   return gates.filter((g) => sameKey(gateKey(g), k));
 }
 
+function copiesByGateId(gates, gateId) {
+  return gates.filter((g) => g.gate_id === gateId);
+}
+
+function uniqueKeys(keys) {
+  const out = [];
+  for (const k of keys) {
+    if (!out.some((existing) => sameKey(existing, k))) out.push(k);
+  }
+  return out;
+}
+
+function keysForGateId(plan, gates, gateId) {
+  return uniqueKeys([
+    ...copiesByGateId(gates, gateId).map((g) => gateKey(g)),
+    ...requiredSet(plan).filter((k) => k.gate_id === gateId),
+    ...optionalSet(plan).filter((k) => k.gate_id === gateId),
+  ]);
+}
+
 function statusOf(gates, k) {
   const list = copies(gates, k);
+  if (list.length === 0) return null;
+  if (list.some((g) => g.status === "INFRA_ERROR")) return "INFRA_ERROR";
+  if (list.some((g) => g.status === "FAIL")) return "FAIL";
+  if (list.some((g) => g.status === "SKIPPED")) return "SKIPPED";
+  return list[0].status;
+}
+
+function statusOfGateId(gates, gateId) {
+  const list = copiesByGateId(gates, gateId);
   if (list.length === 0) return null;
   if (list.some((g) => g.status === "INFRA_ERROR")) return "INFRA_ERROR";
   if (list.some((g) => g.status === "FAIL")) return "FAIL";
@@ -116,9 +141,9 @@ export function reduce(plan, records) {
   const deps = plan.dependencies ?? {};
   assertAcyclic(deps);
   for (const [depId, prereqId] of Object.entries(deps)) {
-    const depKey = { gate_id: depId, suite_id: null, shard_index: null, shard_total: null };
-    const prereqKey = { gate_id: prereqId, suite_id: null, shard_index: null, shard_total: null };
-    if (isRequired(plan, depKey) && isOptional(plan, prereqKey)) {
+    const requiredDep = requiredSet(plan).some((k) => k.gate_id === depId);
+    const optionalPrereq = optionalSet(plan).some((k) => k.gate_id === prereqId);
+    if (requiredDep && optionalPrereq) {
       throw new Error("optional prerequisite");
     }
   }
@@ -142,12 +167,18 @@ export function reduce(plan, records) {
   while (changed && guard-- > 0) {
     changed = false;
     for (const [depId, prereqId] of edges) {
-      const depKey = { gate_id: depId, suite_id: null, shard_index: null, shard_total: null };
       const prereqKey = { gate_id: prereqId, suite_id: null, shard_index: null, shard_total: null };
-      const classified = classifyDependent(statusOf(gates, prereqKey), depKey, prereqKey);
-      if (classified.status === "RUN") continue;
-      if (patchDependent(gates, depKey, classified, prereqKey, evidence_errors, identity)) {
-        changed = true;
+      let depKeys = keysForGateId(plan, gates, depId);
+      if (depKeys.length === 0) {
+        depKeys = [{ gate_id: depId, suite_id: null, shard_index: null, shard_total: null }];
+      }
+      const prereqStatus = statusOfGateId(gates, prereqId);
+      for (const depKey of depKeys) {
+        const classified = classifyDependent(prereqStatus, depKey, prereqKey);
+        if (classified.status === "RUN") continue;
+        if (patchDependent(gates, depKey, classified, prereqKey, evidence_errors, identity)) {
+          changed = true;
+        }
       }
     }
   }

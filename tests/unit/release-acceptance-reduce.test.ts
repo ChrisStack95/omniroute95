@@ -208,3 +208,44 @@ test("missing prerequisite records one evidence error, not one per loop", () => 
     1
   );
 });
+
+test("sharded required dependents inherit a FAIL prerequisite of the same gate_id", () => {
+  const shard0 = { gate_id: "u", suite_id: "s", shard_index: 0, shard_total: 2 };
+  const shard1 = { gate_id: "u", suite_id: "s", shard_index: 1, shard_total: 2 };
+  const out = reduce(
+    {
+      required_gates: [shard0, shard1],
+      identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+      dependencies: { u: "art" },
+    },
+    [
+      record({ gate_id: "art", status: "FAIL", gate_type: "artifact" }),
+      record({ ...shard0, status: "PASS", gate_type: "artifact" }),
+      record({ ...shard1, status: "PASS", gate_type: "artifact" }),
+    ]
+  );
+  const shards = out.gates.filter((g) => g.gate_id === "u" && g.suite_id === "s");
+  assert.equal(shards.length, 2);
+  assert.ok(shards.every((g) => g.status === "FAIL"));
+  assert.equal(out.verdict, "FAILED");
+});
+
+test("sharded required dependents inherit an INFRA prerequisite of the same gate_id", () => {
+  const shard0 = { gate_id: "u", suite_id: "s", shard_index: 0, shard_total: 2 };
+  const shard1 = { gate_id: "u", suite_id: "s", shard_index: 1, shard_total: 2 };
+  const out = reduce(
+    {
+      required_gates: [shard0, shard1],
+      identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+      dependencies: { u: "art" },
+    },
+    [
+      record({ gate_id: "art", status: "INFRA_ERROR", gate_type: "artifact" }),
+      record({ ...shard0, status: "PASS", gate_type: "artifact" }),
+      record({ ...shard1, status: "PASS", gate_type: "artifact" }),
+    ]
+  );
+  const shards = out.gates.filter((g) => g.gate_id === "u" && g.suite_id === "s");
+  assert.ok(shards.every((g) => g.status === "INFRA_ERROR"));
+  assert.equal(out.verdict, "UNVERIFIED");
+});
