@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// A pool member is set aside only on a refusal the provider really returned through it,
-// and only for a provider inside the refusal scope. Locally generated failures carry no
-// upstream outcome and never set a member aside.
+// With PROXY_SKIP_RECENTLY_FAILED on, a pool member is set aside only on a refusal the
+// provider really returned through it, and only for a provider inside the refusal scope.
+// Locally generated failures carry no upstream outcome and never set a member aside. With
+// the flag off (the default) nothing is ever written.
 
 const memory = await import("../../open-sse/utils/proxyRefusalMemory.ts");
 const { noteProxyOutcome } = await import("../../src/sse/handlers/proxyOutcomeMemory.ts");
@@ -14,6 +15,10 @@ const KEY = memory.proxyEgressKey(PROXY);
 
 test.beforeEach(() => {
   memory.__resetProxyRefusalMemoryForTesting();
+  process.env.PROXY_SKIP_RECENTLY_FAILED = "true";
+});
+
+test.after(() => {
   delete process.env.PROXY_SKIP_RECENTLY_FAILED;
 });
 
@@ -86,8 +91,10 @@ test("a second note while the proxy is already set aside changes nothing", () =>
   assert.equal(memory.isProxyAvoided(KEY, start + periodMs + 1000), false);
 });
 
-test("with the switch off nothing is written", () => {
-  process.env.PROXY_SKIP_RECENTLY_FAILED = "0";
-  noteProxyOutcome("opencode", { proxy: PROXY, upstreamStatus: 429 });
+test("with the flag at its default (off) a received refusal writes nothing", () => {
+  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
+  for (const provider of egressBucketedLockProviders()) {
+    noteProxyOutcome(provider, { proxy: PROXY, upstreamStatus: 429 });
+  }
   assert.equal(memory.__proxyRefusalMemorySizeForTesting(), 0);
 });

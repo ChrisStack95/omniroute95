@@ -8,8 +8,9 @@ import type { AddressInfo } from "node:net";
 
 // Through the real pieces of the chat path: a provider dispatch refused through a pool
 // member, the capture on the applied-proxy sink, the merge at the log call site and
-// safeLogEvents. The next pick of that pool skips the member; a locally generated failure
-// does not; a provider outside the refusal scope does not.
+// safeLogEvents. With PROXY_SKIP_RECENTLY_FAILED on, the next pick of that pool skips the
+// member (already before the fire-and-forget log settles); a locally generated failure does
+// not; a provider outside the refusal scope does not. With the flag off nothing changes.
 
 const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-pool-refused-path-"));
 process.env.DATA_DIR = TEST_DATA_DIR;
@@ -39,6 +40,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
+  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
   await new Promise<void>((resolve) => server.close(() => resolve()));
   proxyLogger.clearProxyLogs();
   core.resetDbInstance();
@@ -47,7 +49,7 @@ test.after(async () => {
 
 test.beforeEach(() => {
   memory.__resetProxyRefusalMemoryForTesting();
-  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
+  process.env.PROXY_SKIP_RECENTLY_FAILED = "true";
   proxyLogger.clearProxyLogs();
   core.resetDbInstance();
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -76,7 +78,12 @@ async function pickPort() {
 
 // One request as chat.ts runs it: the executor pins a proxy on the sink, the provider
 // dispatch goes through the patched fetch, then the log call merges the sink.
-async function chatRequest(provider: string, pinned: unknown, code: number | null) {
+async function chatRequest(
+  provider: string,
+  pinned: unknown,
+  code: number | null,
+  onLogCalled: () => void = () => {}
+) {
   const sink: { proxy: unknown; upstreamStatus?: number } = { proxy: null };
   await proxyFetchModule.runWithAppliedProxyCapture(sink, async () => {
     sink.proxy = pinned;
@@ -87,7 +94,8 @@ async function chatRequest(provider: string, pinned: unknown, code: number | nul
       });
     }
   });
-  await safeLogEvents({
+  // chat.ts fires this without awaiting it.
+  const logged = safeLogEvents({
     result: { success: code === 200, status: code ?? 429, error: code === 200 ? null : "failed" },
     proxyInfo: mergeAppliedProxySink({ proxy: null, level: "provider", levelId: provider }, sink),
     proxyLatency: 1,
@@ -99,6 +107,8 @@ async function chatRequest(provider: string, pinned: unknown, code: number | nul
     comboName: null,
     clientRawRequest: null,
   });
+  onLogCalled();
+  await logged;
 }
 
 test("a received refusal through a pool member makes the next pick skip it", async () => {
@@ -107,6 +117,25 @@ test("a received refusal through a pool member makes the next pick skip it", asy
   await chatRequest("opencode", first, 429);
   assert.equal(proxyLogger.getProxyLogs()[0].upstreamStatus, 429);
   assert.deepEqual([await pickPort(), await pickPort()], [second.port, second.port]);
+});
+
+test("the member is set aside as soon as the log call returns, not when the log settles", async () => {
+  const [first, second] = await twoMemberPool();
+  let avoidedAtCallSite: boolean | null = null;
+  await chatRequest("opencode", first, 429, () => {
+    avoidedAtCallSite = memory.isProxyAvoided(memory.proxyEgressKey(first));
+  });
+  assert.equal(avoidedAtCallSite, true, "a concurrent pick must already skip the refused member");
+  assert.deepEqual([await pickPort(), await pickPort()], [second.port, second.port]);
+});
+
+test("with the flag at its default (off) a received refusal leaves the member in rotation", async () => {
+  const [first, second] = await twoMemberPool();
+  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
+  await chatRequest("opencode", first, 429);
+  assert.equal(proxyLogger.getProxyLogs()[0].upstreamStatus, 429);
+  assert.equal(memory.__proxyRefusalMemorySizeForTesting(), 0);
+  assert.deepEqual([await pickPort(), await pickPort()], [first.port, second.port]);
 });
 
 test("a locally generated failure (no dispatch) leaves the member in rotation", async () => {
