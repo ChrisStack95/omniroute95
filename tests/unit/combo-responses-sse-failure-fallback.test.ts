@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { handleComboChat, validateResponseQuality } from "../../open-sse/services/combo.ts";
+import {
+  clearNativeCodexTurnPinsForTests,
+  pinNativeCodexTurn,
+} from "../../open-sse/services/combo/nativeCodexTurnPin.ts";
 
 const encoder = new TextEncoder();
 
@@ -139,6 +143,73 @@ test("protected pre-content streaming quality rejection retries the same target 
   assert.equal(result.ok, true);
   assert.deepEqual(calls, ["openai/primary", "openai/primary"]);
   assert.match(await result.text(), /retry ok/);
+});
+
+test("native pinned pre-content stream failure still retries the same target safely", async () => {
+  clearNativeCodexTurnPinsForTests();
+  const body = {
+    stream: true,
+    messages: [{ role: "user", content: "hello" }],
+    client_metadata: {
+      "x-codex-turn-metadata": JSON.stringify({ thread_id: "t1", turn_id: "turn1" }),
+    },
+  };
+  const combo = {
+    name: "native-pinned-stream-quality-retry",
+    strategy: "priority",
+    models: [
+      {
+        model: "codex/gpt-5.6-sol",
+        connectionId: "conn-1",
+        fallbackOnlyOnQuotaExhaustion: true,
+        weight: 0,
+      },
+    ],
+    config: { maxRetries: 1, retryDelayMs: 0 },
+  };
+  pinNativeCodexTurn({
+    body,
+    comboName: combo.name,
+    target: {
+      kind: "model",
+      stepId: "codex-step",
+      executionKey: "codex-step",
+      modelStr: "codex/gpt-5.6-sol",
+      provider: "codex",
+      providerId: null,
+      connectionId: "conn-1",
+      weight: 0,
+      label: null,
+    },
+    connectionId: "conn-1",
+  });
+
+  const calls: string[] = [];
+  const healthy = [
+    "event: response.output_text.delta",
+    `data: ${JSON.stringify({ type: "response.output_text.delta", delta: "retry ok" })}`,
+    "",
+    "",
+  ].join("\n");
+  const result = await handleComboChat({
+    body,
+    combo,
+    clientManagedResponsesContext: true,
+    handleSingleModel: async (_body: unknown, model: string) => {
+      calls.push(model);
+      return calls.length === 1 ? sseResponse(failedResponsesSse()) : sseResponse(healthy);
+    },
+    isModelAvailable: async () => true,
+    log: silentLog(),
+    settings: null,
+    allCombos: [combo],
+    relayOptions: null as never,
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ["codex/gpt-5.6-sol", "codex/gpt-5.6-sol"]);
+  assert.match(await result.text(), /retry ok/);
+  clearNativeCodexTurnPinsForTests();
 });
 
 test("combo cancels a discarded upstream stream after a pre-content Responses SSE failure", async () => {
