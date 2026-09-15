@@ -209,6 +209,24 @@ test("missing prerequisite records one evidence error, not one per loop", () => 
   );
 });
 
+test("missing prerequisite records one evidence error for all shards of a gate_id", () => {
+  const shard0 = { gate_id: "u", suite_id: "s", shard_index: 0, shard_total: 2 };
+  const shard1 = { gate_id: "u", suite_id: "s", shard_index: 1, shard_total: 2 };
+  const out = reduce(
+    {
+      required_gates: [shard0, shard1],
+      identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+      dependencies: { u: "art" },
+    },
+    []
+  );
+  assert.equal(out.verdict, "UNVERIFIED");
+  assert.equal(
+    out.evidence_errors.filter((e) => e.code === "prerequisite_missing").length,
+    1
+  );
+});
+
 test("sharded required dependents inherit a FAIL prerequisite of the same gate_id", () => {
   const shard0 = { gate_id: "u", suite_id: "s", shard_index: 0, shard_total: 2 };
   const shard1 = { gate_id: "u", suite_id: "s", shard_index: 1, shard_total: 2 };

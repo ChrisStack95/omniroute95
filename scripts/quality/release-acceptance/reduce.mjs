@@ -78,6 +78,14 @@ function statusOfGateId(gates, gateId) {
   return list[0].status;
 }
 
+function pushEvidenceError(evidence_errors, err) {
+  if (!err) return;
+  const already = evidence_errors.some(
+    (e) => e.code === err.code && e.detail === err.detail
+  );
+  if (!already) evidence_errors.push(err);
+}
+
 function patchDependent(gates, depKey, classified, prereqKey, evidence_errors, identity) {
   const matches = copies(gates, depKey);
   const reason =
@@ -101,7 +109,7 @@ function patchDependent(gates, depKey, classified, prereqKey, evidence_errors, i
       duration_ms: 0,
       evidence: [],
     });
-    if (classified.evidence_error) evidence_errors.push(classified.evidence_error);
+    if (classified.evidence_error) pushEvidenceError(evidence_errors, classified.evidence_error);
     return true;
   }
   let changed = false;
@@ -119,7 +127,9 @@ function patchDependent(gates, depKey, classified, prereqKey, evidence_errors, i
     if (classified.status === "SKIPPED" && !existing.reason) existing.reason = reason;
     changed = true;
   }
-  if (changed && classified.evidence_error) evidence_errors.push(classified.evidence_error);
+  if (changed && classified.evidence_error) {
+    pushEvidenceError(evidence_errors, classified.evidence_error);
+  }
   return changed;
 }
 
