@@ -1,6 +1,6 @@
 import { PROVIDER_ERROR_TYPES } from "@omniroute/open-sse/services/errorClassifier.ts";
-import { isMistralAmbiguous401 } from "@omniroute/open-sse/services/accountFallback/mistralAmbiguousAuth.ts";
 import { isCreditsExhausted } from "@omniroute/open-sse/services/accountFallback.ts";
+import { takeMistralAmbiguous401SoftStrike } from "@omniroute/open-sse/services/accountFallback/mistralAmbiguousAuth.ts";
 import { resolveProviderId, WEB_COOKIE_PROVIDERS } from "@/shared/constants/providers";
 
 // #8200: cookie-auth providers (perplexity-web, grok-web, ...) use a rotating browser
@@ -60,10 +60,8 @@ function isNonTerminalProviderError(providerErrorType: string | null): boolean {
 function isExpiredAuthFailure(
   status: number,
   providerErrorType: string | null,
-  provider: string | null,
-  errorText: string = ""
+  provider: string | null
 ): boolean {
-  if (status === 401 && isMistralAmbiguous401(provider, errorText)) return false;
   return (
     (providerErrorType === PROVIDER_ERROR_TYPES.ACCOUNT_DEACTIVATED ||
       providerErrorType === PROVIDER_ERROR_TYPES.UNAUTHORIZED ||
@@ -74,11 +72,12 @@ function isExpiredAuthFailure(
 
 export function resolveTerminalConnectionStatus(
   status: number,
-  result: { permanent?: boolean; creditsExhausted?: boolean },
+  result: { permanent?: boolean; creditsExhausted?: boolean; ambiguousAuth?: boolean },
   providerErrorType: string | null = null,
   provider: string | null = null,
   isPerModelQuotaProvider = false,
-  errorText: string = ""
+  errorText: string = "",
+  connectionId: string | null = null
 ): string | null {
   if (shouldParkCreditsExhausted(status, result, isPerModelQuotaProvider, errorText)) {
     return "credits_exhausted";
@@ -89,7 +88,13 @@ export function resolveTerminalConnectionStatus(
   if (result.permanent || providerErrorType === PROVIDER_ERROR_TYPES.FORBIDDEN) {
     return "banned";
   }
-  if (isExpiredAuthFailure(status, providerErrorType, provider, errorText)) {
+  if (isExpiredAuthFailure(status, providerErrorType, provider)) {
+    // #13609: checkFallbackError only sets ambiguousAuth for a bare Mistral 401
+    // with MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT on. Bounded per connection: past
+    // the strike limit the connection parks as expired like any other 401.
+    if (status === 401 && result.ambiguousAuth && connectionId) {
+      if (takeMistralAmbiguous401SoftStrike(connectionId)) return null;
+    }
     return "expired";
   }
   return null;
