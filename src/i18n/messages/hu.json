@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Egyszeri átállás egy testvérkapcsolatra, ha az adatfolyam még az első hasznos keret előtt lezárul, és az ugyanazon a kapcsolaton végzett korlátozott újrapróbálkozás elfogyott. Használható testvérkapcsolat hiányában az eredeti early-EOF hiba kerül visszaadásra. Kikapcsolva: az early-EOF az újrapróbálkozás után végleges marad."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Megjelenítésbarát névmezők szerepeltetése a /v1/models válaszokban. Tiltsa le ezt azon ügyfelek esetében, amelyek csak modell-azonosítókat fogadnak el."
       },

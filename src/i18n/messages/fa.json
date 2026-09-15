@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "یک بار به یک اتصال هم‌خانواده منتقل شوید وقتی جریان پیش از ارسال هر فریم مفیدی بسته می‌شود و تلاش مجدد محدود روی همان اتصال تمام شده است. اگر اتصال هم‌خانواده قابل‌استفاده‌ای نباشد، خطای اصلی early-EOF برگردانده می‌شود. خاموش: early-EOF پس از تلاش مجدد نهایی می‌ماند."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "گنجاندن فیلدهای نام مناسب برای نمایش در پاسخ‌های /v1/models. این را برای کلاینت‌هایی که فقط شناسه مدل را می‌پذیرند غیرفعال کنید."
       },

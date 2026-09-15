@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Axın heç bir faydalı çərçivə göndərmədən bağlandıqda və eyni bağlantıda məhdud təkrar cəhd tükəndikdə bir dəfə qardaş bağlantıya keçin. Uyğun qardaş bağlantı yoxdursa, ilkin early-EOF xətası qaytarılır. Söndürülüb: early-EOF təkrar cəhddən sonra son nəticə olaraq qalır."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models cavablarına göstərilməsi asan olan ad sahələrini daxil edin. Bunu yalnız model ID-lərini qəbul edən müştərilər üçün sıradan çıxarın."
       },

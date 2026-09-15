@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Siirry kerran rinnakkaisyhteyteen, kun virta sulkeutuu ennen yhdenkään hyödyllisen kehyksen lähettämistä ja saman yhteyden rajattu uusintayritys on käytetty. Jos käyttökelpoista rinnakkaisyhteyttä ei ole, palautetaan alkuperäinen early-EOF-virhe. Pois: early-EOF on lopullinen uusintayrityksen jälkeen."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Sisällytä näyttöystävälliset nimikentät /v1/models-vastauksiin. Poista tämä käytöstä asiakkaille, jotka hyväksyvät vain mallitunnuksia."
       },

@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "ストリームが有用なフレームを送出する前に閉じ、同一接続での上限付き再試行も使い切った場合に、兄弟接続へ一度だけフェイルオーバーします。使用可能な兄弟接続がない場合は、元の early-EOF エラーを返します。オフ: 再試行後の early-EOF はそのまま終了扱いです。"
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Include display-friendly name fields in /v1/models responses. Disable this for clients that accept model IDs only."
       },

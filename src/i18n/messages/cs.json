@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Jednorázově přepnout na sesterské připojení, když se stream uzavře před odesláním jakéhokoli užitečného rámce a omezený opakovaný pokus na stejném připojení je vyčerpán. Pokud není k dispozici použitelné sesterské připojení, vrátí se původní chyba early-EOF. Vypnuto: early-EOF zůstává po opakovaném pokusu konečný."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Zahrnout uživatelsky přívětivá pole názvů v odpovědích /v1/models. Zakažte to pro klienty, kteří přijímají pouze ID modelů."
       },

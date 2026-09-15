@@ -12988,6 +12988,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Lülitu üks kord ümber sõsarühendusele, kui voog sulgub enne ühegi kasuliku kaadri saatmist ja sama ühenduse piiratud kordusproov on ära kasutatud. Kasutatava sõsarühenduse puudumisel tagastatakse algne early-EOF viga. Väljas: early-EOF jääb pärast kordusproovi lõplikuks."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Kaasa /v1/models vastustesse kuvamiseks sobivad nimeväljad. Keela see klientide puhul, mis aktsepteerivad ainult mudeli-ID-sid."
       },

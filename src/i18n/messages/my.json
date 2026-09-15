@@ -12988,6 +12988,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "stream သည် အသုံးဝင်သော frame တစ်ခုမျှ မထုတ်မီ ပိတ်သွားပြီး ချိတ်ဆက်မှုတစ်ခုတည်းပေါ်ရှိ ကန့်သတ်ထားသော ပြန်လည်ကြိုးစားမှုလည်း ကုန်သွားပါက ညီအစ်ကိုချိတ်ဆက်မှုသို့ တစ်ကြိမ်သာ failover လုပ်ပါ။ အသုံးပြုနိုင်သော ညီအစ်ကိုချိတ်ဆက်မှု မရှိပါက မူလ early-EOF အမှားကို ပြန်ပေးပါသည်။ ပိတ်ထားလျှင်: ပြန်လည်ကြိုးစားပြီးနောက် early-EOF သည် နောက်ဆုံးအဖြစ် ရှိနေပါသည်။"
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models response များတွင် ဖတ်ရှုရလွယ်ကူသော name field များကို ထည့်သွင်းပါ။ Model ID များကိုသာ လက်ခံသော client များအတွက် ၎င်းကို ပိတ်ပါ။"
       },

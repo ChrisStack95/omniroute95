@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Hamia mara moja kwenye muunganisho ndugu wakati mkondo unafungwa kabla ya kutuma fremu yoyote yenye manufaa na jaribio la marudio lenye kikomo kwenye muunganisho uleule limekwisha. Bila muunganisho ndugu unaoweza kutumika, hitilafu asili ya early-EOF hurejeshwa. Imezimwa: early-EOF inabaki ya mwisho baada ya jaribio la marudio."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Jumuisha sehemu za majina rahisi kuonyeshwa katika majibu ya /v1/models. Zima hii kwa wateja wanaokubali vitambulisho vya mfano pekee."
       },

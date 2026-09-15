@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Comută o singură dată pe o conexiune soră când un flux se închide înainte de a emite vreun cadru util și reîncercarea limitată pe aceeași conexiune a fost consumată. Fără o conexiune soră utilizabilă, se returnează eroarea early-EOF originală. Dezactivat: early-EOF rămâne final după reîncercare."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Include câmpuri de nume ușor de afișat în răspunsurile /v1/models. Dezactivează această opțiune pentru clienții care acceptă doar ID-uri de model."
       },

@@ -12988,6 +12988,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Aistrigh uair amháin chuig nasc deirfiúr nuair a dhúntar sruth sula seoltar fráma úsáideach ar bith agus nuair atá an athiarracht theoranta ar an nasc céanna ídithe. Mura bhfuil nasc deirfiúr inúsáidte ann, seoltar an earráid early-EOF bhunaidh ar ais. As: fanann early-EOF críochnaitheach tar éis na hathiarrachta."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Cuir réimsí ainmneacha atá cairdiúil don taispeáint san áireamh i bhfreagraí /v1/models. Díchumasaigh é seo do chliaint a ghlacann le haitheantóirí múnla amháin."
       },

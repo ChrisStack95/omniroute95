@@ -12988,6 +12988,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Једном пребаци на сродну везу када се ток затвори пре слања иједног корисног оквира, а ограничени поновни покушај на истој вези је искоришћен. Ако нема употребљиве сродне везе, враћа се изворна early-EOF грешка. Искључено: early-EOF остаје коначан након поновног покушаја."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Укључи поља са именом прилагођеним за приказ у одговорима /v1/models. Онемогући ово за клијенте који прихватају само ID-ове модела."
       },

@@ -12988,6 +12988,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Aqleb darba waħda għal konnessjoni oħt meta fluss jingħalaq qabel ma jibgħat xi frame utli u l-attentat mill-ġdid limitat fuq l-istess konnessjoni jkun intuża. Jekk ma jkunx hemm konnessjoni oħt li tista' tintuża, jintbagħat lura l-iżball early-EOF oriġinali. Mitfi: early-EOF jibqa' finali wara l-attentat mill-ġdid."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Inkludi oqsma tal-isem adattati għall-wiri fit-tweġibiet ta’ /v1/models. Iddiżattiva dan għal klijenti li jaċċettaw biss IDs tal-mudelli."
       },

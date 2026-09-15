@@ -174,6 +174,22 @@ describe("featureFlagDefinitions", () => {
     assert.strictEqual(midstream.warningLevel, "danger");
   });
 
+  it("defines early-EOF sibling failover as a runtime boolean flag disabled by default", () => {
+    const def = FEATURE_FLAG_DEFINITIONS.find(
+      (d) => d.key === "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED"
+    );
+    assert.ok(def, "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED should exist");
+    assert.strictEqual(def.category, "runtime");
+    assert.strictEqual(def.type, "boolean");
+    assert.strictEqual(def.defaultValue, "false");
+    assert.strictEqual(def.requiresRestart, false);
+    assert.strictEqual(def.warningLevel, "info");
+    assert.strictEqual(
+      def.descriptionI18nKey,
+      "featureFlagStreamEarlyEofSiblingFailoverEnabledDescription"
+    );
+  });
+
   it("defines control-plane proxy direct fallback as a network boolean flag disabled by default", () => {
     const def = FEATURE_FLAG_DEFINITIONS.find(
       (d) => d.key === "OMNIROUTE_CONTROL_PLANE_PROXY_DIRECT_FALLBACK"

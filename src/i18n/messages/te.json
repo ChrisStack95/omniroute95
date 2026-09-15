@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "స్ట్రీమ్ ఉపయోగకరమైన ఏ ఫ్రేమ్‌నూ పంపకముందే మూసుకుపోయి, అదే కనెక్షన్‌పై పరిమిత పునఃప్రయత్నం కూడా అయిపోతే, ఒకసారి సోదర కనెక్షన్‌కు ఫెయిల్‌ఓవర్ చేయండి. ఉపయోగించదగిన సోదర కనెక్షన్ లేకపోతే అసలు early-EOF లోపం తిరిగి ఇవ్వబడుతుంది. ఆఫ్: పునఃప్రయత్నం తర్వాత early-EOF తుది ఫలితంగానే ఉంటుంది."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models ప్రతిస్పందనలలో ప్రదర్శనకు అనుకూలమైన పేరు ఫీల్డ్‌లను చేర్చండి. మోడల్ IDలను మాత్రమే ఆమోదించే క్లయింట్‌ల కోసం దీనిని నిలిపివేయండి."
       },

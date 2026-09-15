@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "מעבר חד-פעמי לחיבור אח כאשר זרם נסגר לפני ששלח מסגרת שימושית כלשהי והניסיון החוזר המוגבל באותו חיבור מוצה. אם אין חיבור אח שמיש, מוחזרת שגיאת early-EOF המקורית. כבוי: early-EOF נשאר סופי לאחר הניסיון החוזר."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "הכללת שדות שם ידידותיים לתצוגה בתגובות של /v1/models. השבת זאת עבור לקוחות המקבלים מזהי מודל בלבד."
       },

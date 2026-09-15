@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Однократно переключиться на соседнее подключение, если поток закрылся, не отправив ни одного полезного фрейма, а ограниченная повторная попытка на том же подключении исчерпана. Если подходящего соседнего подключения нет, возвращается исходная ошибка early-EOF. Выкл.: early-EOF остаётся окончательным после повторной попытки."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Include display-friendly name fields in /v1/models responses. Disable this for clients that accept model IDs only."
       },

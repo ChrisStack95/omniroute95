@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Basculer une seule fois vers une connexion sœur lorsqu'un flux se ferme avant d'émettre la moindre trame utile et que la nouvelle tentative limitée sur la même connexion est épuisée. Sans connexion sœur utilisable, l'erreur early-EOF d'origine est renvoyée. Désactivé : early-EOF reste terminal après la nouvelle tentative."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Inclure des champs de nom conviviaux pour l'affichage dans les réponses /v1/models. Désactivez cette option pour les clients qui n'acceptent que les ID de modèle."
       },

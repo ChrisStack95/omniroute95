@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
         "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "當串流在送出任何有用訊框之前關閉，且同一連線上的有限重試已用盡時，容錯移轉一次到同級連線。若沒有可用的同級連線，則回傳原始的 early-EOF 錯誤。關閉：重試後 early-EOF 仍為終止結果。"
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "在 /v1/models 回應中包含顯示友善的名稱欄位。對於僅接受模型 ID 的用戶端請停用此項。"
       },
