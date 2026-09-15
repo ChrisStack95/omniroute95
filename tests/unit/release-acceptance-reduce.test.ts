@@ -124,3 +124,48 @@ test("empty required_gates is UNVERIFIED", () => {
   assert.equal(out.verdict, "UNVERIFIED");
   assert.ok(out.evidence_errors.some((e) => e.code === "empty_required_set"));
 });
+
+test("INFRA_ERROR artifact reclassifies every FAIL boot copy", () => {
+  const out = reduce(planPack, [
+    record({ gate_id: "pack-artifact", status: "INFRA_ERROR", gate_type: "artifact" }),
+    record({ gate_id: "pack-boot", status: "FAIL", gate_type: "artifact" }),
+    record({ gate_id: "pack-boot", status: "FAIL", gate_type: "artifact" }),
+  ]);
+  const boots = out.gates.filter((g) => g.gate_id === "pack-boot");
+  assert.ok(boots.length >= 1);
+  assert.ok(boots.every((g) => g.status === "INFRA_ERROR"));
+  assert.equal(out.verdict, "UNVERIFIED");
+});
+
+test("transitive INFRA on a three-gate chain is UNVERIFIED, not leaked FAIL", () => {
+  const plan = {
+    required_gates: [key("a"), key("b"), key("c")],
+    identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+    dependencies: { b: "a", c: "b" },
+  };
+  const out = reduce(plan, [
+    record({ gate_id: "a", status: "INFRA_ERROR", gate_type: "artifact" }),
+    record({ gate_id: "b", status: "FAIL", gate_type: "artifact" }),
+    record({ gate_id: "c", status: "PASS", gate_type: "artifact" }),
+  ]);
+  assert.equal(out.gates.find((g) => g.gate_id === "a").status, "INFRA_ERROR");
+  assert.equal(out.gates.find((g) => g.gate_id === "b").status, "INFRA_ERROR");
+  assert.equal(out.gates.find((g) => g.gate_id === "c").status, "INFRA_ERROR");
+  assert.equal(out.verdict, "UNVERIFIED");
+});
+
+test("transitive FAIL on a three-gate chain classifies every dependent", () => {
+  const plan = {
+    required_gates: [key("a"), key("b"), key("c")],
+    identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+    dependencies: { b: "a", c: "b" },
+  };
+  const out = reduce(plan, [
+    record({ gate_id: "a", status: "FAIL", gate_type: "artifact" }),
+    record({ gate_id: "b", status: "PASS", gate_type: "artifact" }),
+    record({ gate_id: "c", status: "PASS", gate_type: "artifact" }),
+  ]);
+  assert.equal(out.gates.find((g) => g.gate_id === "b").status, "FAIL");
+  assert.equal(out.gates.find((g) => g.gate_id === "c").status, "FAIL");
+  assert.equal(out.verdict, "FAILED");
+});

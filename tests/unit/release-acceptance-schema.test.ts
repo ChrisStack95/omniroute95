@@ -50,6 +50,20 @@ test("evidence member rejects parent traversal", () => {
   assert.equal(validate(report), false);
   report.gates[0].evidence[0].member = "foo/..";
   assert.equal(validate(report), false);
+  report.gates[0].evidence[0].member = String.raw`foo\..\x`;
+  assert.equal(validate(report), false);
+});
+
+test("empty required_gates cannot be VERIFIED", () => {
+  const validate = compile();
+  const report = JSON.parse(
+    readFileSync(new URL("../fixtures/release-acceptance/verified.json", import.meta.url), "utf8")
+  );
+  report.required_gates = [];
+  report.gates = [];
+  report.evidence_errors = [];
+  report.verdict = "VERIFIED";
+  assert.equal(validate(report), false);
 });
 
 test("unknown extensions field is invalid in version 1", () => {

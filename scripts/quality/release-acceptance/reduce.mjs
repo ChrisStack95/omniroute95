@@ -24,10 +24,6 @@ export function classifyDependent(prereqStatus, dependentKey, prereqKey) {
   return { status: "RUN", cause: null };
 }
 
-function findRecord(records, k) {
-  return records.find((r) => sameKey(gateKey(r), k));
-}
-
 function requiredSet(plan) {
   return plan.required_gates ?? [];
 }
@@ -42,6 +38,58 @@ function isRequired(plan, k) {
 
 function isOptional(plan, k) {
   return optionalSet(plan).some((r) => sameKey(r, k));
+}
+
+function copies(gates, k) {
+  return gates.filter((g) => sameKey(gateKey(g), k));
+}
+
+function statusOf(gates, k) {
+  const list = copies(gates, k);
+  if (list.length === 0) return null;
+  if (list.some((g) => g.status === "FAIL")) return "FAIL";
+  if (list.some((g) => g.status === "INFRA_ERROR")) return "INFRA_ERROR";
+  if (list.some((g) => g.status === "SKIPPED")) return "SKIPPED";
+  return list[0].status;
+}
+
+function patchDependent(gates, depKey, classified, prereqKey, evidence_errors, identity) {
+  const matches = copies(gates, depKey);
+  const reason =
+    classified.status === "SKIPPED" ? `classified from ${prereqKey.gate_id}` : undefined;
+  const exit_code = classified.status === "FAIL" ? 1 : 2;
+  if (matches.length === 0) {
+    gates.push({
+      gate_id: depKey.gate_id,
+      suite_id: depKey.suite_id,
+      shard_index: depKey.shard_index,
+      shard_total: depKey.shard_total,
+      tested_sha: identity.tested_sha || "0".repeat(40),
+      run_id: identity.run_id ?? "0",
+      run_attempt: identity.run_attempt ?? 1,
+      command_id: depKey.gate_id,
+      gate_type: "artifact",
+      status: classified.status,
+      cause: classified.cause,
+      reason,
+      exit_code,
+      duration_ms: 0,
+      evidence: [],
+    });
+    if (classified.evidence_error) evidence_errors.push(classified.evidence_error);
+    return true;
+  }
+  let changed = false;
+  for (const existing of matches) {
+    if (existing.status === classified.status && existing.cause === classified.cause) continue;
+    existing.status = classified.status;
+    existing.cause = classified.cause;
+    existing.exit_code = exit_code;
+    if (classified.status === "SKIPPED" && !existing.reason) existing.reason = reason;
+    changed = true;
+  }
+  if (changed && classified.evidence_error) evidence_errors.push(classified.evidence_error);
+  return changed;
 }
 
 export function reduce(plan, records) {
@@ -66,45 +114,21 @@ export function reduce(plan, records) {
     gates.push(copy);
   }
 
-  for (const [depId, prereqId] of Object.entries(deps)) {
-    const depKey = { gate_id: depId, suite_id: null, shard_index: null, shard_total: null };
-    const prereqKey = { gate_id: prereqId, suite_id: null, shard_index: null, shard_total: null };
-    const prereq = findRecord(records, prereqKey);
-    const classified = classifyDependent(prereq?.status ?? null, depKey, prereqKey);
-    if (classified.status === "RUN") continue;
-    const existing = gates.find((g) => sameKey(gateKey(g), depKey));
-    if (existing) {
-      existing.status = classified.status;
-      existing.cause = classified.cause;
-      existing.exit_code = classified.status === "FAIL" ? 1 : 2;
-      if (classified.status === "SKIPPED" && !existing.reason) {
-        existing.reason = `classified from ${prereqKey.gate_id}`;
+  const identity = plan.identity ?? {};
+  const edges = Object.entries(deps);
+  let changed = true;
+  let guard = edges.length + 1;
+  while (changed && guard-- > 0) {
+    changed = false;
+    for (const [depId, prereqId] of edges) {
+      const depKey = { gate_id: depId, suite_id: null, shard_index: null, shard_total: null };
+      const prereqKey = { gate_id: prereqId, suite_id: null, shard_index: null, shard_total: null };
+      const classified = classifyDependent(statusOf(gates, prereqKey), depKey, prereqKey);
+      if (classified.status === "RUN") continue;
+      if (patchDependent(gates, depKey, classified, prereqKey, evidence_errors, identity)) {
+        changed = true;
       }
-      if (classified.evidence_error) evidence_errors.push(classified.evidence_error);
-      continue;
     }
-    const identity = plan.identity ?? {};
-    gates.push({
-      gate_id: depKey.gate_id,
-      suite_id: depKey.suite_id,
-      shard_index: depKey.shard_index,
-      shard_total: depKey.shard_total,
-      tested_sha: identity.tested_sha || "0".repeat(40),
-      run_id: identity.run_id ?? "0",
-      run_attempt: identity.run_attempt ?? 1,
-      command_id: depKey.gate_id,
-      gate_type: "artifact",
-      status: classified.status,
-      cause: classified.cause,
-      reason:
-        classified.status === "SKIPPED"
-          ? `classified from ${prereqKey.gate_id}`
-          : undefined,
-      exit_code: classified.status === "FAIL" ? 1 : 2,
-      duration_ms: 0,
-      evidence: [],
-    });
-    if (classified.evidence_error) evidence_errors.push(classified.evidence_error);
   }
 
   for (const k of requiredSet(plan)) {

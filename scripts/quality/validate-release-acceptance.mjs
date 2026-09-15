@@ -53,7 +53,7 @@ export async function main(argv = process.argv) {
   const report = {
     schema_version: 1,
     identity: plan.identity,
-    required_gates: plan.required_gates,
+    required_gates: plan.required_gates ?? [],
     gates: reduced.gates,
     evidence_errors: reduced.evidence_errors,
     verdict: reduced.verdict,

@@ -53,7 +53,7 @@ test("new reducer maps the same timeout to UNVERIFIED", () => {
   assert.equal(out.verdict, "UNVERIFIED");
 });
 
-test("synthesized pack-boot without identity.tested_sha is UNVERIFIED not null sha", () => {
+test("synthesized pack-boot without identity.tested_sha keeps a 40-hex sha and FAILED", () => {
   const plan = {
     required_gates: planPack.required_gates,
     identity: { run_id: "1", run_attempt: 1 },

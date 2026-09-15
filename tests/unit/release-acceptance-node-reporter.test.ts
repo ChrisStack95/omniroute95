@@ -59,3 +59,16 @@ ok 99 - tests/unit/missing.test.ts
   assert.equal(out.pass, false);
   assert.deepEqual(out.missing, ["tests/unit/missing.test.ts"]);
 });
+
+test("later not ok retracts an earlier ok for the same Subtest", () => {
+  const tap = `TAP version 13
+# Subtest: tests/unit/a.test.ts
+ok 1 - tests/unit/a.test.ts
+# Subtest: tests/unit/a.test.ts
+not ok 2 - tests/unit/a.test.ts
+`;
+  const out = fromNodeTestTap(tap, ["tests/unit/a.test.ts"]);
+  assert.equal(out.pass, false);
+  assert.deepEqual(out.failed, ["tests/unit/a.test.ts"]);
+  assert.equal(out.completed.includes("tests/unit/a.test.ts"), false);
+});

@@ -17,10 +17,15 @@ export function fromNodeTestTap(tapText, argvFiles) {
     if (res) {
       const file = pending;
       const ok = res[1] === "ok";
-      if (file && !seen.has(file)) {
+      if (file) {
         seen.add(file);
-        if (ok) completed.push(file);
-        else failed.push(file);
+        if (!ok) {
+          if (!failed.includes(file)) failed.push(file);
+          const i = completed.indexOf(file);
+          if (i >= 0) completed.splice(i, 1);
+        } else if (!failed.includes(file) && !completed.includes(file)) {
+          completed.push(file);
+        }
       }
       pending = null;
     }

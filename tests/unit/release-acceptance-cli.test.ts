@@ -124,6 +124,7 @@ test("schema_invalid does not throw when required_gates is missing", async () =>
   assert.equal(code, 2);
   const report = JSON.parse(readFileSync(out, "utf8"));
   assert.equal(report.verdict, "UNVERIFIED");
+  assert.ok(Array.isArray(report.required_gates));
   assert.ok(report.evidence_errors.some((e) => e.code === "schema_invalid"));
 });
 
