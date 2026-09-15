@@ -3968,10 +3968,8 @@ export async function handleChatCore({
             `[provider] Node ${errorConnectionId} project routing error (${statusCode}) -- not banning`
           );
         } else if (errorType === PROVIDER_ERROR_TYPES.GEO_BLOCKED) {
-          // Google regional-availability refusal: account-independent and
-          // non-terminal — park the connection so routing moves to other
-          // accounts; usable again once egress goes through a supported-region
-          // proxy. Probes never push it into the day-long cooldown (#9817).
+          // Google regional refusal: account-independent, non-terminal; park the connection
+          // until egress uses a supported region; probes skip the day-long cooldown (#9817).
           await excludeConnectionForCooldown({
             connectionId: errorConnectionId,
             errorType,
@@ -3990,9 +3988,7 @@ export async function handleChatCore({
             message: persistentMessage,
           });
         } else if (errorType === PROVIDER_ERROR_TYPES.GCP_PROJECT_REQUIRED) {
-          // Antigravity BYOP: fixable by entering a Project ID — never a model
-          // lockout, never a ban. Park the connection so selection prefers
-          // sibling accounts; the 422 body carries the actionable message.
+          // Antigravity BYOP: fixable via a Project ID; never a lockout/ban. Park the connection.
           await excludeConnectionForCooldown({
             connectionId: errorConnectionId,
             errorType,
