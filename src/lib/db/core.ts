@@ -16,6 +16,13 @@ import path from "path";
 import { retryProbeIfTransient } from "./probeUtils";
 import fs from "fs";
 import { resolveWritableDataDir, getLegacyDotDataDir } from "../dataPaths";
+import {
+  MAX_DB_BACKUPS,
+  DEFAULT_DB_BACKUP_RETENTION_DAYS,
+  parsePositiveInt,
+  parseNonNegativeInt,
+  pruneBackupDirectory,
+} from "./backupRetention";
 import { isNextBuildPhase } from "../buildPhase";
 import { runMigrations } from "./migrationRunner";
 import { runDbHealthCheck } from "./healthCheck";
@@ -408,7 +415,12 @@ const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_cl_timestamp ON call_logs(timestamp);
   CREATE INDEX IF NOT EXISTS idx_cl_status ON call_logs(status);
   CREATE INDEX IF NOT EXISTS idx_cl_provider_timestamp ON call_logs(provider, timestamp);
-  CREATE INDEX IF NOT EXISTS idx_cl_request_provider ON call_logs(request_type, provider);
+  -- idx_cl_request_provider is NOT declared here: SCHEMA_SQL runs before
+  -- ensureCallLogsColumns() heals a legacy call_logs table, and a lineage that
+  -- predates the request_type column has none yet — the CREATE INDEX would abort
+  -- the whole schema exec with "no such column: request_type" and the server would
+  -- never boot. It is created next to the other request_type/combo indexes in
+  -- ensureCallLogsColumns() (db/schemaColumns.ts), after the columns exist.
 
   CREATE TABLE IF NOT EXISTS proxy_logs (
     id TEXT PRIMARY KEY,
@@ -518,6 +530,29 @@ const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_quota_snapshots_connection_time ON quota_snapshots(connection_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_quota_snapshots_created_at ON quota_snapshots(created_at);
 `;
+
+// `CREATE TABLE IF NOT EXISTS` is a no-op against a legacy database that already owns the
+// table with an older column set — but the `CREATE INDEX` statements that follow it are
+// not: they still reference columns the ensure*Columns() healers have yet to backfill, so
+// running the whole schema in one exec aborts startup with "no such column". That is how
+// the composite idx_cl_request_provider index (#12832) broke booting on a pre-007
+// `call_logs` lineage. Split the inline schema so the boot order can be: create tables →
+// heal legacy columns → create indexes.
+function splitSchemaStatements(schemaSql: string): { tables: string; indexes: string } {
+  const tables: string[] = [];
+  const indexes: string[] = [];
+  for (const rawStatement of schemaSql.split(";")) {
+    const statement = rawStatement.trim();
+    if (!statement) continue;
+    // Classify on the first SQL keyword, ignoring any leading `--` comment lines.
+    const sql = statement.replace(/^(?:[ \t]*--[^\n]*\n)+/, "").trimStart();
+    (/^CREATE\s+(?:UNIQUE\s+)?INDEX\b/i.test(sql) ? indexes : tables).push(`${statement};`);
+  }
+  return { tables: tables.join("\n"), indexes: indexes.join("\n") };
+}
+
+const { tables: SCHEMA_TABLES_SQL, indexes: SCHEMA_INDEXES_SQL } =
+  splitSchemaStatements(SCHEMA_SQL);
 
 // ──────────────── Singleton DB Instance ────────────────
 // Use globalThis to survive Next.js dev HMR module re-evaluation.
@@ -860,6 +895,22 @@ function createManagedDbBackup(db: SqliteDatabase, reason: string): boolean {
 
     db.exec(`VACUUM INTO '${escapedBackupPath}'`);
     console.log(`[DB] Backup created (${reason}): ${backupPath}`);
+
+    // Prune old backups to prevent the directory from growing without bound.
+    // This mirrors the post-backup pruning in backup.ts but avoids a circular
+    // dependency by importing directly from backupRetention.ts.
+    try {
+      const maxFiles = process.env.DB_BACKUP_MAX_FILES
+        ? parsePositiveInt(process.env.DB_BACKUP_MAX_FILES, MAX_DB_BACKUPS)
+        : MAX_DB_BACKUPS;
+      const retentionDays = process.env.DB_BACKUP_RETENTION_DAYS
+        ? parseNonNegativeInt(process.env.DB_BACKUP_RETENTION_DAYS, DEFAULT_DB_BACKUP_RETENTION_DAYS)
+        : DEFAULT_DB_BACKUP_RETENTION_DAYS;
+      pruneBackupDirectory({ backupDir, maxFiles, retentionDays });
+    } catch {
+      // Retention is best-effort; never let a pruning failure obscure the backup result.
+    }
+
     return true;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1254,10 +1305,15 @@ export function getDbInstance(): SqliteDatabase {
   db.pragma("synchronous = NORMAL");
   db.pragma(`cache_size = -${DEFAULT_DATABASE_SETTINGS.optimization.cacheSize}`);
   db.pragma("temp_store = MEMORY");
-  db.exec(SCHEMA_SQL);
+  // Tables first, then the legacy-column healers, and only then the indexes: an upgraded
+  // database can already own call_logs/usage_history/provider_connections with an older
+  // column set, where the CREATE TABLE is a no-op but the indexes still reference columns
+  // the healers below are the ones adding.
+  db.exec(SCHEMA_TABLES_SQL);
   ensureProviderConnectionsColumns(db);
   ensureUsageHistoryColumns(db);
   ensureCallLogsColumns(db);
+  db.exec(SCHEMA_INDEXES_SQL);
 
   // ── Versioned Migrations ──
   // Auto-seed 001 as applied (the inline SCHEMA_SQL already created these tables)
