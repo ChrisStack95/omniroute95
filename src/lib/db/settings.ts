@@ -11,6 +11,7 @@ import { getProxyRegistryGeneration, resolveProxyForScopeFromRegistry } from "./
 import { getComboModelProvider as getComboEntryProvider } from "@/lib/combos/steps";
 import { requestBodyLimitMbFromEnv } from "@/shared/constants/bodySize";
 import { DEFAULT_RESPONSES_PREVIOUS_RESPONSE_ID_MODE } from "@/shared/constants/responsesPreviousResponseId";
+import { decodeUserinfo } from "@/shared/utils/decodeUserinfo";
 import { type JsonRecord, toRecord } from "./settings/shared";
 import { resolveNoAuthSharedProviderProxy } from "./settings/noAuthProxyFallback";
 
@@ -411,8 +412,8 @@ function migrateProxyEntry(value: unknown): JsonRecord | null {
       port:
         url.port ||
         (url.protocol === "socks5:" ? "1080" : url.protocol === "https:" ? "443" : "8080"),
-      username: url.username ? decodeURIComponent(url.username) : "",
-      password: url.password ? decodeURIComponent(url.password) : "",
+      username: url.username ? decodeUserinfo(url.username) : "",
+      password: url.password ? decodeUserinfo(url.password) : "",
     };
   } catch {
     const parts = value.split(":");
