@@ -12978,6 +12978,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Разрешаване на възстановяването на потока да поиска отговора отново и да го съедини, след като байтовете вече са достигнали до клиента."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Включване на лесни за четене полета за имена в отговорите на /v1/models. Деактивирайте това за клиенти, които приемат само идентификатори на модели."
       },

@@ -12978,6 +12978,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Payagan ang pagbawi ng stream na hilingin muli ang tugon at pagdugtungin ito pagkatapos makarating na ang mga byte sa client."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Isama ang mga display-friendly na field ng pangalan sa mga tugon ng /v1/models. I-disable ito para sa mga client na tumatanggap lamang ng mga model ID."
       },

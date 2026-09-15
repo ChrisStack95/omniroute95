@@ -151,6 +151,21 @@ describe("featureFlagDefinitions", () => {
     assert.strictEqual(early.requiresRestart, false);
     assert.strictEqual(early.warningLevel, "caution");
 
+    const orderFix = FEATURE_FLAG_DEFINITIONS.find(
+      (d) => d.key === "STREAM_RECOVERY_TOOLCALL_ORDER_FIX"
+    );
+
+    assert.ok(orderFix, "STREAM_RECOVERY_TOOLCALL_ORDER_FIX should exist");
+    assert.strictEqual(orderFix.category, "runtime");
+    assert.strictEqual(orderFix.type, "boolean");
+    assert.strictEqual(orderFix.defaultValue, "false");
+    assert.strictEqual(orderFix.requiresRestart, false);
+    assert.strictEqual(orderFix.warningLevel, "info");
+    assert.strictEqual(
+      orderFix.descriptionI18nKey,
+      "featureFlagStreamRecoveryToolcallOrderFixDescription"
+    );
+
     assert.ok(midstream, "STREAM_RECOVERY_MIDSTREAM_ENABLED should exist");
     assert.strictEqual(midstream.category, "runtime");
     assert.strictEqual(midstream.type, "boolean");

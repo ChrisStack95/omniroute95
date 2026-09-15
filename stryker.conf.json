@@ -413,6 +413,7 @@
       "tests/unit/sse-auth.test.ts",
       "tests/unit/stable-json.test.ts",
       "tests/unit/stream-early-eof-breaker.test.ts",
+      "tests/unit/stream-recovery-toolcall.test.ts",
       "tests/unit/stream-readiness.test.ts",
       "tests/unit/strict-random-deck.test.ts",
       "tests/unit/strip-reasoning-header.test.ts",

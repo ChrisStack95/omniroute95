@@ -12985,6 +12985,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Luba voo taastamisel vastus uuesti pärida ja jätkata selle liitmist pärast seda, kui baidid on juba kliendini jõudnud."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Kaasa /v1/models vastustesse kuvamiseks sobivad nimeväljad. Keela see klientide puhul, mis aktsepteerivad ainult mudeli-ID-sid."
       },

@@ -12985,6 +12985,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "බයිට් දැනටමත් සේවාලාභියා වෙත ළඟා වූ පසුවත් ප්රතිචාරය නැවත ඉල්ලා එය සම්බන්ධ කිරීමට ප්රවාහ ප්රතිසාධනයට ඉඩ දෙන්න."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models ප්රතිචාරවල ප්රදර්ශනයට හිතකර නාම ක්ෂේත්ර ඇතුළත් කරන්න. ආකෘති ID පමණක් පිළිගන්නා සේවාලාභීන් සඳහා මෙය අක්රිය කරන්න."
       },

@@ -12978,6 +12978,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Povoliť obnovenie streamu na opätovné vyžiadanie odpovede a jej spojenie po tom, čo bajty už dorazili ku klientovi."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Zahrnúť polia s používateľsky prívetivými názvami v odpovediach /v1/models. Zakážte túto možnosť pre klientov, ktorí prijímajú iba ID modelov."
       },

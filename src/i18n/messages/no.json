@@ -12978,6 +12978,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Tillat strømgjenoppretting å be om svaret på nytt og sy det sammen etter at bytes allerede har nådd klienten."
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Inkluder visningsvennlige navnefelt i /v1/models-svar. Deaktiver dette for klienter som kun godtar modell-ID-er."
       },

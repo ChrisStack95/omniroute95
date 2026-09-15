@@ -12985,6 +12985,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "बाइटहरू क्लाइन्टसम्म पुगिसकेपछि पनि स्ट्रिम पुनर्प्राप्तिलाई प्रतिक्रिया पुनः अनुरोध गरेर जोड्न अनुमति दिनुहोस्।"
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models प्रतिक्रियाहरूमा प्रदर्शनमैत्री नाम फिल्डहरू समावेश गर्नुहोस्। मोडेल ID मात्र स्वीकार गर्ने क्लाइन्टहरूका लागि यसलाई अक्षम गर्नुहोस्।"
       },

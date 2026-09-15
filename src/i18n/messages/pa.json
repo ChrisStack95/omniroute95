@@ -12985,6 +12985,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "ਬਾਈਟਾਂ ਦੇ ਕਲਾਇੰਟ ਤੱਕ ਪਹੁੰਚ ਜਾਣ ਤੋਂ ਬਾਅਦ ਵੀ ਸਟ੍ਰੀਮ ਰਿਕਵਰੀ ਨੂੰ ਜਵਾਬ ਦੁਬਾਰਾ ਮੰਗਣ ਅਤੇ ਉਸਨੂੰ ਜੋੜਨ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ।"
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "/v1/models ਜਵਾਬਾਂ ਵਿੱਚ ਪ੍ਰਦਰਸ਼ਨ-ਅਨੁਕੂਲ ਨਾਮ ਫੀਲਡਾਂ ਸ਼ਾਮਲ ਕਰੋ। ਸਿਰਫ਼ ਮਾਡਲ IDs ਸਵੀਕਾਰ ਕਰਨ ਵਾਲੇ ਕਲਾਇੰਟਾਂ ਲਈ ਇਸਨੂੰ ਅਸਮਰੱਥ ਕਰੋ।"
       },
