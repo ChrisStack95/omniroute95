@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Відхиляйте запити перед відправкою, коли цільова модель не має необхідних можливостей (зір, інструменти, структурований вихід, контекстне вікно). Захищає прямі запити від одного постачальника, які обходять фільтр сумісності комбінаційного шару.",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Сторінку не знайдено",

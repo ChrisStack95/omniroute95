@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "ඉලක්ක මාදිලියට අවශ්ය හැකියාවන් (දෘශ්ය, මෙවලම්, ව්යුහගත ප්රතිදානය, සන්දර්භ කවුළුව) නොමැති විට යැවීමට පෙර ඉල්ලීම් ප්රතික්ෂේප කරන්න. මෙය සංයෝජන-ස්තර අනුකූලතා පෙරහන මඟහරින සෘජු තනි-සැපයුම්කරු ඉල්ලීම් ආරක්ෂා කරයි.",
   "featureFlagDisableContextWindowChecksDescription": "සෘජු තනි-මාදිලි ඉල්ලීම් සඳහා OmniRoute හි දේශීය සන්දර්භ-කවුළු සහ උපරිම-ආදාන-ටෝකන පරීක්ෂාව මඟහරින්න. උඩුගං සැපයුම්කරුවන් තවමත් ඔවුන්ගේ සැබෑ සීමාවන් බලාත්මක කරයි. ප්රේරක සම්පීඩනය සහ ප්රතිදාන-ටෝකන සීමා සක්රියව පවතී.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "පිටුව හමු නොවීය",

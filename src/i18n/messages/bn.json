@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "লক্ষ্য মডেলের প্রয়োজনীয় সক্ষমতা (দৃষ্টি, সরঞ্জাম, কাঠামোবদ্ধ আউটপুট, প্রসঙ্গ উইন্ডো) অনুপস্থিত থাকলে প্রেরণের আগে অনুরোধগুলি প্রত্যাখ্যান করুন। এটি কম্বো-লেয়ার সামঞ্জস্য ফিল্টারকে বাইপাস করা সরাসরি একক-প্রদানকারী অনুরোধগুলি রক্ষা করে।",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "পৃষ্ঠা পাওয়া যায়নি",

@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Одбиј захтеве пре слања када циљни модел не поседује потребне могућности (визуелни унос, алати, структурирани излаз, контекстни прозор). Штити директне захтеве ка појединачном добављачу који заобилазе филтер компатибилности комбо-слоја.",
   "featureFlagDisableContextWindowChecksDescription": "Прескочи локалну провера контекстног прозора и максималног броја улазних токена OmniRoute-а за директне захтеве ка појединачном моделу. Добављачи услуга и даље примењују своја стварна ограничења. Компресија упита и ограничења излазних токена остају активни.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Страница није пронађена",

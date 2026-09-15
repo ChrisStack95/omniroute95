@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Odmítnout požadavky před odesláním, když cílový model postrádá požadované schopnosti (vidění, nástroje, strukturovaný výstup, kontextové okno). Chrání přímé požadavky od jednotlivých poskytovatelů, které obcházejí filtr kompatibility kombinované vrstvy.",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Stránka nebyla nalezena",

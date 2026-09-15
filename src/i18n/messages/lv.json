@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Noraidīt pieprasījumus pirms nosūtīšanas, ja mērķa modelim trūkst nepieciešamo iespēju (redze, rīki, strukturēta izvade, konteksta logs). Aizsargā tiešus viena pakalpojumu sniedzēja pieprasījumus, kas apiet combo-layer saderības filtru.",
   "featureFlagDisableContextWindowChecksDescription": "Izlaist OmniRoute lokālo konteksta loga un max-input-token pārbaudi tiešiem viena modeļa pieprasījumiem. Augšupējie pakalpojumu sniedzēji joprojām piemēro savus faktiskos ierobežojumus. Uzvedņu saspiešana un izvades marķieru ierobežojumi paliek aktīvi.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Lapa nav atrasta",

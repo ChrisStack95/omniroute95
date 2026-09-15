@@ -13634,6 +13634,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Từ chối yêu cầu trước khi gửi đi khi mô hình đích thiếu các khả năng bắt buộc (thị giác, công cụ, đầu ra có cấu trúc, cửa sổ ngữ cảnh). Bảo vệ các yêu cầu trực tiếp đến một nhà cung cấp khi chúng bỏ qua bộ lọc tương thích của combo.",
   "featureFlagDisableContextWindowChecksDescription": "Bỏ qua kiểm tra cục bộ của OmniRoute về cửa sổ ngữ cảnh và giới hạn token đầu vào tối đa cho yêu cầu trực tiếp đến một mô hình đơn lẻ. Nhà cung cấp thượng nguồn vẫn áp dụng các giới hạn thực tế. Tính năng nén prompt và giới hạn token đầu ra vẫn hoạt động.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Không tìm thấy trang",

@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "ଲକ୍ଷ୍ୟ ମଡେଲ୍ରେ ଆବଶ୍ୟକ କ୍ଷମତାଗୁଡ଼ିକ (ଭିଜନ୍, ଟୁଲ୍, ଷ୍ଟ୍ରକ୍ଚର୍ଡ ଆଉଟପୁଟ୍, କଣ୍ଟେକ୍ସ୍ଟ ୱିଣ୍ଡୋ) ନଥିଲେ ଡିସ୍ପାଚ୍ ପୂର୍ବରୁ ଅନୁରୋଧଗୁଡ଼ିକୁ ପ୍ରତ୍ୟାଖ୍ୟାନ କରନ୍ତୁ। ଏହା କମ୍ବୋ-ଲେୟର୍ ସୁସଙ୍ଗତତା ଫିଲ୍ଟର୍କୁ ବାଇପାସ୍ କରୁଥିବା ସିଧାସଳଖ ଏକକ-ପ୍ରଦାନକାରୀ ଅନୁରୋଧଗୁଡ଼ିକୁ ସୁରକ୍ଷିତ କରେ।",
   "featureFlagDisableContextWindowChecksDescription": "ସିଧାସଳଖ ଏକକ-ମଡେଲ୍ ଅନୁରୋଧଗୁଡ଼ିକ ପାଇଁ OmniRouteର ସ୍ଥାନୀୟ କଣ୍ଟେକ୍ସ୍ଟ-ୱିଣ୍ଡୋ ଏବଂ ସର୍ବାଧିକ-ଇନପୁଟ୍-ଟୋକନ୍ ଯାଞ୍ଚକୁ ଏଡ଼ାନ୍ତୁ। ଅପ୍ଷ୍ଟ୍ରିମ୍ ପ୍ରଦାନକାରୀମାନେ ତଥାପି ସେମାନଙ୍କର ପ୍ରକୃତ ସୀମାଗୁଡ଼ିକୁ ଲାଗୁ କରିବେ। ପ୍ରମ୍ପ୍ଟ କମ୍ପ୍ରେସନ୍ ଏବଂ ଆଉଟପୁଟ୍-ଟୋକନ୍ ସୀମା ସକ୍ରିୟ ରହିବ।",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "ପୃଷ୍ଠା ମିଳିଲା ନାହିଁ",

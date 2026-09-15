@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "ലക്ഷ്യമാക്കിയ മോഡലിന് ആവശ്യമായ ശേഷികൾ (വിഷൻ, ടൂളുകൾ, ഘടനാബദ്ധമായ ഔട്ട്പുട്ട്, കോൺടെക്സ്റ്റ് വിൻഡോ) ഇല്ലെങ്കിൽ അഭ്യർത്ഥനകൾ അയയ്ക്കുന്നതിന് മുമ്പ് നിരസിക്കുക. കോംബോ-ലെയർ അനുയോജ്യതാ ഫിൽട്ടർ മറികടക്കുന്ന നേരിട്ടുള്ള ഒറ്റ-പ്രൊവൈഡർ അഭ്യർത്ഥനകളെ ഇത് പരിരക്ഷിക്കുന്നു.",
   "featureFlagDisableContextWindowChecksDescription": "നേരിട്ടുള്ള ഒറ്റ-മോഡൽ അഭ്യർത്ഥനകൾക്കായി OmniRoute-ന്റെ ലോക്കൽ കോൺടെക്സ്റ്റ്-വിൻഡോ, പരമാവധി ഇൻപുട്ട്-ടോക്കൺ പരിശോധനകൾ ഒഴിവാക്കുക. അപ്സ്ട്രീം പ്രൊവൈഡർമാർ അവരുടെ യഥാർഥ പരിധികൾ തുടർന്നും നടപ്പാക്കും. പ്രോംപ്റ്റ് കംപ്രഷനും ഔട്ട്പുട്ട്-ടോക്കൺ പരിധികളും സജീവമായി തുടരും.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "പേജ് കണ്ടെത്തിയില്ല",

@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "ပစ်မှတ်မော်ဒယ်တွင် လိုအပ်သော စွမ်းဆောင်ရည်များ (အမြင်၊ ကိရိယာများ၊ ဖွဲ့စည်းပုံကျ အထွက်၊ ကွန်တက်စ်ဝင်းဒိုး) မရှိပါက ဖြန့်ပို့ခြင်းမပြုမီ တောင်းဆိုမှုများကို ပယ်ချပါ။ ၎င်းသည် combo-layer လိုက်ဖက်ညီမှု စစ်ထုတ်မှုကို ကျော်လွှားသော တစ်ခုတည်းသောပံ့ပိုးသူထံ တိုက်ရိုက်တောင်းဆိုမှုများကို ကာကွယ်ပေးသည်။",
   "featureFlagDisableContextWindowChecksDescription": "တစ်ခုတည်းသောမော်ဒယ်ထံ တိုက်ရိုက်တောင်းဆိုမှုများအတွက် OmniRoute ၏ စက်တွင်း ကွန်တက်စ်ဝင်းဒိုးနှင့် အများဆုံးထည့်သွင်းတိုကင် စစ်ဆေးမှုကို ကျော်ပါ။ မူလပံ့ပိုးသူများက ၎င်းတို့၏ အမှန်တကယ်ကန့်သတ်ချက်များကို ဆက်လက်အတည်ပြုကျင့်သုံးမည်ဖြစ်သည်။ ပရောမ့်ချုံ့ခြင်းနှင့် အထွက်တိုကင် အများဆုံးကန့်သတ်ချက်များမှာ ဆက်လက်အသက်ဝင်နေမည်ဖြစ်သည်။",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "စာမျက်နှာကို ရှာမတွေ့ပါ",

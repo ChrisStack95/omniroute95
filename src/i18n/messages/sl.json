@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Zavrni zahteve pred posredovanjem, ko ciljni model nima zahtevanih zmogljivosti (vid, orodja, strukturiran izhod, kontekstno okno). Ščiti neposredne zahteve za enega ponudnika, ki obidejo filter združljivosti kombinacijskega sloja.",
   "featureFlagDisableContextWindowChecksDescription": "Preskoči lokalno preverjanje kontekstnega okna in največjega števila vhodnih žetonov v OmniRoute za neposredne zahteve za posamezen model. Ponudniki v zaledju še vedno uveljavljajo svoje dejanske omejitve. Stiskanje pozivov in omejitve izhodnih žetonov ostanejo aktivni.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Strani ni mogoče najti",

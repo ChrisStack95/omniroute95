@@ -570,6 +570,18 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     requiresRestart: false,
     warningLevel: "caution",
   },
+  {
+    key: "SEARCH_STATS_HIDE_DELETED_CONNECTIONS",
+    label: "Hide Deleted Search Connections",
+    description:
+      "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
+    descriptionI18nKey: "featureFlagSearchStatsHideDeletedConnectionsDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
 
   // ──────────────── CLI (5) ────────────────
   {

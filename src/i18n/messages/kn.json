@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "ಗುರಿ ಮಾದರಿಯಲ್ಲಿ ಅಗತ್ಯ ಸಾಮರ್ಥ್ಯಗಳು (ದೃಷ್ಟಿ, ಪರಿಕರಗಳು, ರಚನಾತ್ಮಕ ಔಟ್ಪುಟ್, ಸಂದರ್ಭ ವಿಂಡೋ) ಇಲ್ಲದಿದ್ದಾಗ ರವಾನಿಸುವ ಮೊದಲು ವಿನಂತಿಗಳನ್ನು ತಿರಸ್ಕರಿಸಿ. ಇದು ಕಾಂಬೊ-ಲೇಯರ್ ಹೊಂದಾಣಿಕೆ ಫಿಲ್ಟರ್ ಅನ್ನು ತಪ್ಪಿಸುವ ನೇರ ಏಕ-ಪೂರೈಕೆದಾರ ವಿನಂತಿಗಳನ್ನು ರಕ್ಷಿಸುತ್ತದೆ.",
   "featureFlagDisableContextWindowChecksDescription": "ನೇರ ಏಕ-ಮಾದರಿ ವಿನಂತಿಗಳಿಗಾಗಿ OmniRoute ನ ಸ್ಥಳೀಯ ಸಂದರ್ಭ-ವಿಂಡೋ ಮತ್ತು ಗರಿಷ್ಠ-ಇನ್ಪುಟ್-ಟೋಕನ್ ಪರಿಶೀಲನೆಯನ್ನು ಬಿಟ್ಟುಬಿಡಿ. ಅಪ್ಸ್ಟ್ರೀಮ್ ಪೂರೈಕೆದಾರರು ತಮ್ಮ ನೈಜ ಮಿತಿಗಳನ್ನು ಇನ್ನೂ ಜಾರಿಗೊಳಿಸುತ್ತಾರೆ. ಪ್ರಾಂಪ್ಟ್ ಸಂಕುಚನ ಮತ್ತು ಔಟ್ಪುಟ್-ಟೋಕನ್ ಮಿತಿಗಳು ಸಕ್ರಿಯವಾಗಿಯೇ ಇರುತ್ತವೆ.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "ಪುಟ ಕಂಡುಬಂದಿಲ್ಲ",

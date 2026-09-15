@@ -1,5 +1,11 @@
 import { getDbInstance } from "./core";
 import { ERROR_TYPE_CONTRACT } from "@omniroute/open-sse/services/errorClassifier.ts";
+import { ERROR_TYPE_CONTRACT } from "@omniroute/open-sse/services/errorClassifier.ts";
+import {
+  SEARCH_CREDENTIAL_FALLBACKS,
+  SEARCH_PROVIDERS,
+} from "@omniroute/open-sse/config/searchRegistry.ts";
+import { isFeatureFlagEnabled } from "@/shared/utils/featureFlags";
 
 /**
  * Aggregation queries over `call_logs` extracted from route handlers.
@@ -157,19 +163,84 @@ export function getProviderUsageSince(since: string): ProviderUsageRow[] {
 // /api/search/stats — search provider aggregates + recent entries
 // ---------------------------------------------------------------------------
 
+function sqlStringLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+let searchLiveProviderGuardSql: string | null = null;
+
+/** Always applied: never surface a NULL provider or the '-' sentinel. */
+const SEARCH_PROVIDER_PRESENT_SQL = "c.provider IS NOT NULL AND c.provider != '-'";
+
+/**
+ * WHERE fragment shared by every search query below (alias `c` = call_logs).
+ * A search row is surfaced only when its provider is still servable:
+ *  - never a NULL provider or the '-' sentinel;
+ *  - with SEARCH_STATS_HIDE_DELETED_CONNECTIONS on, a keyed provider also needs a
+ *    provider_connections row, for itself or for one of its credential fallbacks
+ *    (perplexity-search reuses a `perplexity` key), so a deleted connection stops
+ *    resurfacing from its retained call_logs rows;
+ *  - keyless providers (`authType: "none"` in the search registry, e.g.
+ *    duckduckgo-free, searxng-search, anonymous context7) are always live —
+ *    they are served without any provider_connections row.
+ * The flag defaults to off, which keeps the historical stats: every retained row
+ * with a real provider id counts. Built from registry constants on first use.
+ */
+function getSearchLiveProviderGuardSql(): string {
+  if (!isSearchStatsHideDeletedConnectionsEnabled()) return SEARCH_PROVIDER_PRESENT_SQL;
+  if (searchLiveProviderGuardSql !== null) return searchLiveProviderGuardSql;
+  const keyless = Object.values(SEARCH_PROVIDERS)
+    .filter((provider) => provider.authType === "none")
+    .map((provider) => sqlStringLiteral(provider.id));
+  const fallbackPairs = Object.entries(SEARCH_CREDENTIAL_FALLBACKS).flatMap(
+    ([searchId, fallback]) =>
+      (Array.isArray(fallback) ? fallback : [fallback]).map(
+        (fallbackId) => `(${sqlStringLiteral(searchId)}, ${sqlStringLiteral(fallbackId)})`
+      )
+  );
+  const keylessClause = keyless.length > 0 ? `c.provider IN (${keyless.join(", ")}) OR ` : "";
+  const fallbackClause =
+    fallbackPairs.length > 0
+      ? `
+            OR EXISTS (
+              SELECT 1 FROM (VALUES ${fallbackPairs.join(", ")}) fb
+              JOIN provider_connections pcf ON pcf.provider = fb.column2
+              WHERE fb.column1 = c.provider
+            )`
+      : "";
+  searchLiveProviderGuardSql = `${SEARCH_PROVIDER_PRESENT_SQL}
+          AND (
+            ${keylessClause}EXISTS (
+              SELECT 1 FROM provider_connections pc WHERE pc.provider = c.provider
+            )${fallbackClause}
+          )`;
+  return searchLiveProviderGuardSql;
+}
+
+/** Fail closed to the historical behavior when the flag cannot be resolved. */
+function isSearchStatsHideDeletedConnectionsEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("SEARCH_STATS_HIDE_DELETED_CONNECTIONS");
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Per-provider request count and average latency for search requests.
+ * Rows pass the search live-provider guard (see getSearchLiveProviderGuardSql).
  */
 export function getSearchProviderStats(): SearchProviderStatRow[] {
   const db = getDbInstance();
   return db
     .prepare(
       `
-        SELECT provider, COUNT(*) as requests,
-          CAST(AVG(duration) AS INTEGER) as avg_latency_ms
-        FROM call_logs
-        WHERE request_type = 'search'
-        GROUP BY provider
+        SELECT c.provider, COUNT(*) as requests,
+          CAST(AVG(c.duration) AS INTEGER) as avg_latency_ms
+        FROM call_logs c
+        WHERE c.request_type = 'search'
+          AND ${getSearchLiveProviderGuardSql()}
+        GROUP BY c.provider
       `
     )
     .all() as SearchProviderStatRow[];
@@ -177,16 +248,18 @@ export function getSearchProviderStats(): SearchProviderStatRow[] {
 
 /**
  * Most recent 10 search entries (request_summary + provider + timestamp).
+ * Only rows from providers with a live connection are surfaced.
  */
 export function getRecentSearchLogs(): SearchRecentRow[] {
   const db = getDbInstance();
   return db
     .prepare(
       `
-        SELECT request_summary, provider, timestamp
-        FROM call_logs
-        WHERE request_type = 'search'
-        ORDER BY timestamp DESC
+        SELECT c.request_summary, c.provider, c.timestamp
+        FROM call_logs c
+        WHERE c.request_type = 'search'
+          AND ${getSearchLiveProviderGuardSql()}
+        ORDER BY c.timestamp DESC
         LIMIT 10
       `
     )
@@ -200,6 +273,8 @@ export function getRecentSearchLogs(): SearchRecentRow[] {
 /**
  * Single-pass scalar aggregations for all search entries since `todayIso`.
  * `todayIso` is the ISO-8601 UTC start-of-day string used for the "today" count.
+ * Uses the same live-provider guard as the per-provider breakdown, so `total`
+ * always equals the sum of `getSearchProviderCounts()`.
  */
 export function getSearchAggregateStats(todayIso: string): SearchAggregateStats {
   const db = getDbInstance();
@@ -207,12 +282,13 @@ export function getSearchAggregateStats(todayIso: string): SearchAggregateStats 
     .prepare(
       `SELECT
           COUNT(*) as total,
-          COALESCE(SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END), 0) as today,
-          COALESCE(SUM(CASE WHEN status >= 400 OR error_summary IS NOT NULL THEN 1 ELSE 0 END), 0) as errors,
-          AVG(CASE WHEN duration > 0 THEN duration END) as avg_duration,
-          COALESCE(SUM(CASE WHEN duration > 0 AND duration < 5 THEN 1 ELSE 0 END), 0) as cached
-         FROM call_logs
-         WHERE request_type = 'search'`
+          COALESCE(SUM(CASE WHEN c.timestamp >= ? THEN 1 ELSE 0 END), 0) as today,
+          COALESCE(SUM(CASE WHEN c.status >= 400 OR c.error_summary IS NOT NULL THEN 1 ELSE 0 END), 0) as errors,
+          AVG(CASE WHEN c.duration > 0 THEN c.duration END) as avg_duration,
+          COALESCE(SUM(CASE WHEN c.duration > 0 AND c.duration < 5 THEN 1 ELSE 0 END), 0) as cached
+         FROM call_logs c
+         WHERE c.request_type = 'search'
+          AND ${getSearchLiveProviderGuardSql()}`
     )
     .get(todayIso) as SearchAggregateStats | undefined;
   return row ?? { total: 0, today: 0, errors: 0, avg_duration: null, cached: 0 };
@@ -220,14 +296,16 @@ export function getSearchAggregateStats(todayIso: string): SearchAggregateStats 
 
 /**
  * Per-provider request count for search entries, ordered by count descending.
+ * Rows pass the search live-provider guard (see getSearchLiveProviderGuardSql).
  */
 export function getSearchProviderCounts(): SearchProviderCountRow[] {
   const db = getDbInstance();
   return db
     .prepare(
-      `SELECT provider, COUNT(*) as cnt
-         FROM call_logs WHERE request_type = 'search'
-         GROUP BY provider ORDER BY cnt DESC`
+      `SELECT c.provider, COUNT(*) as cnt
+         FROM call_logs c WHERE c.request_type = 'search'
+          AND ${getSearchLiveProviderGuardSql()}
+         GROUP BY c.provider ORDER BY cnt DESC`
     )
     .all() as SearchProviderCountRow[];
 }

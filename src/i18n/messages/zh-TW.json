@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "在目標模型缺乏所需功能（視覺、工具、結構化輸出、上下文窗口）時，拒絕發送前的請求。保護繞過組合層兼容性過濾器的直接單一提供者請求。",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "找不到頁面",

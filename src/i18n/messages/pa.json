@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "ਜਦੋਂ ਟਾਰਗੇਟ ਮਾਡਲ ਵਿੱਚ ਲੋੜੀਂਦੀਆਂ ਸਮਰੱਥਾਵਾਂ (ਵਿਜ਼ਨ, ਟੂਲ, ਸਟ੍ਰਕਚਰਡ ਆਉਟਪੁੱਟ, ਕਾਂਟੈਕਸਟ ਵਿੰਡੋ) ਨਾ ਹੋਣ, ਤਾਂ ਡਿਸਪੈਚ ਤੋਂ ਪਹਿਲਾਂ ਬੇਨਤੀਆਂ ਅਸਵੀਕਾਰ ਕਰੋ। ਇਹ ਉਹਨਾਂ ਸਿੱਧੀਆਂ ਸਿੰਗਲ-ਪ੍ਰੋਵਾਈਡਰ ਬੇਨਤੀਆਂ ਦੀ ਸੁਰੱਖਿਆ ਕਰਦਾ ਹੈ ਜੋ ਕੌਂਬੋ-ਲੇਅਰ ਅਨੁਕੂਲਤਾ ਫਿਲਟਰ ਨੂੰ ਬਾਈਪਾਸ ਕਰਦੀਆਂ ਹਨ।",
   "featureFlagDisableContextWindowChecksDescription": "ਸਿੱਧੀਆਂ ਸਿੰਗਲ-ਮਾਡਲ ਬੇਨਤੀਆਂ ਲਈ OmniRoute ਦੀ ਸਥਾਨਕ ਕਾਂਟੈਕਸਟ-ਵਿੰਡੋ ਅਤੇ ਅਧਿਕਤਮ-ਇਨਪੁੱਟ-ਟੋਕਨ ਜਾਂਚ ਨੂੰ ਛੱਡੋ। ਅੱਪਸਟ੍ਰੀਮ ਪ੍ਰੋਵਾਈਡਰ ਫਿਰ ਵੀ ਆਪਣੀਆਂ ਅਸਲ ਸੀਮਾਵਾਂ ਲਾਗੂ ਕਰਦੇ ਹਨ। ਪ੍ਰੌਂਪਟ ਕੰਪ੍ਰੈਸ਼ਨ ਅਤੇ ਆਉਟਪੁੱਟ-ਟੋਕਨ ਸੀਮਾਵਾਂ ਸਰਗਰਮ ਰਹਿੰਦੀਆਂ ਹਨ।",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "ਪੰਨਾ ਨਹੀਂ ਮਿਲਿਆ",

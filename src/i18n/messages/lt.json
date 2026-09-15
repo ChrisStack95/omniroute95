@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Atmesti užklausas prieš jas perduodant, kai tikslinis modelis neturi reikiamų galimybių (vaizdų apdorojimo, įrankių, struktūrizuotos išvesties, konteksto lango). Tai apsaugo tiesiogines vienam teikėjui skirtas užklausas, kurios apeina derinių lygmens suderinamumo filtrą.",
   "featureFlagDisableContextWindowChecksDescription": "Tiesioginėms vieno modelio užklausoms praleisti OmniRoute vietinę konteksto lango ir didžiausio įvesties žetonų skaičiaus patikrą. Išoriniai teikėjai vis tiek taiko savo faktinius apribojimus. Raginimų glaudinimas ir išvesties žetonų apribojimai lieka aktyvūs.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Puslapis nerastas",

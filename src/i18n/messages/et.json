@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Lükka päringud enne edastamist tagasi, kui sihtmudelil puuduvad nõutavad võimalused (nägemine, tööriistad, struktureeritud väljund, kontekstiaken). See kaitseb ühe teenusepakkuja otsepäringuid, mis mööduvad kombokihi ühilduvusfiltrist.",
   "featureFlagDisableContextWindowChecksDescription": "Jäta ühe mudeli otsepäringute puhul OmniRoute'i kohalik kontekstiakna ja sisendtokenite maksimumarvu kontroll vahele. Ülesvoolu teenusepakkujad jõustavad endiselt oma tegelikud piirangud. Viiba tihendamine ja väljundtokenite piirangud jäävad aktiivseks.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Lehte ei leitud",

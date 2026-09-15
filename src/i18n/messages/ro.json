@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Respinge cererile înainte de expediere atunci când modelul țintă nu are capabilitățile necesare (viziune, instrumente, ieșire structurată, fereastră de context). Protejează cererile directe de un singur furnizor care ocolesc filtrul de compatibilitate al stratului combinat.",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Pagina nu a fost găsită",

@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Diúltaigh iarratais roimh seoladh nuair nach bhfuil cumais riachtanacha ag an sprioc-mhúnla (radharc, uirlisí, aschur struchtúrtha, fuinneog comhthéacs). Cosnaíonn sé iarrataí aonair díreach-aonair-bhunaithe a sheachann an scagaire comhoiriúlachta sraithe chomhcheangail.",
   "featureFlagDisableContextWindowChecksDescription": "Léim thar seiceáil fuinneog comhthéacs agus ionchur comhartha uasta OmniRoute d'iarrataí múnla-aonair dhíreacha. Fórsíonn na soláthraithe suasshrutha a dteorainn fíor-fholláin fós. Fanann comhbhrú leideanna agus teorainn aschur comhartha gníomhach.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Leathanach gan aimsiú",

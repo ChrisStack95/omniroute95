@@ -13633,6 +13633,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Απόρριψη αιτημάτων πριν από την αποστολή όταν το στοχευόμενο μοντέλο δεν διαθέτει τις απαιτούμενες δυνατότητες (όραση, εργαλεία, δομημένη έξοδος, παράθυρο περιβάλλοντος). Προστατεύει άμεσα αιτήματα μεμονωμένου παρόχου που παρακάμπτουν το φίλτρο συμβατότητας του επιπέδου combo.",
   "featureFlagDisableContextWindowChecksDescription": "Παράλειψη του τοπικού ελέγχου παραθύρου περιβάλλοντος και μέγιστου εισόδου διακριτικών του OmniRoute για άμεσα αιτήματα μεμονωμένου μοντέλου. Οι upstream πάροχοι εξακολουθούν να επιβάλλουν τα πραγματικά τους όρια. Η συμπίεση προτροπής και τα ανώτατα όρια διακριτικών εξόδου παραμένουν ενεργά.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Η σελίδα δεν βρέθηκε",

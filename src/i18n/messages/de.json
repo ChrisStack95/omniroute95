@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Lehnen Sie Anfragen ab, bevor sie versendet werden, wenn das Zielmodell über die erforderlichen Funktionen (Vision, Werkzeuge, strukturierte Ausgabe, Kontextfenster) nicht verfügt. Schützt direkte Einzelanbieteranfragen, die den Kombo-Schicht-Kompatibilitätsfilter umgehen.",
   "featureFlagDisableContextWindowChecksDescription": "Lokale Kontextfenster- und Maximaleingabetoken-Prüfung von OmniRoute für direkte Einzelmodell-Anfragen überspringen. Upstream-Anbieter erzwingen weiterhin ihre tatsächlichen Grenzen. Prompt-Komprimierung und Ausgabetoken-Grenzen bleiben aktiv.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Seite nicht gefunden",
