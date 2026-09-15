@@ -451,9 +451,9 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
   },
   {
     key: "STREAM_RECOVERY_TOOLCALL_ORDER_FIX",
-    label: "Tool-Call Order Fix",
+    label: "Tool-Call-Safe Continuation",
     description:
-      "Resume trailing text from the same upstream connection after a transient mid-stream cut once a tool call has completed, using order-aware in-flight detection. Off by default: order-blind detection plus sticky latch.",
+      "Make mid-stream continuation tool-call safe: never resume a cut stream once a tool call was emitted (in flight or already finished with finish_reason tool_calls), and close after one empty continuation instead of spending the whole budget. Off: release behavior.",
     descriptionI18nKey: "featureFlagStreamRecoveryToolcallOrderFixDescription",
     category: "runtime",
     defaultValue: "false",

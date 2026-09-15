@@ -12985,7 +12985,7 @@
         "description": "Allow stream recovery to request the response again and stitch it after bytes have already reached the client."
       },
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
-        "description": "Allow stream recovery to resume trailing text from the same upstream connection after a transient cut once a tool call has completed, using order-aware in-flight detection."
+        "description": "Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
       },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Include display-friendly name fields in /v1/models responses. Disable this for clients that accept model IDs only."

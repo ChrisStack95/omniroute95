@@ -12982,7 +12982,7 @@
         "description": "Cho phép khôi phục luồng bằng cách yêu cầu lại và ghép phản hồi sau khi dữ liệu đã bắt đầu được gửi tới ứng dụng khách."
       },
       "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
-        "description": "Cho phép khôi phục luồng tiếp tục văn bản còn lại từ cùng kết nối upstream sau khi gián đoạn tạm thời khi lệnh gọi công cụ đã hoàn tất, dùng phát hiện đang xử lý theo thứ tự."
+        "description": "Giúp việc tiếp tục luồng giữa chừng an toàn với lệnh gọi công cụ: không bao giờ tiếp tục một luồng bị ngắt sau khi đã gửi lệnh gọi công cụ (đang xử lý hoặc đã hoàn tất), và dừng sau một lần tiếp tục rỗng thay vì dùng hết số lần thử lại."
       },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Thêm trường tên dễ đọc vào phản hồi /v1/models. Tắt với các ứng dụng khách chỉ chấp nhận ID mô hình."
