@@ -29,10 +29,12 @@ import {
   extractChatcmplId,
 } from "./accountRotation.ts";
 import { isOpencodeGeoBlocked, proxyKeyOf } from "./opencodeGeoBlock.ts";
-import { classify429, parseRetryAfterSeconds } from "./opencodeRateLimited.ts";
+import { classifyUpstream429 } from "./opencodeRateLimited.ts";
 import { isRetriableUpstreamFailure } from "./opencodeTransientFailure.ts";
-import { unavailableResponse } from "../utils/error.ts";
-import { isNetworkRotationSharedEgressGuardEnabled } from "@/shared/utils/featureFlags";
+import {
+  isNetworkRotationSharedEgressGuardEnabled,
+  isOpencodeRateLimited429EarlyStopEnabled,
+} from "@/shared/utils/featureFlags";
 
 /**
  * The main OpenCode Zen host, shared by the `opencode` and `opencode-zen`
@@ -568,8 +570,6 @@ export class OpencodeExecutor extends BaseExecutor {
         { response: Response }
       >;
       let lastResult: HttpExecuteResult | null = null;
-      let upstreamRetryAfterSecs: number | null = null;
-      let stoppedOnClassified = false;
       let lastSharedEgressError: unknown = null;
       const sharedEgressGuardEnabled = isNetworkRotationSharedEgressGuardEnabled();
       // Set once a proxy-less account's network throw reveals the shared
@@ -699,42 +699,25 @@ export class OpencodeExecutor extends BaseExecutor {
 
         const status = result.response.status;
         if (status === 429) {
-          const retryAfterHeader = result.response.headers.get("retry-after");
-          let bodyText: string | null = null;
-          if (retryAfterHeader === null) {
-            try {
-              bodyText = await result.response.clone().text();
-              if (bodyText.length > 8192) bodyText = bodyText.slice(0, 8192);
-            } catch {
-              log?.debug?.("OPENCODE", "body read failed on rate-limit check");
-            }
-          }
-          const verdict = classify429({
-            retryAfter: retryAfterHeader,
-            bodyText,
-          });
-          if (verdict === "burst") {
-            this.markCooldown(account);
+          this.markCooldown(account);
+          // Opt-in (#13657): a 429 that names a real rate limit stops the wave and
+          // the real upstream 429 is returned untouched (body, Retry-After, quota
+          // headers), so provider error rules still apply. Flag off → rotate.
+          if (
+            isOpencodeRateLimited429EarlyStopEnabled() &&
+            (await classifyUpstream429(result.response)) === "rate_limited"
+          ) {
             log?.warn?.(
               "OPENCODE",
-              `${cid}Rate limited (429) on account ${masked}, rotating to next…`
+              `${cid}rate-limited 429 on account ${masked}, stopping the account wave`
             );
-            continue;
+            return result;
           }
-          this.markCooldown(account);
-          const proxySuffix = account.proxy
-            ? ` via proxy ${account.proxy.host}:${account.proxy.port}`
-            : " direct";
-
-          if (retryAfterHeader !== null) {
-            upstreamRetryAfterSecs = parseRetryAfterSeconds(retryAfterHeader);
-          }
-          stoppedOnClassified = true;
           log?.warn?.(
             "OPENCODE",
-            `${cid}rate-limited 429 on account ${masked}${proxySuffix}, stopping wave…`
+            `${cid}Rate limited (429) on account ${masked}, rotating to next…`
           );
-          break;
+          continue;
         }
 
         if (isRetriableUpstreamFailure(status)) {
@@ -819,18 +802,6 @@ export class OpencodeExecutor extends BaseExecutor {
         throw lastSharedEgressError;
       }
 
-      // Wave stopped on a classified 429 (break above): drain 429 once with
-      // the relayed Retry-After. Any other exhaustion (all-burst wave,
-      // 5xx, geo) surfaces the last response untouched.
-      if (stoppedOnClassified && lastResult !== null && lastResult.response.status === 429) {
-        const drained = unavailableResponse(
-          429,
-          "Upstream rate limit reached, retry after the advertised window",
-          upstreamRetryAfterSecs
-        );
-        drained.headers.set("x-opencode-retry-state", "rate-limited");
-        return { ...lastResult, response: drained };
-      }
       // All accounts returned 429 (or errored) — surface the last response.
       return this.normalizeMuseSparkResponse(input, lastResult ?? (await super.execute(input)));
     } finally {
