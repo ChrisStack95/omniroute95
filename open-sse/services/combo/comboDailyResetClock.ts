@@ -28,6 +28,7 @@ export async function resolveComboDailyReset(
     if (!node) return null;
     return { timezone: node.dailyQuotaResetTimezone, hour: node.dailyQuotaResetHour };
   } catch {
+    // no-effect: an unreadable node table falls back to host midnight in checkFallbackError
     return null;
   }
 }
