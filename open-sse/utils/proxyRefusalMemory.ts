@@ -5,9 +5,12 @@
  * comes back. Nothing is persisted and no proxy status is written: only the order in which
  * candidates are tried changes. Keys are entry points (scheme, username, host, port),
  * never passwords.
+ *
+ * This module is a pure store: it never reads the PROXY_SKIP_RECENTLY_FAILED feature flag
+ * (callers gate writes and decisions on it) and it stays free of the proxy dispatcher, so
+ * the DB layer can consult it without loading undici or the SOCKS connector.
  */
 import { COOLDOWN_MS } from "../config/errorConfig.ts";
-import { proxyConfigToUrl } from "./proxyDispatcher.ts";
 import { stripIpv6Brackets } from "./proxyFamily.ts";
 
 export const REFUSAL_POLICIES = {
@@ -19,44 +22,78 @@ export const REFUSAL_POLICIES = {
 
 export type ProxyRefusalKind = keyof typeof REFUSAL_POLICIES;
 
-type RefusalState = { streak: number; until: number };
+// `seq` orders set-aside events so a cache can tell whether it already saw this one.
+type RefusalState = { streak: number; until: number; seq: number };
 
 const MAX_ENTRIES = 1000;
-const DISABLED_VALUES = ["false", "0", "no", "off"];
 const REFUSAL_KINDS = Object.keys(REFUSAL_POLICIES) as ProxyRefusalKind[];
-// scheme://[userinfo@]host:port at the start of a normalized proxy URL.
-const AUTHORITY = /^([a-z0-9+.-]+):\/\/(?:([^@/]*)@)?(\[[^\]]+\]|[^:/?#]+):(\d+)/i;
+// Same protocol set and default ports as proxyConfigToUrl() in proxyDispatcher.ts.
+const DEFAULT_PORTS: Record<string, string> = { http: "8080", https: "443", socks5: "1080" };
+const RELAY_TYPES = new Set(["vercel", "deno", "cloudflare"]);
+const FAMILY_MARKER = /\?family=(ipv4|ipv6)$/;
 
 const memory = new Map<string, RefusalState>();
+let refusalSeq = 0;
 
-/** On unless PROXY_SKIP_RECENTLY_FAILED is false, 0, no or off (like ENABLE_SOCKS5_PROXY). */
-export function isProxySkipEnabled(): boolean {
-  const raw = (process.env.PROXY_SKIP_RECENTLY_FAILED ?? "").trim().toLowerCase();
-  return !DISABLED_VALUES.includes(raw);
+// A config object as the URL proxyConfigToUrl() would build from it; null when unusable.
+function configObjectToUrl(proxy: Record<string, unknown>): string | null {
+  const host = typeof proxy.host === "string" ? proxy.host : "";
+  if (!host) return null;
+  const type = String(proxy.type || "http").toLowerCase();
+  if (RELAY_TYPES.has(type)) return null;
+  const bracketed = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  const username = typeof proxy.username === "string" ? proxy.username : "";
+  const password = typeof proxy.password === "string" ? proxy.password : "";
+  const auth =
+    username || password ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@` : "";
+  let port = DEFAULT_PORTS[type] ?? "";
+  if (proxy.port) {
+    const parsed = Number(proxy.port);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return null;
+    port = String(parsed);
+  }
+  return `${type}://${auth}${bracketed}:${port}`;
+}
+
+// The port written in the authority, which `new URL()` drops when it is the scheme default.
+function explicitPortOf(url: string): string | null {
+  const start = url.indexOf("://");
+  if (start === -1) return null;
+  const rest = url.slice(start + 3);
+  const slash = rest.indexOf("/");
+  const authority = slash === -1 ? rest : rest.slice(0, slash);
+  const colon = authority.lastIndexOf(":");
+  if (colon === -1 || colon < authority.lastIndexOf("@") || colon < authority.lastIndexOf("]")) {
+    return null;
+  }
+  const port = Number(authority.slice(colon + 1));
+  return /^\d+$/.test(authority.slice(colon + 1)) && port >= 1 && port <= 65535
+    ? String(port)
+    : null;
 }
 
 /**
  * One key per proxy entry point, whether the proxy comes as a config object, a URL or a
  * legacy string: scheme, decoded username, lower-case host without IPv6 brackets, port as
- * written by normalization. Password and ?family= are ignored. Anything unusable, and
- * edge relays (no port), give null, which never sets anything aside.
+ * normalization writes it. Password and ?family= are ignored. Anything unusable, and edge
+ * relays, give null, which never sets anything aside.
  */
 export function proxyEgressKey(proxy: unknown): string | null {
   try {
-    let input = proxy;
-    if (proxy && typeof proxy === "object" && !Array.isArray(proxy)) {
-      const host = (proxy as { host?: unknown }).host;
-      if (typeof host === "string" && host.includes(":") && !host.startsWith("[")) {
-        input = { ...(proxy as Record<string, unknown>), host: `[${host}]` };
-      }
+    let url: string | null = null;
+    if (typeof proxy === "string") url = proxy.trim();
+    else if (proxy && typeof proxy === "object" && !Array.isArray(proxy)) {
+      url = configObjectToUrl(proxy as Record<string, unknown>);
     }
-    const url = proxyConfigToUrl(input, { allowSocks5: true });
-    const match = url ? AUTHORITY.exec(url) : null;
-    if (!match) return null;
-    const [, scheme, userinfo, host, port] = match;
-    const rawUser = userinfo ? userinfo.split(":")[0] : "";
-    const user = rawUser ? decodeURIComponent(rawUser) : "";
-    return `${scheme.toLowerCase()}://${user}@${stripIpv6Brackets(host).toLowerCase()}:${port}`;
+    if (!url) return null;
+    url = url.replace(FAMILY_MARKER, "");
+    const parsed = new URL(url);
+    const scheme = parsed.protocol.replace(/:$/, "").toLowerCase();
+    const defaultPort = DEFAULT_PORTS[scheme];
+    if (!defaultPort || !parsed.hostname) return null;
+    const port = explicitPortOf(url) || parsed.port || defaultPort;
+    const user = parsed.username ? decodeURIComponent(parsed.username) : "";
+    return `${scheme}://${user}@${stripIpv6Brackets(parsed.hostname).toLowerCase()}:${port}`;
   } catch {
     return null;
   }
@@ -91,7 +128,7 @@ export function noteProxyRefusal(
   const periodMs = Math.min(policy.baseMs * 2 ** (streak - 1), policy.maxMs);
   const id = entryId(key, kind);
   memory.delete(id);
-  memory.set(id, { streak, until: nowMs + periodMs });
+  memory.set(id, { streak, until: nowMs + periodMs, seq: ++refusalSeq });
   if (memory.size > MAX_ENTRIES) {
     const oldest = memory.keys().next().value;
     if (oldest !== undefined) memory.delete(oldest);
@@ -117,11 +154,34 @@ export function noteProxyServed(key: string | null): void {
 }
 
 export function isProxyAvoided(key: string | null, nowMs: number = Date.now()): boolean {
-  if (key === null) return false;
-  return REFUSAL_KINDS.some((kind) => {
+  return proxySetAsideSeq(key, nowMs) !== null;
+}
+
+/**
+ * Sequence number of the most recent set-aside event still in force for this proxy, or
+ * null when it is not set aside. Compare with getProxyRefusalSeq() captured earlier to
+ * know whether the event happened after that point.
+ */
+export function proxySetAsideSeq(key: string | null, nowMs: number = Date.now()): number | null {
+  if (key === null || memory.size === 0) return null;
+  let latest: number | null = null;
+  for (const kind of REFUSAL_KINDS) {
     const state = readState(key, kind, nowMs);
-    return state !== undefined && state.until > nowMs;
-  });
+    if (state && state.until > nowMs && (latest === null || state.seq > latest)) {
+      latest = state.seq;
+    }
+  }
+  return latest;
+}
+
+/** Sequence number of the last set-aside event recorded in this process (0 = none yet). */
+export function getProxyRefusalSeq(): number {
+  return refusalSeq;
+}
+
+/** True when anything is held at all: lets hot paths skip key computation and flag reads. */
+export function hasProxyRefusals(): boolean {
+  return memory.size > 0;
 }
 
 /** Test-only: forget everything. */

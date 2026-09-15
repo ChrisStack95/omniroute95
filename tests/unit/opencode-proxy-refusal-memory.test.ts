@@ -6,8 +6,9 @@ import type { ExecutorLog, ProviderCredentials } from "../../open-sse/executors/
 import { resolveProxyForRequest } from "../../open-sse/utils/proxyFetch.ts";
 import * as memory from "../../open-sse/utils/proxyRefusalMemory.ts";
 
-// A refusal received on a proxied opencode account sets that member aside across requests,
-// the rest of the current request; a direct account is never concerned.
+// With PROXY_SKIP_RECENTLY_FAILED on, a refusal received on a proxied opencode account sets
+// that member aside across requests; a direct account is never concerned. With the flag off
+// (the default) the rotation is exactly the plain one.
 
 const log: ExecutorLog = { debug() {}, info() {}, warn() {}, error() {} };
 const FINGERPRINTS = ["a".repeat(32), "b".repeat(32), "c".repeat(32)];
@@ -65,7 +66,7 @@ describe("OpencodeExecutor proxy refusal memory", () => {
   beforeEach(() => {
     originalFetch = globalThis.fetch;
     memory.__resetProxyRefusalMemoryForTesting();
-    delete process.env.PROXY_SKIP_RECENTLY_FAILED;
+    process.env.PROXY_SKIP_RECENTLY_FAILED = "true";
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url =
         typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -122,8 +123,8 @@ describe("OpencodeExecutor proxy refusal memory", () => {
     assert.deepStrictEqual((await run(exec, proxied(), [200])).observed, [port(1)]);
   });
 
-  it("with the switch off the refused proxy is tried again in turn", async () => {
-    process.env.PROXY_SKIP_RECENTLY_FAILED = "off";
+  it("with the flag at its default (off) the refused proxy is tried again in turn", async () => {
+    delete process.env.PROXY_SKIP_RECENTLY_FAILED;
     const exec = new OpencodeExecutor("opencode-zen");
     await run(exec, proxied(), [429, 200]);
     assert.strictEqual(memory.__proxyRefusalMemorySizeForTesting(), 0);
@@ -143,6 +144,13 @@ describe("OpencodeExecutor proxy refusal memory", () => {
     clearCooldowns(exec);
     assert.deepStrictEqual((await run(exec, proxied(), [200])).observed, [port(2)]);
     clearCooldowns(exec);
+    assert.deepStrictEqual((await run(exec, proxied(), [200])).observed, [port(0)]);
+  });
+
+  it("with the flag off a member set aside earlier is not skipped", async () => {
+    memory.noteProxyRefusal(keyFor(0), "ip_quota_429");
+    delete process.env.PROXY_SKIP_RECENTLY_FAILED;
+    const exec = new OpencodeExecutor("opencode-zen");
     assert.deepStrictEqual((await run(exec, proxied(), [200])).observed, [port(0)]);
   });
 

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 // A per-process memory of proxies that just failed, shared by pool selection and the
 // per-account rotation. One canonical key per entry point, a period that doubles on each
-// repeat up to a cap, and a null key that never sets anything aside.
+// repeat up to a cap, and a null key that never sets anything aside. The store is pure:
+// whether it is consulted is decided by the PROXY_SKIP_RECENTLY_FAILED flag at call sites.
 
 const memory = await import("../../open-sse/utils/proxyRefusalMemory.ts");
 
@@ -12,7 +13,6 @@ const START_MS = 1_800_000_000_000;
 
 test.beforeEach(() => {
   memory.__resetProxyRefusalMemoryForTesting();
-  delete process.env.PROXY_SKIP_RECENTLY_FAILED;
 });
 
 test("an object, its URL and a legacy string give the same key", () => {
@@ -124,14 +124,76 @@ test("the memory keeps at most 1000 entries and evicts the oldest", () => {
   assert.equal(memory.isProxyAvoided("http://@h:11000", START_MS + 1), true);
 });
 
-test("the switch is on unless false, 0, no or off", () => {
-  assert.equal(memory.isProxySkipEnabled(), true);
-  for (const value of ["true", "1", "yes", "", "anything"]) {
-    process.env.PROXY_SKIP_RECENTLY_FAILED = value;
-    assert.equal(memory.isProxySkipEnabled(), true, value);
+test("the key matches the one derived from the dispatcher's normalized proxy URL", async () => {
+  // The memory module computes keys without importing the proxy dispatcher (so the DB layer
+  // can consult it cheaply). Guard against drift from proxyConfigToUrl() normalization.
+  const { proxyConfigToUrl } = await import("../../open-sse/utils/proxyDispatcher.ts");
+  const authority = /^([a-z0-9+.-]+):\/\/(?:([^@/]*)@)?(\[[^\]]+\]|[^:/?#]+):(\d+)/i;
+  const viaDispatcher = (input: unknown) => {
+    let normalizedInput = input;
+    if (input && typeof input === "object") {
+      const host = (input as { host?: string }).host;
+      if (typeof host === "string" && host.includes(":") && !host.startsWith("[")) {
+        normalizedInput = { ...(input as object), host: `[${host}]` };
+      }
+    }
+    const url = proxyConfigToUrl(normalizedInput, { allowSocks5: true });
+    const match = url ? authority.exec(url) : null;
+    if (!match) return null;
+    const [, scheme, userinfo, host, port] = match;
+    const user = userinfo ? decodeURIComponent(userinfo.split(":")[0]) : "";
+    const bare = host.startsWith("[") ? host.slice(1, -1) : host;
+    return `${scheme.toLowerCase()}://${user}@${bare.toLowerCase()}:${port}`;
+  };
+  const inputs: unknown[] = [
+    { type: "http", host: "Proxy.Example.com", port: 3128, username: "u s", password: "p" },
+    { type: "https", host: "h", port: "443" },
+    { type: "socks5", host: "10.0.0.2", username: "a@b", password: "x:y" },
+    { type: "http", host: "h" },
+    { type: "http", host: "2001:db8::1", port: 8080, family: "ipv6" },
+    { host: "h", port: 80 },
+    "http://user:pw@H:80",
+    "https://h",
+    "socks5://a%40b:pw@10.0.0.3:1080?family=ipv4",
+    "http://[2001:db8::2]:3128",
+    "http://h:8080/",
+  ];
+  for (const input of inputs) {
+    assert.equal(memory.proxyEgressKey(input), viaDispatcher(input), JSON.stringify(input));
   }
-  for (const value of ["false", "0", "no", "off", " OFF ", "False"]) {
-    process.env.PROXY_SKIP_RECENTLY_FAILED = value;
-    assert.equal(memory.isProxySkipEnabled(), false, value);
-  }
+});
+
+test("an out-of-range port or an unsupported scheme gives a null key", () => {
+  assert.equal(memory.proxyEgressKey({ type: "http", host: "h", port: 70000 }), null);
+  assert.equal(memory.proxyEgressKey({ type: "ftp", host: "h", port: 21 }), null);
+  assert.equal(memory.proxyEgressKey("ftp://h:21"), null);
+});
+
+test("set-aside events are ordered, and only the one in force is reported", () => {
+  const a = "http://@a:8080";
+  const b = "http://@b:8080";
+  assert.equal(memory.hasProxyRefusals(), false);
+  assert.equal(memory.proxySetAsideSeq(a, START_MS), null);
+  const before = memory.getProxyRefusalSeq();
+
+  memory.noteProxyRefusal(a, "proxy_unreachable", START_MS);
+  const seqA = memory.proxySetAsideSeq(a, START_MS + 1);
+  assert.ok(seqA !== null && seqA > before);
+  assert.equal(memory.hasProxyRefusals(), true);
+
+  // A note while already set aside records no new event.
+  memory.noteProxyRefusal(a, "proxy_unreachable", START_MS + 2);
+  assert.equal(memory.proxySetAsideSeq(a, START_MS + 3), seqA);
+
+  memory.noteProxyRefusal(b, "ip_quota_429", START_MS + 4);
+  const seqB = memory.proxySetAsideSeq(b, START_MS + 5);
+  assert.ok(seqB !== null && seqB > seqA);
+  assert.equal(memory.getProxyRefusalSeq(), seqB);
+
+  // A second kind on the same proxy reports the most recent event.
+  memory.noteProxyRefusal(a, "ip_quota_429", START_MS + 6);
+  assert.equal(memory.proxySetAsideSeq(a, START_MS + 7), memory.getProxyRefusalSeq());
+
+  // Once every period is over nothing is in force.
+  assert.equal(memory.proxySetAsideSeq(b, START_MS + 4 + 2 * MIN), null);
 });
