@@ -169,3 +169,42 @@ test("transitive FAIL on a three-gate chain classifies every dependent", () => {
   assert.equal(out.gates.find((g) => g.gate_id === "c").status, "FAIL");
   assert.equal(out.verdict, "FAILED");
 });
+
+test("INFRA copy of a required gate dominates a FAIL copy of the same key", () => {
+  const out = reduce(planPack, [
+    record({ gate_id: "pack-artifact", status: "INFRA_ERROR", gate_type: "artifact" }),
+    record({ gate_id: "pack-artifact", status: "FAIL", gate_type: "artifact" }),
+    record({ gate_id: "pack-boot", status: "PASS", gate_type: "artifact" }),
+  ]);
+  assert.equal(out.verdict, "UNVERIFIED");
+  const boot = out.gates.find((g) => g.gate_id === "pack-boot");
+  assert.equal(boot.status, "INFRA_ERROR");
+});
+
+test("cyclic dependencies are rejected", () => {
+  const cyclic = {
+    required_gates: [key("a"), key("b")],
+    identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+    dependencies: { a: "b", b: "a" },
+  };
+  assert.throws(
+    () => reduce(cyclic, [record({ gate_id: "a", status: "INFRA_ERROR" }), record({ gate_id: "b", status: "FAIL" })]),
+    /cyclic prerequisite/
+  );
+});
+
+test("missing prerequisite records one evidence error, not one per loop", () => {
+  const out = reduce(
+    {
+      required_gates: [key("boot")],
+      identity: { tested_sha: SHA, run_id: "1", run_attempt: 1 },
+      dependencies: { boot: "art" },
+    },
+    []
+  );
+  assert.equal(out.verdict, "UNVERIFIED");
+  assert.equal(
+    out.evidence_errors.filter((e) => e.code === "prerequisite_missing").length,
+    1
+  );
+});

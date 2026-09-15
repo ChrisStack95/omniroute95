@@ -72,3 +72,15 @@ not ok 2 - tests/unit/a.test.ts
   assert.deepEqual(out.failed, ["tests/unit/a.test.ts"]);
   assert.equal(out.completed.includes("tests/unit/a.test.ts"), false);
 });
+
+test("later not ok on the same pending Subtest retracts ok", () => {
+  const tap = `TAP version 13
+# Subtest: tests/unit/a.test.ts
+ok 1 - tests/unit/a.test.ts
+not ok 2 - tests/unit/a.test.ts
+`;
+  const out = fromNodeTestTap(tap, ["tests/unit/a.test.ts"]);
+  assert.equal(out.pass, false);
+  assert.deepEqual(out.failed, ["tests/unit/a.test.ts"]);
+  assert.equal(out.completed.includes("tests/unit/a.test.ts"), false);
+});

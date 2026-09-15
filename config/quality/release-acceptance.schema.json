@@ -17,7 +17,6 @@
     "identity": { "$ref": "#/$defs/identity" },
     "required_gates": {
       "type": "array",
-      "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/gateInstanceKey" }
     },
@@ -37,6 +36,12 @@
       ]
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "VERIFIED" } }, "required": ["verdict"] },
+      "then": { "properties": { "required_gates": { "minItems": 1 } } }
+    }
+  ],
   "$defs": {
     "sha": {
       "type": "string",

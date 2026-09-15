@@ -47,8 +47,8 @@ function copies(gates, k) {
 function statusOf(gates, k) {
   const list = copies(gates, k);
   if (list.length === 0) return null;
-  if (list.some((g) => g.status === "FAIL")) return "FAIL";
   if (list.some((g) => g.status === "INFRA_ERROR")) return "INFRA_ERROR";
+  if (list.some((g) => g.status === "FAIL")) return "FAIL";
   if (list.some((g) => g.status === "SKIPPED")) return "SKIPPED";
   return list[0].status;
 }
@@ -81,7 +81,13 @@ function patchDependent(gates, depKey, classified, prereqKey, evidence_errors, i
   }
   let changed = false;
   for (const existing of matches) {
-    if (existing.status === classified.status && existing.cause === classified.cause) continue;
+    if (
+      existing.status === classified.status &&
+      ((existing.cause == null && classified.cause == null) ||
+        (existing.cause && classified.cause && sameKey(existing.cause, classified.cause)))
+    ) {
+      continue;
+    }
     existing.status = classified.status;
     existing.cause = classified.cause;
     existing.exit_code = exit_code;
@@ -92,8 +98,23 @@ function patchDependent(gates, depKey, classified, prereqKey, evidence_errors, i
   return changed;
 }
 
+function assertAcyclic(deps) {
+  const visiting = new Set();
+  const done = new Set();
+  function walk(id) {
+    if (done.has(id)) return;
+    if (visiting.has(id)) throw new Error("cyclic prerequisite");
+    visiting.add(id);
+    if (Object.hasOwn(deps, id)) walk(deps[id]);
+    visiting.delete(id);
+    done.add(id);
+  }
+  for (const id of Object.keys(deps)) walk(id);
+}
+
 export function reduce(plan, records) {
   const deps = plan.dependencies ?? {};
+  assertAcyclic(deps);
   for (const [depId, prereqId] of Object.entries(deps)) {
     const depKey = { gate_id: depId, suite_id: null, shard_index: null, shard_total: null };
     const prereqKey = { gate_id: prereqId, suite_id: null, shard_index: null, shard_total: null };
@@ -158,7 +179,9 @@ export function reduce(plan, records) {
   }
 
   let verdict = "VERIFIED";
-  const hasFail = gates.some((g) => g.status === "FAIL" && isRequired(plan, gateKey(g)));
+  const hasFail = gates.some(
+    (g) => g.status === "FAIL" && isRequired(plan, gateKey(g)) && statusOf(gates, gateKey(g)) === "FAIL"
+  );
   const hasUnverified =
     evidence_errors.length > 0 ||
     gates.some(

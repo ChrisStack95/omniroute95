@@ -27,7 +27,6 @@ export function fromNodeTestTap(tapText, argvFiles) {
           completed.push(file);
         }
       }
-      pending = null;
     }
   }
   const attempted = [...argvFiles];

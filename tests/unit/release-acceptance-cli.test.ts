@@ -125,7 +125,11 @@ test("schema_invalid does not throw when required_gates is missing", async () =>
   const report = JSON.parse(readFileSync(out, "utf8"));
   assert.equal(report.verdict, "UNVERIFIED");
   assert.ok(Array.isArray(report.required_gates));
-  assert.ok(report.evidence_errors.some((e) => e.code === "schema_invalid"));
+  assert.ok(report.evidence_errors.some((e) => e.code === "empty_required_set"));
+  assert.equal(
+    report.evidence_errors.some((e) => e.code === "schema_invalid"),
+    false
+  );
 });
 
 test("schema_invalid keeps FAILED when reduce already failed", async () => {

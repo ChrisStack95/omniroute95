@@ -66,6 +66,24 @@ test("empty required_gates cannot be VERIFIED", () => {
   assert.equal(validate(report), false);
 });
 
+test("empty required_gates is valid when UNVERIFIED", () => {
+  const validate = compile();
+  const report = JSON.parse(
+    readFileSync(new URL("../fixtures/release-acceptance/verified.json", import.meta.url), "utf8")
+  );
+  report.required_gates = [];
+  report.gates = [];
+  report.evidence_errors = [
+    {
+      code: "empty_required_set",
+      gate: { gate_id: "schema", suite_id: null, shard_index: null, shard_total: null },
+      detail: "required_gates is empty",
+    },
+  ];
+  report.verdict = "UNVERIFIED";
+  assert.equal(validate(report), true, JSON.stringify(validate.errors));
+});
+
 test("unknown extensions field is invalid in version 1", () => {
   const validate = compile();
   const extra = JSON.parse(
