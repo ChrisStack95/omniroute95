@@ -1,0 +1,1 @@
+- fix(providers): restore grok-4.6/4.5 default reasoning effort so requests without an explicit effort keep reasoning enabled, and declare opus-5/fable-5 thinking effort lists (#13628)
