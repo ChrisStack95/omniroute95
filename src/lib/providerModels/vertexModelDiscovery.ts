@@ -29,6 +29,8 @@ export interface VertexModelDiscoveryResult {
   models: unknown[];
   warning?: string;
   projectId?: string;
+  failureStatus?: number;
+  unavailable?: boolean;
 }
 
 interface DiscoveryAuth {
@@ -208,6 +210,8 @@ export async function discoverVertexModelsWithApiKey(options: {
         const projectId = readApiKeyConsumerProjectId(data);
         return {
           models,
+          failureStatus: response.status,
+          unavailable: ![400, 401, 403].includes(response.status),
           ...(projectId ? { projectId } : {}),
           ...(models.length > 0
             ? { warning: "Some Vertex Gemini catalog pages were unavailable" }
@@ -224,6 +228,7 @@ export async function discoverVertexModelsWithApiKey(options: {
   } catch {
     return {
       models,
+      unavailable: true,
       ...(models.length > 0
         ? { warning: "Some Vertex Gemini catalog pages were unavailable" }
         : {}),

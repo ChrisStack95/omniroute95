@@ -388,8 +388,9 @@ export class VertexExecutor extends BaseExecutor {
       try {
         const sa = parseSAFromApiKey(credentials.apiKey);
         credentials.accessToken = await getAccessToken(sa);
-      } catch (err: any) {
-        log?.error?.("VERTEX", `Failed to generate JWT token: ${err.message}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        log?.error?.("VERTEX", `Failed to generate JWT token: ${message}`);
         throw err;
       }
     }
@@ -445,7 +446,12 @@ export class VertexExecutor extends BaseExecutor {
     return result;
   }
 
-  buildUrl(model: string, stream: boolean, urlIndex = 0, credentials: any = null) {
+  buildUrl(
+    model: string,
+    stream: boolean,
+    _urlIndex = 0,
+    credentials: VertexUrlCredentials | null = null
+  ) {
     const canonicalModel = normalizeVertexModelId(model);
     const configuredProject = configuredVertexProjectId(credentials);
     const opaqueApiKey = encodeOpaqueApiKey(credentials);
@@ -461,7 +467,7 @@ export class VertexExecutor extends BaseExecutor {
     return buildProjectScopedVertexUrl(canonicalModel, stream, project, region, opaqueApiKey);
   }
 
-  buildHeaders(credentials: any, stream = true) {
+  buildHeaders(credentials: VertexUrlCredentials, stream = true) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (credentials.accessToken) {
       headers["Authorization"] = `Bearer ${credentials.accessToken}`;

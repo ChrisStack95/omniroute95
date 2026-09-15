@@ -80,6 +80,33 @@ test("Vertex Express probes only Gemini discovery and then uses the intentional 
   assert.ok(!body.models.some((model: { id?: string }) => model.id.includes("grok")));
 });
 
+test("Vertex API-key endpoint rejection remains intentional and names the HTTP failure", async () => {
+  for (const status of [400, 403]) {
+    const connection = await seedVertexConnection({ apiKey: "vertex-express-key" });
+    globalThis.fetch = async () => Response.json({ error: { message: "Rejected" } }, { status });
+    const response = await callRoute(connection.id);
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.intentional, true);
+    assert.match(body.warning, new RegExp("HTTP " + status));
+  }
+});
+
+test("Vertex transient HTTP and network failures do not become intentional catalogs", async () => {
+  for (const status of [429, 500, 503, 0]) {
+    const connection = await seedVertexConnection({ apiKey: "vertex-express-key" });
+    globalThis.fetch = async () => {
+      if (!status) throw new Error("Fixture network failure");
+      return Response.json({ error: { message: "Unavailable" } }, { status });
+    };
+    const response = await callRoute(connection.id);
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.intentional, undefined);
+    assert.match(body.warning, /temporarily unavailable/);
+  }
+});
+
 test("Vertex authorization API key detects and persists its project for curated partner models", async () => {
   const connection = await seedVertexConnection({ apiKey: "vertex-authorization-key" });
   const calledUrls: string[] = [];

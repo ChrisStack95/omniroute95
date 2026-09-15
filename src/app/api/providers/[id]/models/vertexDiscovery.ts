@@ -110,6 +110,23 @@ async function handleVertexApiKeyCatalog(
     fetchImpl: vertexFetch(options.proxy),
   });
 
+  if (discovery.models.length === 0 && discovery.unavailable) {
+    const warning = "Vertex model discovery temporarily unavailable — using local catalog";
+    return (
+      options.buildDiscoveryFallbackResponse({
+        cacheWarning: "Vertex model discovery temporarily unavailable — using cached catalog",
+        localWarning: warning,
+      }) ??
+      options.buildResponse({
+        provider: options.provider,
+        connectionId: options.connectionId,
+        models: [],
+        source: "local_catalog",
+        warning,
+      })
+    );
+  }
+
   const providerData = asRecord(options.connection.providerSpecificData);
   const configuredProjectId =
     toNonEmptyString(options.connection.projectId) ||
@@ -152,7 +169,10 @@ async function handleVertexApiKeyCatalog(
     models: catalog.filter((model) => isVertexExpressModel(model.id)),
     source: "local_catalog",
     intentional: true,
-    warning: "No live catalog available for this API key — using curated Express catalog",
+    warning:
+      (discovery.failureStatus
+        ? `Generative Language model listing rejected the API key (HTTP ${discovery.failureStatus}). `
+        : "") + "No live catalog available for this API key — using curated Express catalog",
   });
 }
 
