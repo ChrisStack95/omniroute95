@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "جب ہدف ماڈل میں ضروری صلاحیتیں (نظریات، ٹولز، منظم آؤٹ پٹ، سیاق و سباق کی کھڑکی) نہیں ہوتیں تو بھیجنے سے پہلے درخواستوں کو مسترد کریں۔ یہ براہ راست واحد فراہم کنندہ کی درخواستوں کی حفاظت کرتا ہے جو کمبو-لیئر کی ہم آہنگی کے فلٹر کو نظر انداز کرتی ہیں۔",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "صفحہ نہیں ملا",

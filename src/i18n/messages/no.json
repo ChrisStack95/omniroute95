@@ -13622,6 +13622,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "Avvis forespørselene før utsendelse når målmodellen mangler nødvendige funksjoner (visjon, verktøy, strukturert utdata, kontekstvindu). Beskytter direkte forespørseler fra enkeltleverandører som omgår kombinasjonslagets kompatibilitetsfilter.",
   "featureFlagDisableContextWindowChecksDescription": "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers still enforce their actual limits. Prompt compression and output-token caps remain active.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
   "publicSystem": {
     "notFound": {
       "title": "Siden ble ikke funnet",
