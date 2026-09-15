@@ -119,6 +119,11 @@ function shouldUseSecureCookie(request: NextRequest): boolean {
   return forwardedProto === "https" || request.nextUrl.protocol === "https:";
 }
 
+// Module-level (not per-call): throttles the stale-cookie warning below to once per
+// process instead of once per request, avoiding log-flooding from a background dashboard
+// tab or foreign token riding along on every request (see #13684 LEDGER-12).
+let staleDashboardJwtWarningEmitted = false;
+
 async function refreshDashboardSessionIfNeeded(
   response: NextResponse,
   request: NextRequest
@@ -128,8 +133,6 @@ async function refreshDashboardSessionIfNeeded(
 
   const token = getCookieValue(request, DASHBOARD_SESSION_COOKIE);
   if (!token) return;
-
-  let staleDashboardJwtWarningEmitted = false;
 
   try {
     const payload = await verifyDashboardSessionToken(token, secret);
