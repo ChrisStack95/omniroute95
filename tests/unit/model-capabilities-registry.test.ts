@@ -37,7 +37,7 @@ function buildCapability(overrides = {}) {
 
 function resetStorage() {
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 }
 
@@ -47,7 +47,7 @@ test.beforeEach(() => {
 
 test.after(() => {
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 test("canonical model capability resolver lets exact synced metadata override global specs", () => {
@@ -203,7 +203,7 @@ test("GPT OSS and DeepSeek Reasoner models support tool calling", () => {
   // GPT OSS models should not be blocked by the heuristic
   assert.equal(modelCapabilities.supportsToolCalling("fake-provider/gpt-oss-120b"), true);
   assert.equal(modelCapabilities.supportsToolCalling("gpt-oss-120b"), true);
-  assert.equal(modelCapabilities.supportsToolCalling("nvidia/openai/gpt-oss-20b"), false); // in registry
+  assert.equal(modelCapabilities.supportsToolCalling("nvidia/openai/gpt-oss-120b"), false); // in registry
 
   // DeepSeek Reasoner supports tool calling
   assert.equal(modelCapabilities.supportsToolCalling("deepseek-reasoner"), true);

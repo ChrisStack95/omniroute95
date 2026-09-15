@@ -42,7 +42,7 @@ import {
 test.after(() => {
   clearAllModelLockouts();
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 // ── Engine contract (regression guard) ───────────────────────────────────────
@@ -168,6 +168,11 @@ test("direct Antigravity has one downstream model-lock owner and clamps body pro
     chatCoreSource,
     /accountSemaphoreKey && !deferAntigravityQuotaStateToCaller/,
     "chatCore must not apply a prose-derived Antigravity semaphore TTL"
+  );
+  assert.match(
+    chatCoreSource,
+    /Dropped generic quota cache after 429/,
+    "non-Codex 429 must leave a QUOTA debug breadcrumb"
   );
   assert.match(
     chatCoreSource,

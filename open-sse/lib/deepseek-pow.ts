@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 
 import { findDeepSeekPowNonce, MAX_DEEPSEEK_POW_DIFFICULTY } from "./deepseek-pow-hash.js";
@@ -74,10 +73,21 @@ function solveSynchronously({ challenge, prefix, difficulty }: ValidatedChalleng
   return findDeepSeekPowNonce(prefix, challenge, difficulty);
 }
 
+// Anchored on process.cwd(), never import.meta.url: the production standalone bundle
+// freezes import.meta.url to the build-machine path (same app-wide gotcha documented on
+// GATE_DEP_REL in open-sse/services/compression/engines/llmlingua/worker.ts), so an
+// import.meta.url-relative fallback here was silently dead in production. It also gave
+// this function two return branches, one of which contained a `new URL(literal,
+// import.meta.url)` construct -- Turbopack's dev-mode static worker-chunk detector
+// partially resolves that pattern independent of which branch actually runs, producing
+// an inconsistent module-graph node and crashing turbo-tasks on startup (bisected to
+// 657d3a484). A single non-branching path resolution avoids both problems.
 function resolveWorkerPath(): string {
-  const tracedPath = path.join(process.cwd(), "open-sse/lib/deepseek-pow-worker.mjs");
-  if (existsSync(tracedPath)) return tracedPath;
-  return fileURLToPath(new URL("./deepseek-pow-worker.mjs", import.meta.url));
+  const workerPath = path.join(process.cwd(), "open-sse/lib/deepseek-pow-worker.mjs");
+  if (!existsSync(workerPath)) {
+    throw new Error(`DeepSeek PoW worker script not found at ${workerPath}`);
+  }
+  return workerPath;
 }
 
 function solveInWorker(
@@ -96,7 +106,18 @@ function solveInWorker(
   activeWorkerCount += 1;
 
   return new Promise<number>((resolve, reject) => {
-    const worker = new Worker(resolveWorkerPath(), { workerData: validated });
+    // The slot is taken before this executor runs, so anything that throws here
+    // -- a missing worker script, a spawn failure -- has to hand it back. Without
+    // this, MAX_CONCURRENT_WORKERS spawn failures wedge the solver permanently
+    // and every later call reports "capacity reached" instead of the real cause.
+    let worker: Worker;
+    try {
+      worker = new Worker(resolveWorkerPath(), { workerData: validated });
+    } catch (error) {
+      activeWorkerCount = Math.max(0, activeWorkerCount - 1);
+      reject(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
     let settled = false;
 
     const cleanup = () => {

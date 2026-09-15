@@ -54,6 +54,7 @@ const PROVIDER_IDS_WITHOUT_LOCAL_ASSET_PROVENANCE = [
   "leonardo",
   "modal",
   "modelscope",
+  "nimble-search",
   "nlpcloud",
   "oauth",
   "oci",
@@ -69,7 +70,6 @@ const PROVIDER_IDS_WITHOUT_LOCAL_ASSET_PROVENANCE = [
   "serper-search",
   "soniox",
   "synthetic",
-  "theoldllm",
   "unorouter",
   "wandb",
   "youcom-search",
@@ -226,6 +226,24 @@ describe("ProviderIcon — custom remote icon URL (#2166)", () => {
   });
 });
 
+describe("ProviderIcon — local SVG dimensions", () => {
+  it.each([
+    ["cline", "/providers/cline.svg"],
+    ["kimi-coding", "/providers/kimi-logomark-light.svg"],
+    ["opper", "/providers/opper.svg"],
+  ])("gives %s a definite square layout size", (providerId, expectedSrc) => {
+    const container = renderIcon({ providerId, size: 24 });
+    const img = container.querySelector(`img[src="${expectedSrc}"]`);
+
+    expect(img).not.toBeNull();
+    expect(img?.style.width).toBe("24px");
+    expect(img?.style.height).toBe("24px");
+    expect(img?.style.objectFit).toBe("contain");
+    expect(img?.style.maxWidth).toBe("");
+    expect(img?.style.maxHeight).toBe("");
+  });
+});
+
 describe("ProviderIcon — unresolved local asset provenance", () => {
   it("covers the complete provider and alias inventory", () => {
     expect(PROVIDER_IDS_WITHOUT_LOCAL_ASSET_PROVENANCE).toHaveLength(79);
@@ -240,6 +258,27 @@ describe("ProviderIcon — unresolved local asset provenance", () => {
       expect(container.querySelector("img")).toBeNull();
       expect(container.querySelector('svg[data-provider-icon="generic"]')).not.toBeNull();
       expect(container.innerHTML).not.toContain("thesvg.org");
+    }
+  );
+});
+
+// #11853 follow-up: getLobeProviderIcon() itself is already guarded by #11880's
+// Object.hasOwn() checks (see lobe-provider-icons-prototype-collision-11853.test.ts).
+// This covers the three *other* plain-object lookups ProviderIcon.tsx does on its own
+// (PROVIDER_ICON_ALIASES, LOCAL_SVG_ALIASES, THEMED_SVGS) — none of which #11880 touched —
+// which resolved the same inherited-property ids through the prototype chain before
+// falling through to the thesvg.org unknown-provider CDN path.
+describe("ProviderIcon — inherited object property ids", () => {
+  it.each(["constructor", "valueOf", "hasOwnProperty", "__proto__"])(
+    "renders provider id %s through the unknown-provider fallback",
+    (providerId) => {
+      const container = renderIcon({ providerId });
+      const img = container.querySelector("img");
+
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute("src")).toBe(
+        `https://thesvg.org/icons/${providerId.toLowerCase()}/default.svg`
+      );
     }
   );
 });

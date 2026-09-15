@@ -60,7 +60,12 @@ const IGNORE_FROM_CODE = new Set([
   // OS / Node internals frequently surfaced by indirect dependencies.
   "APPDATA",
   "LOCALAPPDATA",
+  "PROGRAMFILES",
   "XDG_CONFIG_HOME",
+  // Codex-owned task/runtime locations and child-process markers. OmniRoute reads
+  // them as external execution context, not as product configuration.
+  "CODEX_HOME",
+  "CODEX_CHATGPT_WEB_BROWSER_HELPER_PROCESS",
   // systemd-injected notify socket path (sd_notify protocol, see
   // scripts/dev/systemd-notify.mjs) — set by systemd only when running under
   // a unit, never user config.
@@ -218,6 +223,9 @@ const IGNORE_FROM_CODE = new Set([
   // Test-only override: points setup-open-code.mjs at a fixture plugin dir without
   // requiring the real bundled plugin to be built.
   "OMNIROUTE_OPENCODE_PLUGIN_DIR",
+  // Test-only escape hatch: makes getMachineIdRaw() skip the macOS ioreg strategy so
+  // machineId tests reach the fallback strategies on darwin (#13539). Not user config.
+  "DISABLE_IOREG_STRATEGY",
 ]);
 
 // Vars documented in ENVIRONMENT.md but intentionally absent from .env.example.
@@ -278,6 +286,9 @@ const ENV_ONLY_ALLOWLIST = new Set([
   "PII_WINDOW_SIZE",
   "TRAE_STREAM_TIMEOUT_MS",
   "TRAE_TOKEN",
+  // #12190: Trae host/Origin override. ENVIRONMENT.md documents no Trae variable at
+  // all; this joins its two siblings above under the same .env.example-only tier.
+  "TRAE_WEB_ORIGIN",
 ]);
 
 // ─── Parsing helpers ───────────────────────────────────────────────────────

@@ -66,13 +66,30 @@ export function sleep(ms) {
 // #2460: Default raised from 15s to 60s so Windows users (slower Next.js
 // cold start due to filesystem watchers, antivirus, etc.) get a working
 // "server ready" signal instead of a phantom timeout while the server is
-// still booting. TCP fallback marks the server as ready when the port
+// still booting. #13369: Made configurable via OMNIROUTE_READY_TIMEOUT_MS
+// so operators on slow cold starts (e.g. 6+ min Windows boots) can raise
+// the budget instead of hitting the warning on every start.
+//
+// TCP fallback marks the server as ready when the port
 // has been listening for >= 3s consecutively AND the health route is
 // actively rejecting/resetting connections fast (route not mounted yet,
 // but the HTTP server is clearly alive and responsive) — never for a
 // socket that merely accepts TCP and then hangs without ever completing
 // a single request (#6800: that's a still-booting/CPU-bound process, not
 // a "route not mounted" gap, and must NOT be reported as ready).
+const DEFAULT_READY_TIMEOUT_MS = 60_000;
+
+export function resolveReadyTimeoutMs(overrides = {}) {
+  if (typeof overrides.timeoutMs === "number" && overrides.timeoutMs > 0) {
+    return overrides.timeoutMs;
+  }
+  const envValue = Number.parseInt(
+    process.env.OMNIROUTE_READY_TIMEOUT_MS || "",
+    10
+  );
+  return Number.isFinite(envValue) && envValue > 0 ? envValue : DEFAULT_READY_TIMEOUT_MS;
+}
+
 export async function waitForServer(port, timeout = 60000) {
   const start = Date.now();
   let tcpListeningSince = null;
@@ -100,31 +117,66 @@ export async function waitForServer(port, timeout = 60000) {
 // - "hanging": the request timed out waiting for any response — the
 //   process accepted the TCP connection but never answered (#6800).
 // - "not-listening": nothing is accepting connections on the port at all.
+// #11766: probe both IPv4 and IPv6 loopback to handle servers listening on
+// either family (or both).
 async function pollHealthOnce(port) {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/monitoring/health`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    return res.ok ? "ready" : "fast-reject";
-  } catch (err) {
-    if (err?.name === "TimeoutError") return "hanging";
-    const listening = await isPortListening(port).catch(() => false);
-    return listening ? "fast-reject" : "not-listening";
-  }
+  const hosts = ["127.0.0.1", "::1"];
+  const outcomes = [];
+
+  // Probe both loopback families concurrently
+  const results = await Promise.all(
+    hosts.map(async (host) => {
+      try {
+        const res = await fetch(`http://${host}:${port}/api/monitoring/health`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        return { host, outcome: res.ok ? "ready" : "fast-reject" };
+      } catch (err) {
+        const outcome = err?.name === "TimeoutError" ? "hanging" : "error";
+        return { host, outcome };
+      }
+    })
+  );
+
+  outcomes.push(...results.map((r) => r.outcome));
+
+  // If either family is ready, the server is ready
+  if (outcomes.includes("ready")) return "ready";
+
+  // If either family is fast-reject, treat as fast-reject
+  // (TCP is listening and rejecting, just route not ready yet)
+  if (outcomes.includes("fast-reject")) return "fast-reject";
+
+  // If either family is hanging, server accepted TCP but not answering
+  // (still booting, must not report as ready per #6800)
+  if (outcomes.includes("hanging")) return "hanging";
+
+  // Both families failed — check if either port is actually listening
+  // If listening, then errors above are route-level (fast-reject case)
+  const listening = await isPortListening(port).catch(() => false);
+  return listening ? "fast-reject" : "not-listening";
 }
 
 async function isPortListening(port) {
   const net = await import("node:net");
-  return new Promise((resolve) => {
-    const socket = net.connect({ host: "127.0.0.1", port, timeout: 1000 });
-    const finish = (ok) => {
-      try {
-        socket.destroy();
-      } catch {}
-      resolve(ok);
-    };
-    socket.once("connect", () => finish(true));
-    socket.once("error", () => finish(false));
-    socket.once("timeout", () => finish(false));
-  });
+  // #11766: check both IPv4 and IPv6 loopback. Return true if either is listening.
+  const hosts = ["127.0.0.1", "::1"];
+  const results = await Promise.all(
+    hosts.map(
+      (host) =>
+        new Promise((resolve) => {
+          const socket = net.connect({ host, port, timeout: 1000 });
+          const finish = (ok) => {
+            try {
+              socket.destroy();
+            } catch {}
+            resolve(ok);
+          };
+          socket.once("connect", () => finish(true));
+          socket.once("error", () => finish(false));
+          socket.once("timeout", () => finish(false));
+        })
+    )
+  );
+  return results.some((ok) => ok);
 }

@@ -34,7 +34,7 @@ type CountTokensErrorResponse = {
 
 async function resetStorage() {
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 }
 
@@ -57,7 +57,7 @@ test.beforeEach(async () => {
 
 test.after(async () => {
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 test("messages/count_tokens uses real provider count when Claude-compatible upstream supports it", async () => {
@@ -142,7 +142,7 @@ test("messages/count_tokens rejects retired Felo models instead of estimating lo
   assert.equal(JSON.stringify(body).includes("felo-web"), false);
 });
 
-test("messages/count_tokens does not mask retired ChatGPT Web models as a local estimate", async () => {
+test("messages/count_tokens does not mask the retired ChatGPT Web alias as a local estimate", async () => {
   const originalFetch = globalThis.fetch;
   let fetchCalls = 0;
   globalThis.fetch = async () => {
@@ -151,7 +151,7 @@ test("messages/count_tokens does not mask retired ChatGPT Web models as a local 
   };
 
   try {
-    for (const provider of ["chatgpt-web", "cgpt-web"]) {
+    for (const provider of ["cgpt-web"]) {
       const alias = `count-via-${provider}`;
       await modelAliasesDb.setModelAlias(alias, `${provider}/gpt-5.5`);
       await settingsDb.updateSettings({

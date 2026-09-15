@@ -35,7 +35,7 @@ const { createCombo } = await import("../../src/lib/db/combos.ts");
 
 test.after(() => {
   resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   if (ORIGINAL_DATA_DIR === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = ORIGINAL_DATA_DIR;
 });
@@ -188,11 +188,11 @@ test("resolveImageRouteModel keeps codex bare aliases over same-name combos", as
   assert.equal(await resolveImageRouteModel("gpt-5.6-sol"), "gpt-5.6-sol");
 });
 
-test("resolveImageRouteModel rejects retired common ChatGPT Web ids before prefix remapping", async () => {
-  await assert.rejects(resolveImageRouteModel("chatgpt-web/gpt-5.5"), {
-    code: "PROVIDER_RETIRED",
-    status: 410,
-  });
+test("resolveImageRouteModel preserves clean-room ChatGPT Web and rejects its retired alias", async () => {
+  assert.equal(
+    await resolveImageRouteModel("chatgpt-web/gpt-5-5-thinking"),
+    "chatgpt-web/gpt-5-5-thinking"
+  );
   await assert.rejects(resolveImageRouteModel("cgpt-web/gpt-5.5"), {
     code: "PROVIDER_RETIRED",
     status: 410,

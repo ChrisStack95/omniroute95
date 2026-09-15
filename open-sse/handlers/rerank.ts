@@ -73,6 +73,10 @@ function buildAuthHeader(providerConfig, token) {
   // strings (whitespace-only documents are accepted and ranked upstream). We
   // filter out exact empty strings and track original indices implicitly via the
   // response adapter, which reconstructs the map from options.documents (#7809).
+  // `top_k` is clamped to the number of documents actually sent: the handler
+  // defaults `top_n` to the caller's *unfiltered* document count, so dropping an
+  // empty string would otherwise ask Voyage to rank more documents than it got,
+  // and Voyage rejects `top_k > documents.length` with HTTP 400.
   // `return_documents` is always forced off upstream: Voyage echoes documents as
   // plain strings (not Cohere's {text}), so we never rely on the echo — document
   // text is always synthesized locally from the caller's originals (#7811).
@@ -84,7 +88,7 @@ function buildAuthHeader(providerConfig, token) {
       model: body.model,
       query: body.query,
       documents: docTexts,
-      top_k: body.top_n || docTexts.length,
+      top_k: Math.min(body.top_n || docTexts.length, docTexts.length),
       return_documents: false,
     };
   }
@@ -101,12 +105,13 @@ function buildAuthHeader(providerConfig, token) {
   options: RerankResponseOptions = {}
 ) {
   if (providerConfig.format === "nvidia") {
+    const returnDocuments = options.return_documents !== false;
     return {
       id: data.id != null ? String(data.id) : `rerank-${Date.now()}`,
       results: (data.rankings || []).map((r) => ({
         index: r.index,
         relevance_score: r.logit || r.score || 0,
-        document: { text: r.text || "" },
+        ...(returnDocuments ? { document: { text: r.text || "" } } : {}),
       })),
       meta: {
         api_version: { version: "2" },
@@ -201,6 +206,7 @@ export async function handleRerank({
   connectionId = null,
   apiKeyId = null,
   apiKeyName = null,
+  resolvedProvider = null,
 }) {
   const startTime = Date.now();
   if (!model) return errorResponse(400, "model is required");
@@ -210,7 +216,8 @@ export async function handleRerank({
   }
 
   const { provider: providerId, model: modelId } = parseRerankModel(model);
-  const providerConfig = providerId ? getRerankProvider(providerId) : null;
+  const providerConfig =
+    resolvedProvider || (providerId ? getRerankProvider(providerId) : null);
 
   if (!providerConfig) {
     const availableProviders = Object.keys(RERANK_PROVIDERS).join(", ");
@@ -219,10 +226,13 @@ export async function handleRerank({
       `No rerank provider found for model "${model}". Available: ${availableProviders}`
     );
   }
+  // When a derived/generic provider is injected, its id is authoritative for
+  // logging and cost attribution even though parseRerankModel returned null.
+  const effectiveProviderId = providerConfig.id || providerId;
 
   const token = credentials?.apiKey || credentials?.accessToken;
   if (!token) {
-    return errorResponse(401, `No credentials for rerank provider: ${providerId}`);
+    return errorResponse(401, `No credentials for rerank provider: ${effectiveProviderId}`);
   }
 
   const requestBody = transformRequestForProvider(providerConfig, {
@@ -275,8 +285,8 @@ export async function handleRerank({
         method: "POST",
         path: "/v1/rerank",
         status: res.status,
-        model: `${providerId}/${modelId}`,
-        provider: providerId,
+        model: `${effectiveProviderId}/${modelId}`,
+        provider: effectiveProviderId,
         connectionId: connectionId || undefined,
         duration: Date.now() - startTime,
         requestBody,
@@ -296,14 +306,14 @@ export async function handleRerank({
     });
 
     const searchUnits = Number(result?.meta?.billed_units?.search_units) || 0;
-    const costUsd = await calculateModalCost("rerank", providerId, modelId, { searchUnits });
+    const costUsd = await calculateModalCost("rerank", effectiveProviderId, modelId, { searchUnits });
 
     saveCallLog({
       method: "POST",
       path: "/v1/rerank",
       status: 200,
-      model: `${providerId}/${modelId}`,
-      provider: providerId,
+      model: `${effectiveProviderId}/${modelId}`,
+      provider: effectiveProviderId,
       connectionId: connectionId || undefined,
       duration: Date.now() - startTime,
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
@@ -315,7 +325,7 @@ export async function handleRerank({
 
     const headers = new Headers({ ...CORS_HEADERS, "Content-Type": "application/json" });
     attachOmniRouteMetaHeaders(headers, {
-      provider: providerId,
+      provider: effectiveProviderId,
       model: modelId,
       costUsd,
       latencyMs: Date.now() - startTime,

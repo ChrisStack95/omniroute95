@@ -74,7 +74,7 @@ async function resetStorage() {
   globalThis.fetch = originalFetch;
   apiKeysDb.resetApiKeyState();
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
   // #6303 moved this route onto the shared unified catalog (getUnifiedModelsResponse),
   // which #6408 wrapped in a 1.5s TTL response cache keyed only by (prefix, isCodex
@@ -122,7 +122,7 @@ test.after(() => {
   globalThis.fetch = originalFetch;
   apiKeysDb.resetApiKeyState();
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 test("image routes expose CORS preflight handlers", async () => {
@@ -139,14 +139,14 @@ test("image routes expose CORS preflight handlers", async () => {
   }
 });
 
-test("v1 image routes fail closed for retired common ChatGPT Web ids without network", async () => {
+test("v1 image routes fail closed for the retired ChatGPT Web alias without network", async () => {
   let fetchCalls = 0;
   globalThis.fetch = async () => {
     fetchCalls += 1;
     throw new Error("Retired image providers must not reach the network");
   };
 
-  for (const provider of ["chatgpt-web", "cgpt-web"]) {
+  for (const provider of ["cgpt-web"]) {
     const generationResponse = await imageRoute.POST(
       new Request("http://localhost/api/v1/images/generations", {
         method: "POST",
@@ -339,7 +339,7 @@ test("v1 image edit retirement takes precedence over API key policy", async () =
     throw new Error("Retired image providers must not reach the network");
   };
 
-  for (const provider of ["chatgpt-web", "cgpt-web"]) {
+  for (const provider of ["cgpt-web"]) {
     const response = await imageEditRoute.POST(
       new Request("http://localhost/api/v1/images/edits", {
         method: "POST",
@@ -464,6 +464,41 @@ test("v1 image edit POST routes built-in Codex references through native Respons
     `data:image/png;base64,${Buffer.from(sourceBytes).toString("base64")}`
   );
   assert.equal(captured.body.input[0].content.length, 3);
+});
+
+test("v1 image edit POST defaults Codex results to b64_json when response_format is unset (#12268)", async () => {
+  await seedConnection("codex", { apiKey: "codex-oauth-token" });
+
+  globalThis.fetch = async () => {
+    const event = {
+      type: "response.output_item.done",
+      item: {
+        type: "image_generation_call",
+        id: "ig_edit_default",
+        status: "completed",
+        result: "ZGVmYXVsdC1lZGl0",
+      },
+    };
+    return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  };
+
+  // Codex CLI's built-in image_gen never sends response_format; it expects
+  // the OpenAI gpt-image-* shape with the bytes in b64_json.
+  const response = await imageEditRoute.POST(
+    new Request("http://localhost/api/v1/images/edits", {
+      method: "POST",
+      body: createCodexEditForm("make it cute"),
+    })
+  );
+  const body = (await response.json()) as ImageResponseBody & { created?: number };
+
+  assert.equal(response.status, 200);
+  assert.equal(typeof body.created, "number");
+  assert.equal(body.data[0].b64_json, "ZGVmYXVsdC1lZGl0");
+  assert.equal(body.data[0].url, undefined);
 });
 
 test("v1 image edit POST rejects excessive or malformed Codex reference sets", async () => {
