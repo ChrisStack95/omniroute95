@@ -3,6 +3,7 @@ import {
   removeProxyFromScopePool,
   getScopeProxyPool,
   getScopeRotationStrategy,
+  getScopePoolReevaluate,
   setScopeRotationStrategy,
 } from "@/lib/db/proxies";
 import { proxyPoolMemberSchema, proxyRotationStrategySchema } from "@/shared/validation/schemas";
@@ -18,7 +19,7 @@ import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 //   GET    ?scope=&scopeId=  → { members, strategy }
 //   PUT    { scope, scopeId?, proxyId }              → add a member
 //   DELETE { scope, scopeId?, proxyId }              → remove a member
-//   PATCH  { scope, scopeId?, strategy, stickyWindowMinutes? } → set strategy
+//   PATCH  { scope, scopeId?, strategy, stickyWindowMinutes?, reevaluatePerRequest? } → set strategy
 
 // The single-assign UI still uses "key" as an alias for the account scope; keep
 // the API surface consistent with the sibling bulk-assign route.
@@ -50,11 +51,12 @@ export async function GET(request: Request) {
     }
 
     const normalizedScopeId = scope === "global" ? null : scopeId;
-    const [members, strategy] = await Promise.all([
+    const [members, strategy, reevaluatePerRequest] = await Promise.all([
       getScopeProxyPool(scope, normalizedScopeId),
       getScopeRotationStrategy(scope, normalizedScopeId),
+      getScopePoolReevaluate(scope, normalizedScopeId),
     ]);
-    return Response.json({ members, strategy, total: members.length });
+    return Response.json({ members, strategy, reevaluatePerRequest, total: members.length });
   } catch (error) {
     return createErrorResponseFromUnknown(error, "Failed to load proxy pool");
   }
@@ -148,13 +150,15 @@ export async function PATCH(request: Request) {
       });
     }
 
-    const { scope, scopeId, strategy, stickyWindowMinutes } = validation.data;
+    const { scope, scopeId, strategy, stickyWindowMinutes, reevaluatePerRequest } = validation.data;
     const normalizedScope = normalizeScopeAlias(scope);
     const applied = await setScopeRotationStrategy(normalizedScope, scopeId || null, strategy, {
       stickyWindowMinutes,
+      reevaluatePerRequest,
     });
     clearDispatcherCache();
-    return Response.json({ success: true, strategy: applied });
+    const stored = await getScopePoolReevaluate(normalizedScope, scopeId || null);
+    return Response.json({ success: true, strategy: applied, reevaluatePerRequest: stored });
   } catch (error) {
     return createErrorResponseFromUnknown(error, "Failed to set rotation strategy");
   }

@@ -182,7 +182,11 @@ async function executeWarmup(): Promise<void> {
       log.debug("warmup skip", { connectionId: conn.id, reason: "forbidden" });
       continue;
     }
-    const proxyResolution = await resolveProxyForConnection(conn.id).catch((err) => {
+    // Background warmup: keep the cached pool member without consuming a
+    // rotation turn (#13575).
+    const proxyResolution = await resolveProxyForConnection(conn.id, undefined, undefined, {
+      reevaluatePool: false,
+    }).catch((err) => {
       log.warn("proxy resolution failed, falling back to direct", { connectionId: conn.id, err });
       return null;
     });

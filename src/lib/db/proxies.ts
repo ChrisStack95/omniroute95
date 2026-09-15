@@ -46,15 +46,18 @@ import {
   normalizeRotationStrategy,
   getScopeProxyPool,
   getScopeRotationStrategy,
+  getScopePoolReevaluate,
   resolveProxyForConnectionFromRegistry,
   resolveProxyForScopeFromRegistry,
 } from "./proxies/rotation";
 export {
   getScopeProxyPool,
   getScopeRotationStrategy,
+  getScopePoolReevaluate,
   resolveProxyForConnectionFromRegistry,
   resolveProxyForScopeFromRegistry,
 };
+export type { PoolResolutionOptions } from "./proxies/rotation";
 
 // Mutate legacy proxyConfig rows directly so these writes stay inside the same
 // SQLite transaction as the proxy registry row and assignment upsert.
@@ -621,12 +624,16 @@ export async function removeProxyFromScopePool(
  * Set the rotation strategy for a scope's pool (#6365). Unknown values fall back
  * to the default (`round-robin`). Preserves the existing cursor so switching to
  * and back from `random` does not reset round-robin fairness.
+ *
+ * `options.reevaluatePerRequest` (#13575) opts the pool into per-request
+ * member re-evaluation on the chat path; omitted leaves the stored flag
+ * untouched so strategy-only updates never flip it.
  */
 export async function setScopeRotationStrategy(
   scope: string,
   scopeId: string | null,
   strategy: ProxyRotationStrategy | string,
-  options?: { stickyWindowMinutes?: number }
+  options?: { stickyWindowMinutes?: number; reevaluatePerRequest?: boolean }
 ): Promise<ProxyRotationStrategy> {
   const normalizedScope = normalizeScope(scope);
   const rotationScopeId = normalizeRotationScopeId(normalizedScope, scopeId);
@@ -638,22 +645,36 @@ export async function setScopeRotationStrategy(
     options?.stickyWindowMinutes !== undefined && Number.isFinite(options.stickyWindowMinutes)
       ? Math.max(1, Math.floor(options.stickyWindowMinutes))
       : null;
+  const reevaluate =
+    options?.reevaluatePerRequest !== undefined ? (options.reevaluatePerRequest ? 1 : 0) : null;
 
+  const columns = ["scope", "scope_id", "strategy"];
+  const placeholders = ["?", "?", "?"];
+  const updates = ["strategy = excluded.strategy"];
+  const params: unknown[] = [normalizedScope, rotationScopeId, normalizedStrategy];
   if (stickyWindow !== null) {
-    db.prepare(
-      `INSERT INTO proxy_scope_rotation (scope, scope_id, strategy, sticky_window_minutes, updated_at)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(scope, scope_id)
-       DO UPDATE SET strategy = excluded.strategy, sticky_window_minutes = excluded.sticky_window_minutes, updated_at = excluded.updated_at`
-    ).run(normalizedScope, rotationScopeId, normalizedStrategy, stickyWindow, now);
-  } else {
-    db.prepare(
-      `INSERT INTO proxy_scope_rotation (scope, scope_id, strategy, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(scope, scope_id)
-       DO UPDATE SET strategy = excluded.strategy, updated_at = excluded.updated_at`
-    ).run(normalizedScope, rotationScopeId, normalizedStrategy, now);
+    columns.push("sticky_window_minutes");
+    placeholders.push("?");
+    updates.push("sticky_window_minutes = excluded.sticky_window_minutes");
+    params.push(stickyWindow);
   }
+  if (reevaluate !== null) {
+    columns.push("reevaluate_per_request");
+    placeholders.push("?");
+    updates.push("reevaluate_per_request = excluded.reevaluate_per_request");
+    params.push(reevaluate);
+  }
+  columns.push("updated_at");
+  placeholders.push("?");
+  updates.push("updated_at = excluded.updated_at");
+  params.push(now);
+
+  db.prepare(
+    `INSERT INTO proxy_scope_rotation (${columns.join(", ")})
+     VALUES (${placeholders.join(", ")})
+     ON CONFLICT(scope, scope_id)
+     DO UPDATE SET ${updates.join(", ")}`
+  ).run(...params);
 
   bumpProxyRegistryGeneration();
   return normalizedStrategy;

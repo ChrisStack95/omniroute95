@@ -31,7 +31,16 @@ export const TOKEN_EXPIRY_BUFFER_MS = BUFFER_MS;
 
 async function resolveProxyForCredentials(provider: string, credentials?: any) {
   if (credentials?.connectionId) {
-    const resolved = await resolveProxyForConnection(credentials.connectionId);
+    // Background refresh: keep the cached pool member without consuming a
+    // rotation turn (#13575).
+    const resolved = await resolveProxyForConnection(
+      credentials.connectionId,
+      undefined,
+      undefined,
+      {
+        reevaluatePool: false,
+      }
+    );
     if (resolved?.proxy) {
       return resolved.proxy;
     }

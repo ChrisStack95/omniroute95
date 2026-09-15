@@ -8,6 +8,8 @@ import { PROVIDER_ID_TO_ALIAS } from "@omniroute/open-sse/config/providerModels.
 import { invalidateDbCache } from "./readCache";
 import { encrypt, decrypt } from "./encryption";
 import { getProxyRegistryGeneration, resolveProxyForScopeFromRegistry } from "./proxies";
+import { getScopePoolReevaluate } from "./proxies/rotation";
+import type { PoolResolutionOptions } from "./proxies/rotation";
 import { getComboModelProvider as getComboEntryProvider } from "@/lib/combos/steps";
 import { requestBodyLimitMbFromEnv } from "@/shared/constants/bodySize";
 import { DEFAULT_RESPONSES_PREVIOUS_RESPONSE_ID_MODE } from "@/shared/constants/responsesPreviousResponseId";
@@ -503,10 +505,50 @@ export async function deleteProxyForLevel(level: string, id: string | null) {
   return setProxyForLevel(level, id, null);
 }
 
+export interface ProxyConnectionResolutionOptions {
+  /**
+   * When false, pool-sourced resolutions are served from the per-connection
+   * cache without advancing the rotation cursor — for background callers
+   * (token refresh, warmup) that must not consume rotation turns (#13575).
+   * Defaults to true: every request asks an opted-in pool again.
+   */
+  reevaluatePool?: boolean;
+}
+
+function poolOptionsFor(options?: ProxyConnectionResolutionOptions): PoolResolutionOptions {
+  return options?.reevaluatePool === false ? { advanceCursor: false } : {};
+}
+
+// A cached pool pick is only reusable while its scope keeps the member frozen.
+// Scopes opted into per-request re-evaluation (#13575) must ask the pool again
+// so the strategy (round-robin cursor, sticky window) runs on every request.
+async function isPoolResultReevaluating(result: ProxyResolutionResult): Promise<boolean> {
+  if (result.source !== "registry") return false;
+  const level = typeof result.level === "string" ? result.level : "";
+  if (level === "account" || level === "provider" || level === "combo") {
+    if (typeof result.levelId !== "string" || !result.levelId) return false;
+    return getScopePoolReevaluate(level, result.levelId);
+  }
+  if (level === "global") return getScopePoolReevaluate("global", null);
+  return false;
+}
+
+async function cachePoolResolution(
+  cacheKey: string,
+  generation: number,
+  registryGeneration: number,
+  result: ProxyResolutionResult,
+  options?: ProxyConnectionResolutionOptions
+) {
+  if (options?.reevaluatePool !== false && (await isPoolResultReevaluating(result))) return;
+  cacheProxyResolution(cacheKey, generation, registryGeneration, result);
+}
+
 export async function resolveProxyForConnection(
   connectionId: string,
   apiKeyId?: string,
-  providerId?: string
+  providerId?: string,
+  options?: ProxyConnectionResolutionOptions
 ) {
   const cacheKey = providerId
     ? `${connectionId}:${apiKeyId || ""}:${providerId}`
@@ -521,7 +563,10 @@ export async function resolveProxyForConnection(
     cached.generation === startGeneration &&
     cached.registryGeneration === startRegistryGeneration
   ) {
-    return cached.result;
+    if (options?.reevaluatePool === false || !(await isPoolResultReevaluating(cached.result))) {
+      return cached.result;
+    }
+    // Opted-in pool: fall through and ask the pool again (#13575).
   }
 
   const db = getDbInstance();
@@ -642,9 +687,19 @@ export async function resolveProxyForConnection(
   }
 
   // Step 3: Account-level registry
-  const registryAccount = await resolveProxyForScopeFromRegistry("account", connectionId);
+  const registryAccount = await resolveProxyForScopeFromRegistry(
+    "account",
+    connectionId,
+    poolOptionsFor(options)
+  );
   if (registryAccount?.proxy) {
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryAccount);
+    await cachePoolResolution(
+      cacheKey,
+      startGeneration,
+      startRegistryGeneration,
+      registryAccount,
+      options
+    );
     return registryAccount;
   }
 
@@ -665,10 +720,17 @@ export async function resolveProxyForConnection(
     if (connectionProvider && connectionProxyEnabled) {
       const registryProvider = await resolveProxyForScopeFromRegistry(
         "provider",
-        connectionProvider
+        connectionProvider,
+        poolOptionsFor(options)
       );
       if (registryProvider?.proxy) {
-        cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryProvider);
+        await cachePoolResolution(
+          cacheKey,
+          startGeneration,
+          startRegistryGeneration,
+          registryProvider,
+          options
+        );
         return registryProvider;
       }
     }
@@ -696,9 +758,19 @@ export async function resolveProxyForConnection(
           );
           if (!usesProvider) continue;
 
-          const registryCombo = await resolveProxyForScopeFromRegistry("combo", comboId);
+          const registryCombo = await resolveProxyForScopeFromRegistry(
+            "combo",
+            comboId,
+            poolOptionsFor(options)
+          );
           if (registryCombo?.proxy) {
-            cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryCombo);
+            await cachePoolResolution(
+              cacheKey,
+              startGeneration,
+              startRegistryGeneration,
+              registryCombo,
+              options
+            );
             return registryCombo;
           }
 
@@ -743,9 +815,19 @@ export async function resolveProxyForConnection(
   }
 
   // Step 9: Global registry
-  const registryGlobal = await resolveProxyForScopeFromRegistry("global");
+  const registryGlobal = await resolveProxyForScopeFromRegistry(
+    "global",
+    null,
+    poolOptionsFor(options)
+  );
   if (registryGlobal?.proxy) {
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryGlobal);
+    await cachePoolResolution(
+      cacheKey,
+      startGeneration,
+      startRegistryGeneration,
+      registryGlobal,
+      options
+    );
     return registryGlobal;
   }
 

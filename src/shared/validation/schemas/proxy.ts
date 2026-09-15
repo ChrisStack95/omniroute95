@@ -229,13 +229,16 @@ export const proxyPoolMemberSchema = z
   });
 
 // Set a scope pool's rotation strategy. Optional sticky window (minutes) only
-// applies to the `sticky` strategy; ignored otherwise.
+// applies to the `sticky` strategy; ignored otherwise. Optional
+// reevaluatePerRequest (#13575) opts the pool into per-request member
+// re-evaluation on the chat path; omitted leaves the stored flag untouched.
 export const proxyRotationStrategySchema = z
   .object({
     scope: z.enum(["global", "provider", "account", "combo", "key"]),
     scopeId: z.string().trim().nullable().optional(),
     strategy: z.enum(PROXY_POOL_ROTATION_STRATEGY_VALUES),
     stickyWindowMinutes: z.number().int().min(1).max(1440).optional(),
+    reevaluatePerRequest: z.boolean().optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
