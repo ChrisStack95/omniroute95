@@ -81,7 +81,10 @@ function statusOfGateId(gates, gateId) {
 function pushEvidenceError(evidence_errors, err) {
   if (!err) return;
   const already = evidence_errors.some(
-    (e) => e.code === err.code && e.detail === err.detail
+    (e) =>
+      e.code === err.code &&
+      e.detail === err.detail &&
+      e.gate?.gate_id === err.gate?.gate_id
   );
   if (!already) evidence_errors.push(err);
 }
