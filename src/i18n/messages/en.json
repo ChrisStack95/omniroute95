@@ -8377,7 +8377,12 @@
     "cliproxyapiHealth": "Health",
     "cliproxyapiPort": "Port",
     "qdrantHost": "Host",
-    "qdrantCollection": "Collection"
+    "qdrantCollection": "Collection",
+    "catalogScopeTitle": "Models API listing",
+    "catalogScopeDesc": "What GET /v1/models advertises for this key. Narrowing the list never changes what the key can call.",
+    "catalogScopeAll": "Both",
+    "catalogScopeCombos": "Combos only",
+    "catalogScopeModels": "Models only"
   },
   "contextRtk": {
     "title": "RTK Engine",

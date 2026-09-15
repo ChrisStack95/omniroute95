@@ -8374,7 +8374,12 @@
     "headroomProxySave": "Lưu",
     "headroomProxyStart": "Bắt đầu",
     "headroomProxyStop": "Dừng",
-    "headroomProxyExternalHint": "URL này không phải loopback, nên OmniRoute sẽ không khởi chạy CLI cục bộ."
+    "headroomProxyExternalHint": "URL này không phải loopback, nên OmniRoute sẽ không khởi chạy CLI cục bộ.",
+    "catalogScopeTitle": "Danh sách API mô hình",
+    "catalogScopeDesc": "Những gì GET /v1/models hiển thị cho khóa này. Thu hẹp danh sách không làm thay đổi những gì khóa có thể gọi.",
+    "catalogScopeAll": "Cả hai",
+    "catalogScopeCombos": "Chỉ combo",
+    "catalogScopeModels": "Chỉ mô hình"
   },
   "contextRtk": {
     "title": "RTK Engine",

@@ -2002,8 +2002,15 @@ async function buildUnifiedModelsResponseCore(
         // Without this branch, isModelAllowedForKey returns false for every model
         // (metadata missing → deny), collapsing /v1/models to 0 entries.
       } else {
+        // Per-key catalog scope: `combos` advertises only combo rows, `models`
+        // only provider models, `all` (the default) both. This is a listing
+        // preference, not an access control — dispatch is unaffected either way.
+        const catalogScope = keyMeta.catalogScope ?? "all";
         const filtered = [];
         for (const m of models) {
+          const isComboRow = m.owned_by === "combo";
+          if (catalogScope === "combos" && !isComboRow) continue;
+          if (catalogScope === "models" && isComboRow) continue;
           // A combo is gated by `allowedCombos`, not by the model allow/deny lists:
           // those govern provider models. Without this branch a `restricted` key with
           // an empty `allowedModels` gets an EMPTY catalog even though every combo in

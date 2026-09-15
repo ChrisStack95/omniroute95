@@ -97,6 +97,7 @@ export interface ApiKeyMetadata {
   weeklyUsageLimitUsd?: number | null;
   compressionEnabled?: boolean;
   allowAutoCombos?: boolean;
+  catalogScope?: "all" | "combos" | "models";
 }
 
 /**
