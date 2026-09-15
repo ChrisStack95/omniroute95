@@ -1,5 +1,8 @@
 import type { RequestPipelinePayloads } from "@omniroute/open-sse/utils/requestLogger.ts";
-import { classifyProviderError } from "@omniroute/open-sse/services/errorClassifier.ts";
+import {
+  classifyProviderError,
+  type ErrorTypeContract,
+} from "@omniroute/open-sse/services/errorClassifier.ts";
 import {
   sanitizeErrorMessage,
   sanitizeUpstreamDetails,
@@ -166,9 +169,14 @@ export function buildRequestSummary(
 
 // #10670: per-call error family at the single write point. Reuses the
 // production classifier (chatCore.ts:3974, auth.ts:2598) so the persisted
-// vocabulary is exactly PROVIDER_ERROR_TYPES. Successes (status < 400 with no
-// error text) short-circuit to null — the classifier never returns a family
-// for them anyway, this only skips the call.
+// vocabulary is ERROR_TYPE_CONTRACT (PROVIDER_ERROR_TYPES + "unknown").
+// - Successes (0 < status < 400) are null. The classifier never returns a
+//   family below 400, so this only skips the call.
+// - status 0 (no upstream response) is null without error text, otherwise a
+//   failure.
+// - A failure the classifier cannot place is persisted as the explicit
+//   "unknown" (#13281) instead of NULL, so a NULL error_type keeps meaning
+//   "legacy row / not a failure" and the analytics breakdown can tell them apart.
 // Normalization: strings pass through, Error objects yield .message, any other
 // object yields "" (no caller passes plain objects — verified: 35 callers use
 // strings and Error only). Deliberate deviation from design §4 ("objet →
@@ -177,9 +185,8 @@ export function classifyCallLogError(
   status: number,
   error: unknown,
   provider?: string | null
-): string | null {
+): ErrorTypeContract | null {
   const errorText = typeof error === "string" ? error : error instanceof Error ? error.message : "";
-  if (status === 0) return errorText.length === 0 ? null : (classifyProviderError(status, errorText, provider) ?? "unknown");
-  if (status < 400) return null; // success (even with a non-empty body — inherited behavior, out of scope)
+  if (status === 0 ? errorText.length === 0 : status < 400) return null;
   return classifyProviderError(status, errorText, provider) ?? "unknown";
 }
