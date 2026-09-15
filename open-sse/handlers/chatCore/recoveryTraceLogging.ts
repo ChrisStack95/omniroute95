@@ -1,24 +1,59 @@
-import type { StreamRecoveryTrace } from "../../services/streamRecovery.ts";
-
 /**
- * Format a stream-recovery trace as a single correlatable log line. The
- * continuation `attempt` is the join key with the `onContinue` line. Only
- * `latch` lines carry `orderFix` (the only transition the flag governs);
- * attempt/outcome lines never expose the ephemeral flag name.
+ * Log wiring for mid-stream continuation (stream recovery). Kept out of chatCore so the
+ * call site stays one line.
+ *
+ * Levels: the continuation attempt line keeps its release wording at warn; a recovery that
+ * gives up (the continuation budget is spent, or the continuation request returned no
+ * stream) is warn; every other outcome — stitched suffix, overlap rejection, terminal or
+ * empty continuation, a cut refused because of a tool call — is debug, so a healthy stream
+ * never adds a warn line. Every line carries `attempt N/MAX` so it joins the attempt line.
  */
-export function formatRecoveryTrace(trace: StreamRecoveryTrace): string {
-  const parts = [`recovery trace attempt=${trace.attempt} kind=${trace.kind}`];
-  if (trace.kind === "continue-attempt") {
-    parts.push(`latch=${trace.latch ?? false}`);
-  } else if (trace.kind === "continue-outcome") {
-    if (trace.outcome) parts.push(`outcome=${trace.outcome}`);
-    if (trace.suffixChars !== undefined) parts.push(`suffixChars=${trace.suffixChars}`);
-    if (trace.overlapChars !== undefined) parts.push(`overlapChars=${trace.overlapChars}`);
-    if (trace.refusedReason) parts.push(`refusedReason=${trace.refusedReason}`);
-  } else {
-    parts.push(`latchBefore=${trace.latchBefore ?? false}`);
-    parts.push(`latchAfter=${trace.latchAfter ?? false}`);
-    parts.push(`orderFix=${trace.orderFixOn}`);
+import { STREAM_RECOVERY } from "../../config/constants.ts";
+import type {
+  ContinuationOutcome,
+  RecoverableStreamOptions,
+} from "../../services/streamRecovery.ts";
+
+type RecoveryLogger =
+  | {
+      warn?: (tag: string, message: string) => void;
+      debug?: (tag: string, message: string) => void;
+    }
+  | null
+  | undefined;
+
+const TAG = "STREAM_RECOVERY";
+const MAX = STREAM_RECOVERY.EARLY_RETRY_MAX;
+
+export function formatContinuationOutcome(event: ContinuationOutcome): string {
+  const head = `mid-stream continuation attempt ${event.attempt}/${MAX} outcome=${event.outcome}`;
+  switch (event.outcome) {
+    case "suffix":
+      return `${head} suffixChars=${event.suffixChars}`;
+    case "overlap-reject":
+      return `${head} overlapChars=${event.overlapChars}`;
+    case "refused":
+      return `${head} reason=${event.reason}`;
+    default:
+      return head;
   }
-  return parts.join(" ");
+}
+
+/** True for the outcomes that end a recovery without delivering the missing text. */
+export function isContinuationGiveUp(event: ContinuationOutcome): boolean {
+  if (event.outcome === "no-stream") return true;
+  return event.outcome === "refused" && event.reason === "budget" && event.attempt > 0;
+}
+
+export function buildContinuationLogHooks(
+  log: RecoveryLogger
+): Pick<RecoverableStreamOptions, "onContinue" | "onContinueOutcome"> {
+  return {
+    onContinue: (attempt) => log?.warn?.(TAG, `mid-stream continuation attempt ${attempt}/${MAX}`),
+    onContinueOutcome: (event) => {
+      const line = formatContinuationOutcome(event);
+      if (isContinuationGiveUp(event)) log?.warn?.(TAG, line);
+      else log?.debug?.(TAG, line);
+    },
+  };
 }

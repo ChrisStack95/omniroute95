@@ -1,5 +1,4 @@
 {
-  "_rebaseline_2026_09_15_13650_continuation_attempt_token": "Own growth after rebase onto v3.8.51 tip 5ca724d2c: open-sse/handlers/chatCore.ts 6146->6150 (+4/-0, check-file-size split-newline). The R9-iv attempt= token the PR adds to the onContinue log line plus the onRecoveryTrace wiring (2 imports, 1 template line, 3 hook lines) at the existing continuation site; irreducible at this call site, the formatter lives in recoveryTraceLogging.ts (new file, under cap). Covered by tests/unit/stream-recovery-trace-logging.test.ts (R9-iv join).",
   "_rebaseline_2026_09_14_13547_noauth_model_lockout": "PR #13547 own growth: src/sse/services/auth.ts 3542->3556 (+14). The synthetic noauth connection short-circuited before the per-connection status pass, so a recorded model-only lockout was never enforced and the locked model was retried on every request. Irreducible at the early-return site. Covered by tests/unit/noauth-model-lockout.test.ts (carried from #13527).",
   "_rebaseline_2026_09_14_13404_healthcheck_backup_prune": "PR #13404 own growth: src/lib/db/core.ts 1745->1767 (+22). createManagedDbBackup (the health-check-repair snapshot path) never ran retention, so every restart of a healthy DB added a full-size copy to db_backups/; it now prunes with the same env-driven limits as backup.ts, importing backupRetention directly to avoid the backup.ts cycle. Covered by tests/unit/db-backup-healthcheck-prune-13308.test.ts.",
   "_rebaseline_2026_09_14_13349_virtualfactory_custom_models_guard": "PR #13349 own growth: open-sse/services/autoCombo/virtualFactory.ts 1219->1230 (+11). The customModels key_value blob is operator-writable raw JSON, so a null or non-object row null-derefed every read and no auto/* pool could materialize; the builder now filters rows the same way catalog.ts already does. Irreducible at the read site. Covered by tests/unit/combo-auto-pool-visible-only.test.ts.",
@@ -438,7 +437,7 @@
     "open-sse/executors/codex.ts": 1505,
     "open-sse/executors/cursor.ts": 1759,
     "open-sse/executors/muse-spark-web.ts": 1405,
-    "open-sse/handlers/chatCore.ts": 6150,
+    "open-sse/handlers/chatCore.ts": 6146,
     "open-sse/handlers/imageGeneration.ts": 3293,
     "open-sse/handlers/search.ts": 1789,
     "open-sse/mcp-server/schemas/tools.ts": 1621,
