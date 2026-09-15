@@ -64,8 +64,6 @@ export const NADIR_FAILURE_COOLDOWN_MS = 30_000;
 const MAX_MENU_ITEMS = 100;
 /** The classifier reads the head of the prompt; a pasted log need not travel whole. */
 export const NADIR_MAX_PROMPT_CHARS = 16_000;
-const ENV_API_KEY = "OMNIROUTE_NADIR_API_KEY";
-const ENV_BASE_URL = "OMNIROUTE_NADIR_BASE_URL";
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
@@ -182,7 +180,7 @@ export class NadirStrategyImpl implements RouterStrategy {
     if (!prompt) return this.fallbackDecision(candidates, context, "request carries no user text");
 
     const configuredBaseUrl =
-      readString(context.nadir?.baseUrl) ?? readString(process.env[ENV_BASE_URL]);
+      readString(context.nadir?.baseUrl) ?? readString(process.env.OMNIROUTE_NADIR_BASE_URL);
     const baseUrl = configuredBaseUrl
       ? normalizeNadirBaseUrl(configuredBaseUrl)
       : NADIR_DEFAULT_BASE_URL;
@@ -193,7 +191,8 @@ export class NadirStrategyImpl implements RouterStrategy {
       return this.fallbackDecision(candidates, context, "cooling down after a failed call");
     }
 
-    const apiKey = readString(context.nadir?.apiKey) ?? readString(process.env[ENV_API_KEY]);
+    const apiKey =
+      readString(context.nadir?.apiKey) ?? readString(process.env.OMNIROUTE_NADIR_API_KEY);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (apiKey) headers["X-API-Key"] = apiKey;
     const menu = [...new Set(candidates.map((c) => c.model))].slice(0, MAX_MENU_ITEMS);
