@@ -14143,5 +14143,6 @@
     "partnerLinkNote": "የአጋር አገናኝ",
     "dismissAriaLabel": "ዝጋ"
   },
-  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "በ/v1/models ካታሎግ ውስጥ የአስተሳሰብ ደረጃ ተለዋጮችን (ለምሳሌ -low, -medium, -high) ማመንጨትን አሰናክል።"
+  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "በ/v1/models ካታሎግ ውስጥ የአስተሳሰብ ደረጃ ተለዋጮችን (ለምሳሌ -low, -medium, -high) ማመንጨትን አሰናክል።",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "__MISSING__:Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id."
 }

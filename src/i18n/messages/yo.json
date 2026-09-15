@@ -14143,5 +14143,6 @@
     "partnerLinkNote": "Ọ̀nà asopọ aláṣiṣẹ́pọ̀",
     "dismissAriaLabel": "Pa á tì"
   },
-  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "Mú ṣíṣẹ̀dá àwọn ẹ̀yà ìpele ìrònú (fún àpẹẹrẹ -low, -medium, -high) nínú àkójọ /v1/models ṣiṣẹ́ mọ́."
+  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "Mú ṣíṣẹ̀dá àwọn ẹ̀yà ìpele ìrònú (fún àpẹẹrẹ -low, -medium, -high) nínú àkójọ /v1/models ṣiṣẹ́ mọ́.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "__MISSING__:Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id."
 }

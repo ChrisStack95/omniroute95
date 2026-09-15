@@ -14143,5 +14143,6 @@
     "partnerLinkNote": "Hamkorlik havolasi",
     "dismissAriaLabel": "Yopish"
   },
-  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "/v1/models katalogida fikrlash darajasi variantlarini (masalan, -low, -medium, -high) yaratishni o‘chirib qo‘ying."
+  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "/v1/models katalogida fikrlash darajasi variantlarini (masalan, -low, -medium, -high) yaratishni o‘chirib qo‘ying.",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "__MISSING__:Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id."
 }
