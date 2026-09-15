@@ -151,6 +151,6 @@ export class GeminiPlanningLeakFilter {
     this.resolved = true;
     const result = consumePlanningLeak(this.buffer, true);
     this.buffer = "";
-    return result.visibleText;
+    return "visibleText" in result ? result.visibleText : "";
   }
 }
