@@ -231,6 +231,17 @@ describe("featureFlagDefinitions", () => {
     assert.strictEqual(def.requiresRestart, false);
   });
 
+  it("defines MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT as an opt-in runtime boolean flag disabled by default", () => {
+    const def = FEATURE_FLAG_DEFINITIONS.find(
+      (d) => d.key === "MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT"
+    );
+    assert.ok(def, "MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT should exist");
+    assert.strictEqual(def.category, "runtime");
+    assert.strictEqual(def.type, "boolean");
+    assert.strictEqual(def.defaultValue, "false");
+    assert.strictEqual(def.requiresRestart, false);
+  });
+
   it("defines network rotation shared-egress guard as a network boolean flag enabled by default", () => {
     const def = FEATURE_FLAG_DEFINITIONS.find(
       (d) => d.key === "NETWORK_ROTATION_SHARED_EGRESS_GUARD"
