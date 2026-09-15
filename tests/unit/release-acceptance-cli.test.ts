@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -85,4 +85,44 @@ test("workflow source-guard", () => {
   assert.match(text, /cancel-in-progress: false/);
   assert.equal(text.includes("gh issue close"), false);
   assert.match(text, /if: github.event_name != 'pull_request'/);
+});
+
+test("schema_invalid does not throw when required_gates is missing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "acc-"));
+  writeFileSync(
+    join(dir, "plan.json"),
+    JSON.stringify({
+      identity: {
+        repository: "diegosouzapw/OmniRoute",
+        run_id: "1",
+        run_attempt: 1,
+        workflow: "release-acceptance.yml",
+        trigger: "push",
+        scope: "release",
+        requested_ref: "refs/heads/release/v3.8.51",
+        base_sha: SHA,
+        candidate_sha: SHA,
+        tested_sha: SHA,
+      },
+      artifact: null,
+    })
+  );
+  const man = join(dir, "m");
+  mkdirSync(man);
+  writeFileSync(join(man, "a.json"), JSON.stringify({ gates: [gate("a", "PASS")] }));
+  const out = join(dir, "report.json");
+  const code = await main([
+    "node",
+    "cli",
+    "--plan",
+    join(dir, "plan.json"),
+    "--manifests",
+    man,
+    "--out",
+    out,
+  ]);
+  assert.equal(code, 2);
+  const report = JSON.parse(readFileSync(out, "utf8"));
+  assert.equal(report.verdict, "UNVERIFIED");
+  assert.ok(report.evidence_errors.some((e) => e.code === "schema_invalid"));
 });

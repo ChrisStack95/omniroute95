@@ -10,6 +10,7 @@ export function findTrackerCloses(workflowText) {
   const hits = [];
   const lines = String(workflowText ?? "").split(/\n/);
   for (let i = 0; i < lines.length; i++) {
+    CLOSE_RE.lastIndex = 0;
     if (CLOSE_RE.test(lines[i])) {
       hits.push({ line: i + 1, text: lines[i].trim() });
     }

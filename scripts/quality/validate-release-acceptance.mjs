@@ -62,9 +62,13 @@ export async function main(argv = process.argv) {
   const { ok, errors } = validateReport(report, schema);
   if (!ok) {
     report.verdict = "UNVERIFIED";
+    const gate =
+      Array.isArray(plan.required_gates) && plan.required_gates.length > 0
+        ? plan.required_gates[0]
+        : { gate_id: "schema", suite_id: null, shard_index: null, shard_total: null };
     report.evidence_errors = [
       ...(report.evidence_errors ?? []),
-      { code: "schema_invalid", gate: plan.required_gates[0], detail: JSON.stringify(errors) },
+      { code: "schema_invalid", gate, detail: JSON.stringify(errors) },
     ];
   }
   mkdirSync(dirname(args.out), { recursive: true });
