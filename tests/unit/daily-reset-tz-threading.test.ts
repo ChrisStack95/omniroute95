@@ -136,14 +136,31 @@ test("checkFallbackError: New York resolves to provider midnight, not host midni
   assert.equal(dailyCooldownMs("America/New_York", 0, nowMs), HOUR_MS);
 });
 
+// The legacy value is recomputed from a live Date.now() inside getMsUntilTomorrow(), so the two
+// reads are a few ms apart under load; compare within a second instead of strictly.
+function assertWithinASecond(actual: number, expected: number, label: string): void {
+  assert.ok(
+    Math.abs(actual - expected) <= 1000,
+    `${label}: expected ${actual} within 1s of ${expected}`
+  );
+}
+
 test("checkFallbackError: unconfigured clock keeps the legacy host-midnight value", () => {
   shiftClockTo(Date.parse("2026-01-15T12:00:00Z"));
-  assert.equal(dailyCooldownMs(undefined, undefined, Date.now()), getMsUntilTomorrow());
+  assertWithinASecond(
+    dailyCooldownMs(undefined, undefined, Date.now()),
+    getMsUntilTomorrow(),
+    "unconfigured clock"
+  );
 });
 
 test("checkFallbackError: invalid timezone falls back to legacy without throwing", () => {
   shiftClockTo(Date.parse("2026-01-15T12:00:00Z"));
-  assert.equal(dailyCooldownMs("Mars/Olympus", 0, Date.now()), getMsUntilTomorrow());
+  assertWithinASecond(
+    dailyCooldownMs("Mars/Olympus", 0, Date.now()),
+    getMsUntilTomorrow(),
+    "invalid tz"
+  );
 });
 
 test("resolveComboDailyReset: matches id and prefix, null for unknown providers", async () => {
