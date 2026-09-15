@@ -1,22 +1,24 @@
 /**
- * omniroute fcc-claude — Free-Claude-Code 风格 launcher，移植自方案一 PoC。
+ * omniroute fcc-claude — FCC (Free-Claude-Code) style launcher, ported from the
+ * "plan one" PoC.
  *
- * 功能：
- *   1. 启动 claude 二进制，指向本地或远程 OmniRoute（支持 omni.paibao.ai）
- *   2. Anthropic Messages API 流式客户端，支持 fallback chain
- *   3. 双上游版本追踪（OmniRoute + FCC GitHub）
+ * Features:
+ *   1. Launch the claude binary pointed at a local or remote OmniRoute instance
+ *      (supports e.g. omni.paibao.ai)
+ *   2. Anthropic Messages API streaming client with a built-in fallback chain
+ *   3. Dual-upstream version tracking (OmniRoute + FCC GitHub)
  *
- * 用法：
+ * Usage:
  *   omniroute fcc-claude [options] [claude args...]
  *   omniroute fcc-claude --remote https://omni.paibao.ai
- *   omniroute fcc-claude --fallback models.json "帮我写个 bug"
+ *   omniroute fcc-claude --fallback models.json "help me fix a bug"
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import os from "node:os";
 import { t } from "../i18n.mjs";
+import { resolveDataDir } from "../data-dir.mjs";
 import { resolveActiveContext } from "../contexts.mjs";
 import { quoteShellArgs } from "../utils/winShellArgs.mjs";
 import {
@@ -26,47 +28,54 @@ import {
   quoteClaudeArgs,
 } from "./launch.mjs";
 
-const DATA_DIR = join(os.homedir(), ".omni-fcc-poc");
-const FALLBACK_CONFIG_PATH = join(DATA_DIR, "fallback.json");
-const VERSION_CACHE_PATH = join(DATA_DIR, "version-cache.json");
+// Own subdirectory under the shared OmniRoute data dir (honours the DATA_DIR env
+// override, same as every other CLI command — see bin/cli/data-dir.mjs) rather
+// than a standalone ~/.omni-fcc-poc directory.
+function getFccDataDir() {
+  return join(resolveDataDir(), "fcc-claude");
+}
 
-// ─── 默认 fallback 链（FCC 风格） ───────────────────────────────────────────
+function getFallbackConfigPath() {
+  return join(getFccDataDir(), "fallback.json");
+}
 
-const DEFAULT_FALLBACK_MODELS = [
-  "auto/best-coding",
-  "auto/best-chat",
-  "auto/fast",
-];
+function getVersionCachePath() {
+  return join(getFccDataDir(), "version-cache.json");
+}
+
+// ─── Default fallback chain (FCC style) ──────────────────────────────────────
+
+const DEFAULT_FALLBACK_MODELS = ["auto/best-coding", "auto/best-chat", "auto/fast"];
 
 /**
- * 加载 fallback 配置（JSON 文件或默认值）。
- * 格式：{ "models": ["auto/best-coding", ...], "strategy": "priority" }
+ * Load the fallback chain config (JSON file or defaults).
+ * Format: { "models": ["auto/best-coding", ...], "strategy": "priority" }
  */
 export function loadFallbackChain(opts = {}) {
   if (opts.models) {
     return { models: opts.models, strategy: opts.strategy || "priority" };
   }
   try {
-    const raw = readFileSync(FALLBACK_CONFIG_PATH, "utf8");
+    const raw = readFileSync(getFallbackConfigPath(), "utf8");
     return JSON.parse(raw);
   } catch {
     return { models: DEFAULT_FALLBACK_MODELS, strategy: "priority" };
   }
 }
 
-// ─── Anthropic Messages 流式客户端（FCC ProviderExecutor 移植） ─────────────
+// ─── Anthropic Messages streaming client (ported from FCC's ProviderExecutor) ─
 
 /**
- * 流式调用 Anthropic Messages API，支持 fallback chain。
- * 对应 FCC 的 ProviderExecutor.stream_messages()。
+ * Stream an Anthropic Messages API call with fallback-chain support.
+ * Mirrors FCC's ProviderExecutor.stream_messages().
  *
- * @param {Array} messages  Anthropic messages 数组
- * @param {string} model    主模型 ID
- * @param {string} baseUrl  OmniRoute base URL（不含 /v1）
+ * @param {Array} messages  Anthropic messages array
+ * @param {string} model    primary model ID
+ * @param {string} baseUrl  OmniRoute base URL (without /v1)
  * @param {string|undefined} authToken  Bearer token
- * @param {string[]} fallbackModels  fallback 模型链
- * @param {object} options  额外参数（max_tokens, temperature, reasoning_effort 等）
- * @yields {string} SSE 原始行
+ * @param {string[]} fallbackModels  fallback model chain
+ * @param {object} options  extra body params (max_tokens, temperature, reasoning_effort, etc.)
+ * @yields {string} raw SSE lines
  */
 export async function* streamMessages(
   messages,
@@ -84,9 +93,7 @@ export async function* streamMessages(
     const isFallback = i > 0;
 
     if (isFallback) {
-      console.error(
-        `\x1b[33m[fcc-claude] fallback: ${allModels[i - 1]} → ${currentModel}\x1b[0m`
-      );
+      console.error(`\x1b[33m[fcc-claude] fallback: ${allModels[i - 1]} → ${currentModel}\x1b[0m`);
     }
 
     const body = {
@@ -136,8 +143,7 @@ export async function* streamMessages(
       }
 
       if (buffer) yield buffer;
-      return; // 成功
-
+      return; // success
     } catch (err) {
       lastError = err;
       console.error(
@@ -150,8 +156,9 @@ export async function* streamMessages(
 }
 
 /**
- * 直接流式测试（CLI 模式）：像 fcc-claude 一样但用于非交互测试。
- * 用法：omniroute fcc-claude --test "hello"
+ * Direct streaming smoke test (CLI mode): like fcc-claude itself but for
+ * non-interactive testing.
+ * Usage: omniroute fcc-claude --test "hello"
  */
 export async function runTestCommand(opts = {}) {
   const { baseUrl, authToken } = resolveLaunchTarget(opts);
@@ -180,17 +187,18 @@ export async function runTestCommand(opts = {}) {
   }
 }
 
-// ─── 双上游版本追踪（移植自 PoC） ────────────────────────────────────────────
+// ─── Dual-upstream version tracking (ported from the PoC) ────────────────────
 
 /**
- * 从两个上游获取最新版本并缓存（TTL 1h）。
- * 返回 { omniRoute, fcc } 结构。
+ * Fetch the latest version from both upstreams and cache it (1h TTL).
+ * Returns a { omniRoute, fcc } structure.
  */
 export async function fetchUpstreamVersions() {
   const now = Date.now();
+  const cachePath = getVersionCachePath();
   let cache = {};
   try {
-    const raw = readFileSync(VERSION_CACHE_PATH, "utf8");
+    const raw = readFileSync(cachePath, "utf8");
     cache = JSON.parse(raw);
     if (cache._fetchedAt && now - cache._fetchedAt < 60 * 60 * 1000) {
       return cache;
@@ -199,7 +207,7 @@ export async function fetchUpstreamVersions() {
     /* fresh start */
   }
 
-  // 上游 1：本地/远程 OmniRoute 版本
+  // Upstream 1: local/remote OmniRoute version
   let omniVersion = null;
   try {
     const res = await fetch("http://localhost:20128/api/monitoring/health", {
@@ -213,7 +221,7 @@ export async function fetchUpstreamVersions() {
     /* unreachable */
   }
 
-  // 上游 2：FCC GitHub（releases 或最近 commit）
+  // Upstream 2: FCC GitHub (latest release, or most recent commit as a fallback)
   let fccVersion = null;
   try {
     const res = await fetch(
@@ -246,9 +254,9 @@ export async function fetchUpstreamVersions() {
   };
 
   try {
-    const dir = join(os.homedir(), ".omni-fcc-poc");
-    if (!existsSync(dir)) require("node:fs").mkdirSync(dir, { recursive: true });
-    require("node:fs").writeFileSync(VERSION_CACHE_PATH, JSON.stringify(cache, null, 2));
+    const dir = getFccDataDir();
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(cachePath, JSON.stringify(cache, null, 2));
   } catch {
     /* non-fatal */
   }
@@ -258,24 +266,24 @@ export async function fetchUpstreamVersions() {
 
 export async function runVersionStatusCommand() {
   const cache = await fetchUpstreamVersions();
-  console.log("\n=== OmniRoute × FCC 双上游版本状态 ===\n");
-  console.log(`OmniRoute 运行中: ${cache.omniRoute.running || "不可达"}`);
-  console.log(`FCC 最新: ${cache.fcc.latestRelease || "不可达"}`);
+  console.log("\n=== OmniRoute × FCC dual-upstream version status ===\n");
+  console.log(`OmniRoute running: ${cache.omniRoute.running || "unreachable"}`);
+  console.log(`FCC latest: ${cache.fcc.latestRelease || "unreachable"}`);
   console.log();
 }
 
-// ─── 主 launcher（复用 launch.mjs 的 buildClaudeEnv + resolveLaunchTarget） ─
+// ─── Main launcher (reuses launch.mjs's buildClaudeEnv + resolveLaunchTarget) ─
 
 /**
  * `omniroute fcc-claude [options] [claude args...]`
  *
- * 与 `omniroute launch` 的区别：
- *   - 内置 fallback chain（模型失败自动切换）
- *   - 支持 --test 模式（非交互流式测试）
- *   - 支持 --check-updates（双上游版本检查）
+ * Differs from `omniroute launch` by:
+ *   - a built-in fallback chain (automatic model switch on failure)
+ *   - a --test mode (non-interactive streaming smoke test)
+ *   - a --check-updates mode (dual-upstream version check)
  */
 export async function runFccClaude(opts = {}, claudeArgs = []) {
-  // --check-updates 和 --test 是特殊模式，不走 claude spawn
+  // --check-updates and --test are special modes that don't spawn claude.
   if (opts.checkUpdates) {
     await runVersionStatusCommand();
     return 0;
@@ -288,7 +296,7 @@ export async function runFccClaude(opts = {}, claudeArgs = []) {
     });
   }
 
-  // 正常模式：启动 claude 二进制
+  // Normal mode: launch the claude binary.
   const { baseUrl, authToken } = resolveLaunchTarget(opts);
 
   // Health check
@@ -304,19 +312,17 @@ export async function runFccClaude(opts = {}, claudeArgs = []) {
     return 1;
   }
 
-  // 加载 fallback 链并打印
+  // Load and print the fallback chain.
   const chain = loadFallbackChain(opts);
   const fallbackModels = chain.models?.slice(1) || [];
   if (fallbackModels.length) {
-    console.error(
-      `[fcc-claude] fallback chain: ${chain.models.join(" → ")}`
-    );
+    console.error(`[fcc-claude] fallback chain: ${chain.models.join(" → ")}`);
   }
 
-  // 构建 claude 环境（复用 launch.mjs 的 buildClaudeEnv）
+  // Build the claude env (reuses launch.mjs's buildClaudeEnv).
   const env = buildClaudeEnv(process.env, baseUrl, authToken);
 
-  // 找 claude 二进制
+  // Locate the claude binary.
   const { command, shell } = await resolveClaudeSpawn(process.platform);
 
   console.error(`[fcc-claude] launching ${command} → ${baseUrl}`);

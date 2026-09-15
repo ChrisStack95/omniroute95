@@ -8,10 +8,9 @@
  *   - buildClaudeEnv reuse from launch.mjs
  */
 
-import { test, before, after, mock } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import {
   loadFallbackChain,
@@ -19,6 +18,41 @@ import {
   fetchUpstreamVersions,
 } from "../../../bin/cli/commands/fcc-claude.mjs";
 import { buildClaudeEnv } from "../../../bin/cli/commands/launch.mjs";
+import { resolveDataDir } from "../../../bin/cli/data-dir.mjs";
+
+// bin/cli/commands/fcc-claude.mjs stores its config/cache under
+// <DATA_DIR>/fcc-claude/ (mirrors resolveDataDir() — see bin/cli/data-dir.mjs).
+const fccDataDir = () => path.join(resolveDataDir(), "fcc-claude");
+
+/**
+ * Build a fetch Response-shaped mock backed by a real ReadableStream so
+ * streamMessages()'s res.body.getReader() works exactly like it does against
+ * the real fetch API.
+ */
+function mockSseResponse(sseText, { status = 200 } = {}) {
+  return {
+    ok: status < 300,
+    status,
+    text: async () => sseText,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(sseText));
+        controller.close();
+      },
+    }),
+  };
+}
+
+const SAMPLE_SSE = [
+  "event: message_start\n",
+  'data: {"type":"message_start"}\n',
+  "\n",
+  "event: message_stop\n",
+  'data: {"type":"message_stop"}\n',
+  "\n",
+  "x-omniroute-response-cost: 0.0012\n",
+  "x-omniroute-model-used: auto/best-coding-fast\n",
+].join("");
 
 // Silence console output during tests (#5959 pattern)
 const _console = {
@@ -38,7 +72,7 @@ after(() => {
 
 test("loadFallbackChain returns defaults when no config exists", async () => {
   // Ensure no cache file exists
-  const cachePath = path.join(os.homedir(), ".omni-fcc-poc", "fallback.json");
+  const cachePath = path.join(fccDataDir(), "fallback.json");
   let backup = null;
   try {
     backup = await fs.readFile(cachePath, "utf8");
@@ -52,11 +86,7 @@ test("loadFallbackChain returns defaults when no config exists", async () => {
   }
 
   const chain = loadFallbackChain();
-  assert.deepEqual(chain.models, [
-    "auto/best-coding",
-    "auto/best-chat",
-    "auto/fast",
-  ]);
+  assert.deepEqual(chain.models, ["auto/best-coding", "auto/best-chat", "auto/fast"]);
   assert.equal(chain.strategy, "priority");
 
   // Restore
@@ -72,8 +102,8 @@ test("loadFallbackChain honoursopts.models override", () => {
   assert.equal(chain.strategy, "random");
 });
 
-test("loadFallbackChain reads from ~/.omni-fcc-poc/fallback.json", async () => {
-  const dir = path.join(os.homedir(), ".omni-fcc-poc");
+test("loadFallbackChain reads from <DATA_DIR>/fcc-claude/fallback.json", async () => {
+  const dir = fccDataDir();
   await fs.mkdir(dir, { recursive: true });
   const configPath = path.join(dir, "fallback.json");
   const custom = JSON.stringify({
@@ -112,7 +142,11 @@ test("buildClaudeEnv uses sentinel when no authToken provided", () => {
 
 // ─── streamMessages ──────────────────────────────────────────────────────────
 
-test("streamMessages yields SSE lines for a valid model", async () => {
+test("streamMessages yields SSE lines for a valid model", async (t) => {
+  // Mock fetch — these tests must not require a real OmniRoute server on
+  // localhost:20128 (see #11908 review).
+  t.mock.method(globalThis, "fetch", async () => mockSseResponse(SAMPLE_SSE));
+
   const lines = [];
   for await (const line of streamMessages(
     [{ role: "user", content: "hi" }],
@@ -123,13 +157,27 @@ test("streamMessages yields SSE lines for a valid model", async () => {
     lines.push(line);
   }
   assert.ok(lines.length > 0, "should receive SSE events");
-  assert.ok(lines.some((l) => l.includes("event:")), "should contain event headers");
+  assert.ok(
+    lines.some((l) => l.includes("event:")),
+    "should contain event headers"
+  );
 });
 
-test("streamMessages falls back to next model when primary fails", async () => {
+test("streamMessages falls back to next model when primary fails", async (t) => {
+  // Primary model "fails" at the fetch layer; the fallback model succeeds.
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    const { model } = JSON.parse(init.body);
+    if (model.includes("nonexistent")) {
+      throw new Error("fetch failed");
+    }
+    return mockSseResponse(SAMPLE_SSE);
+  });
+
   const stderrLines = [];
   const restore = console.error;
-  console.error = (...args) => { stderrLines.push(args.join(" ")); };
+  console.error = (...args) => {
+    stderrLines.push(args.join(" "));
+  };
 
   try {
     const lines = [];
@@ -161,13 +209,16 @@ test("streamMessages throws when all models in chain fail", async () => {
         "http://localhost:20128",
         null,
         ["auto/nonexistent-two"]
-      )) {}
+      )) {
+      }
     })(),
     /All models exhausted/i
   );
 });
 
-test("streamMessages includes x-omniroute-* headers in SSE trailers", async () => {
+test("streamMessages includes x-omniroute-* headers in SSE trailers", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => mockSseResponse(SAMPLE_SSE));
+
   const lines = [];
   for await (const line of streamMessages(
     [{ role: "user", content: "test" }],
@@ -185,7 +236,16 @@ test("streamMessages includes x-omniroute-* headers in SSE trailers", async () =
 
 // ─── fetchUpstreamVersions ───────────────────────────────────────────────────
 
-test("fetchUpstreamVersions returns omniRoute.running from health API", async () => {
+test("fetchUpstreamVersions returns omniRoute.running from health API", async (t) => {
+  // Mock fetch — must not require a real OmniRoute server on localhost:20128
+  // (see #11908 review). The GitHub upstream call is left to degrade gracefully.
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).includes("/api/monitoring/health")) {
+      return { ok: true, status: 200, json: async () => ({ version: "3.8.51-test" }) };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+
   const cache = await fetchUpstreamVersions();
   assert.ok(cache.omniRoute.running !== null, "should detect running OmniRoute version");
   assert.ok(
