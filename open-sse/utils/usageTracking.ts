@@ -32,7 +32,6 @@ interface UsageTokenDetail {
  */
 export interface UsageLike {
   estimated?: boolean;
-  estimated_prompt_tokens?: boolean;
   input_tokens?: number;
   output_tokens?: number;
   prompt_tokens?: number;
@@ -294,7 +293,6 @@ export function filterUsageForFormat(usage: UsageLike | null | undefined, target
       "cache_read_input_tokens",
       "cache_creation_input_tokens",
       "estimated",
-      "estimated_prompt_tokens",
       "tokens_per_second",
     ],
     [FORMATS.GEMINI]: [
@@ -304,7 +302,6 @@ export function filterUsageForFormat(usage: UsageLike | null | undefined, target
       "cachedContentTokenCount",
       "thoughtsTokenCount",
       "estimated",
-      "estimated_prompt_tokens",
       "tokens_per_second",
     ],
     [FORMATS.OPENAI_RESPONSES]: [
@@ -314,7 +311,6 @@ export function filterUsageForFormat(usage: UsageLike | null | undefined, target
       "input_tokens_details",
       "output_tokens_details",
       "estimated",
-      "estimated_prompt_tokens",
       "cost_in_usd_ticks",
       "server_side_tool_usage_details",
       "server_side_tool_usage",
@@ -334,7 +330,6 @@ export function filterUsageForFormat(usage: UsageLike | null | undefined, target
       "cache_read_input_tokens",
       "cache_creation_input_tokens",
       "estimated",
-      "estimated_prompt_tokens",
       "tokens_per_second",
     ],
   };
@@ -515,18 +510,12 @@ export function sanitizeProviderUsageForRequest(
 
   const estimatedInput = Math.max(1, estimateInputTokens(body));
   const result = { ...usage };
-  // A repaired input count is a local estimate, not a provider report: flag it
-  // once at the single exit so every repaired format bills output only.
-  const flagRepairedInput = (out: Record<string, unknown>) => {
-    (out as Record<string, unknown>).estimated_prompt_tokens = true;
-    return out;
-  };
 
   if (format === FORMATS.CLAUDE) {
     result.input_tokens = estimatedInput;
     result.cache_read_input_tokens = 0;
     result.cache_creation_input_tokens = 0;
-    return flagRepairedInput(result);
+    return result;
   }
 
   if (format === FORMATS.GEMINI) {
@@ -537,7 +526,7 @@ export function sanitizeProviderUsageForRequest(
     if (result.totalTokenCount !== undefined) {
       result.totalTokenCount = estimatedInput + output;
     }
-    return flagRepairedInput(result);
+    return result;
   }
 
   if (format === FORMATS.OPENAI_RESPONSES) {
@@ -548,7 +537,7 @@ export function sanitizeProviderUsageForRequest(
     if (result.total_tokens !== undefined) {
       result.total_tokens = estimatedInput + tokenNumber(result.output_tokens);
     }
-    return flagRepairedInput(result);
+    return result;
   }
 
   result.prompt_tokens = estimatedInput;
@@ -559,7 +548,7 @@ export function sanitizeProviderUsageForRequest(
   if (result.total_tokens !== undefined) {
     result.total_tokens = estimatedInput + tokenNumber(result.completion_tokens);
   }
-  return flagRepairedInput(result);
+  return result;
 }
 
 /**
@@ -621,7 +610,7 @@ export function sanitizeUsagePayloadForRequest(
 export function normalizeUsage(usage: UsageLike | null | undefined) {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
 
-  const normalized: Record<string, number | boolean> = {};
+  const normalized: Record<string, number> = {};
   const assignNumber = (key: string, value: unknown) => {
     if (value === undefined || value === null) return;
     const numeric = Number(value);
@@ -638,14 +627,6 @@ export function normalizeUsage(usage: UsageLike | null | undefined) {
   assignNumber("cached_tokens", usage?.cached_tokens);
   assignNumber("no_cache_tokens", usage?.no_cache_tokens);
   assignNumber("reasoning_tokens", usage?.reasoning_tokens);
-  // Estimated-input marker survives normalization so the billing guards can
-  // tell a grafted input estimate from a provider report (f1-estimated-billing).
-  if (usage?.estimated_prompt_tokens === true) {
-    normalized.estimated_prompt_tokens = true;
-  }
-  if (usage?.estimated === true) {
-    (normalized as Record<string, unknown>).estimated = true;
-  }
   // xAI's exact provider-reported cost (port of decolua/9router#2453, capability A —
   // @ryanngit). Ticks → USD conversion happens in costCalculator.ts, not here.
   const exactCostTicks = usage?.cost_in_usd_ticks;
@@ -661,87 +642,31 @@ export function normalizeUsage(usage: UsageLike | null | undefined) {
   return normalized;
 }
 
-/**
- * Estimated-usage billing ownership (f1-estimated-billing): usage carrying
- * `estimated: true` was produced locally (silent upstream) and must never be
- * billed; usage carrying `estimated_prompt_tokens: true` mixes a grafted
- * input estimate with real provider-reported output and bills output only.
- * Fully estimated wins over partial when both flags are present.
- */
-export function isEstimatedUsage(usage: UsageLike | null | undefined): boolean {
-  return !!usage && typeof usage === "object" && (usage as { estimated?: unknown }).estimated === true;
+// Internal marker for usage that was estimated locally (a web/cookie executor with no
+// upstream metering). A NON-enumerable symbol: JSON.stringify, object spread and
+// filterUsageForFormat never copy it, so it cannot reach a client payload or change any
+// usage field, cost or budget — it only lets the call-log sink tell estimated usage apart
+// after extraction rebuilt the object without the provider's `estimated` flag.
+const ESTIMATED_USAGE_MARKER = Symbol.for("omniroute.usage.estimated");
+
+export function carryEstimatedUsageMarker<T>(source: unknown, rebuilt: T): T {
+  const estimated =
+    !!source && typeof source === "object" && (source as UsageLike).estimated === true;
+  if (estimated && rebuilt && typeof rebuilt === "object") {
+    Object.defineProperty(rebuilt, ESTIMATED_USAGE_MARKER, { value: true, enumerable: false });
+  }
+  return rebuilt;
 }
 
-export function isPartiallyEstimatedUsage(usage: UsageLike | null | undefined): boolean {
+/**
+ * True when token usage was estimated locally instead of reported by the provider: either
+ * the usage still carries `estimated: true` (OmniRoute's own estimateUsage fallback) or
+ * extraction kept the internal marker. Observability only — billing does not read it.
+ */
+export function isEstimatedUsage(usage: unknown): boolean {
   if (!usage || typeof usage !== "object") return false;
-  const u = usage as { estimated?: unknown; estimated_prompt_tokens?: unknown };
-  return u.estimated !== true && u.estimated_prompt_tokens === true;
-}
-
-function numericField(value: unknown): number | undefined {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-/**
- * Copy estimate markers from a provider usage object to a rebuilt one, so
- * every reconstruction (extract/normalize legs) carries the billing flags.
- */
-export function copyEstimateFlags<T extends Record<string, unknown>>(
-  source: unknown,
-  target: T
-): T {
-  if (source && typeof source === "object" && !Array.isArray(source)) {
-    const s = source as Record<string, unknown>;
-    const t = target as Record<string, unknown>;
-    if (s.estimated === true) t.estimated = true;
-    if (s.estimated_prompt_tokens === true) t.estimated_prompt_tokens = true;
-  }
-  return target;
-}
-
-/** Copy of a partially estimated usage with the grafted input zeroed. */
-export function stripEstimatedPromptTokens(usage: UsageLike | null | undefined) {
-  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return usage;
-  const completion =
-    numericField(usage.completion_tokens) ??
-    numericField(usage.output_tokens) ??
-    numericField(usage.candidatesTokenCount) ??
-    0;
-  const stripped = {
-    ...(usage as Record<string, unknown>),
-    prompt_tokens: 0,
-    input_tokens: 0,
-    // Gemini input counter shares the repaired input estimate, so zero it too;
-    // output counters stay real (billed). Totals recomputed, never subtracted.
-    promptTokenCount: (usage as Record<string, unknown>).promptTokenCount === undefined
-      ? undefined
-      : 0,
-    totalTokenCount: (usage as Record<string, unknown>).totalTokenCount === undefined
-      ? undefined
-      : completion,
-    total_tokens: completion,
-  };
-  for (const key of ["promptTokenCount", "totalTokenCount"] as const) {
-    if (stripped[key] === undefined) delete stripped[key];
-  }
-  return stripped;
-}
-
-/** Copy of a provider usage object with a grafted input estimate, flagged. */
-export function withGraftedPromptTokens(
-  usage: UsageLike | null | undefined,
-  estimatedPromptTokens: number
-) {
-  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return usage;
-  const completion =
-    numericField(usage.completion_tokens) ?? numericField(usage.output_tokens) ?? 0;
-  return {
-    ...(usage as Record<string, unknown>),
-    prompt_tokens: estimatedPromptTokens,
-    total_tokens: estimatedPromptTokens + completion,
-    estimated_prompt_tokens: true,
-  };
+  if ((usage as UsageLike).estimated === true) return true;
+  return Reflect.get(usage, ESTIMATED_USAGE_MARKER) === true;
 }
 
 /**
@@ -833,17 +758,14 @@ export function extractUsage(chunk: UsagePayloadLike | null | undefined) {
     const cacheRead = u.cache_read_input_tokens || 0;
     const cacheCreation = u.cache_creation_input_tokens || 0;
     if (inputTokens > 0 || cacheRead > 0 || cacheCreation > 0) {
-      return copyEstimateFlags(
-        u,
-        normalizeUsage({
-          prompt_tokens: inputTokens + cacheRead + cacheCreation,
-          completion_tokens: u.output_tokens || u.completion_tokens || 0,
-          input_tokens: inputTokens + cacheRead + cacheCreation,
-          output_tokens: u.output_tokens || u.completion_tokens || 0,
-          cache_read_input_tokens: u.cache_read_input_tokens,
-          cache_creation_input_tokens: u.cache_creation_input_tokens,
-        }) as unknown as Record<string, unknown>
-      ) as unknown as ReturnType<typeof normalizeUsage>;
+      return normalizeUsage({
+        prompt_tokens: inputTokens + cacheRead + cacheCreation,
+        completion_tokens: u.output_tokens || u.completion_tokens || 0,
+        input_tokens: inputTokens + cacheRead + cacheCreation,
+        output_tokens: u.output_tokens || u.completion_tokens || 0,
+        cache_read_input_tokens: u.cache_read_input_tokens,
+        cache_creation_input_tokens: u.cache_creation_input_tokens,
+      });
     }
   }
 
@@ -852,18 +774,15 @@ export function extractUsage(chunk: UsagePayloadLike | null | undefined) {
     const deltaInput = chunk.usage.input_tokens || 0;
     const deltaCacheRead = chunk.usage.cache_read_input_tokens || 0;
     const deltaCacheCreation = chunk.usage.cache_creation_input_tokens || 0;
-    return copyEstimateFlags(
-      chunk.usage,
-      normalizeUsage({
-        prompt_tokens: deltaInput + deltaCacheRead + deltaCacheCreation,
-        completion_tokens: chunk.usage.output_tokens || 0,
-        input_tokens: deltaInput + deltaCacheRead + deltaCacheCreation,
-        output_tokens: chunk.usage.output_tokens || 0,
-        cache_read_input_tokens: chunk.usage.cache_read_input_tokens,
-        cache_creation_input_tokens: chunk.usage.cache_creation_input_tokens,
-        reasoning_tokens: chunk.usage.output_tokens_details?.thinking_tokens,
-      }) as unknown as Record<string, unknown>
-    ) as unknown as ReturnType<typeof normalizeUsage>;
+    return normalizeUsage({
+      prompt_tokens: deltaInput + deltaCacheRead + deltaCacheCreation,
+      completion_tokens: chunk.usage.output_tokens || 0,
+      input_tokens: deltaInput + deltaCacheRead + deltaCacheCreation,
+      output_tokens: chunk.usage.output_tokens || 0,
+      cache_read_input_tokens: chunk.usage.cache_read_input_tokens,
+      cache_creation_input_tokens: chunk.usage.cache_creation_input_tokens,
+      reasoning_tokens: chunk.usage.output_tokens_details?.thinking_tokens,
+    });
   }
 
   // OpenAI Responses API format (response.completed or response.done)
@@ -873,22 +792,19 @@ export function extractUsage(chunk: UsagePayloadLike | null | undefined) {
     typeof chunk.response.usage === "object"
   ) {
     const usage = chunk.response.usage;
-    return copyEstimateFlags(
-      usage,
-      normalizeUsage({
-        prompt_tokens: usage.input_tokens || usage.prompt_tokens || 0,
-        completion_tokens: usage.output_tokens || usage.completion_tokens || 0,
-        cached_tokens:
-          usage.input_tokens_details?.cached_tokens ??
-          usage.prompt_tokens_details?.cached_tokens ??
-          usage.cache_read_input_tokens,
-        cache_creation_input_tokens: pickCacheCreationTokens(usage),
-        reasoning_tokens:
-          usage.output_tokens_details?.reasoning_tokens ??
-          usage.completion_tokens_details?.reasoning_tokens ??
-          usage.reasoning_tokens,
-      }) as unknown as Record<string, unknown>
-    ) as unknown as ReturnType<typeof normalizeUsage>;
+    return normalizeUsage({
+      prompt_tokens: usage.input_tokens || usage.prompt_tokens || 0,
+      completion_tokens: usage.output_tokens || usage.completion_tokens || 0,
+      cached_tokens:
+        usage.input_tokens_details?.cached_tokens ??
+        usage.prompt_tokens_details?.cached_tokens ??
+        usage.cache_read_input_tokens,
+      cache_creation_input_tokens: pickCacheCreationTokens(usage),
+      reasoning_tokens:
+        usage.output_tokens_details?.reasoning_tokens ??
+        usage.completion_tokens_details?.reasoning_tokens ??
+        usage.reasoning_tokens,
+    });
   }
 
   // OpenAI format
@@ -897,27 +813,25 @@ export function extractUsage(chunk: UsagePayloadLike | null | undefined) {
     typeof chunk.usage === "object" &&
     (chunk.usage.prompt_tokens !== undefined || chunk.usage.input_tokens !== undefined)
   ) {
-    return copyEstimateFlags(
-      chunk.usage,
-      normalizeUsage({
-        prompt_tokens: chunk.usage.prompt_tokens ?? chunk.usage.input_tokens ?? 0,
-        completion_tokens: chunk.usage.completion_tokens ?? chunk.usage.output_tokens ?? 0,
-        cached_tokens:
-          chunk.usage.prompt_tokens_details?.cached_tokens ??
-          chunk.usage.input_tokens_details?.cached_tokens ??
-          chunk.usage.prompt_cache_hit_tokens ??
-          chunk.usage.cached_tokens,
-        cache_read_input_tokens: chunk.usage.cache_read_input_tokens,
-        cache_creation_input_tokens: pickCacheCreationTokens(chunk.usage),
-        no_cache_tokens: chunk.usage.no_cache_tokens,
-        reasoning_tokens:
-          chunk.usage.completion_tokens_details?.reasoning_tokens ??
-          chunk.usage.output_tokens_details?.reasoning_tokens ??
-          chunk.usage.reasoning_tokens,
-        // xAI's exact provider-reported cost (port of decolua/9router#2453, capability A).
-        cost_in_usd_ticks: chunk.usage.cost_in_usd_ticks,
-      }) as unknown as Record<string, unknown>
-    ) as unknown as ReturnType<typeof normalizeUsage>;
+    const normalized = normalizeUsage({
+      prompt_tokens: chunk.usage.prompt_tokens ?? chunk.usage.input_tokens ?? 0,
+      completion_tokens: chunk.usage.completion_tokens ?? chunk.usage.output_tokens ?? 0,
+      cached_tokens:
+        chunk.usage.prompt_tokens_details?.cached_tokens ??
+        chunk.usage.input_tokens_details?.cached_tokens ??
+        chunk.usage.prompt_cache_hit_tokens ??
+        chunk.usage.cached_tokens,
+      cache_read_input_tokens: chunk.usage.cache_read_input_tokens,
+      cache_creation_input_tokens: pickCacheCreationTokens(chunk.usage),
+      no_cache_tokens: chunk.usage.no_cache_tokens,
+      reasoning_tokens:
+        chunk.usage.completion_tokens_details?.reasoning_tokens ??
+        chunk.usage.output_tokens_details?.reasoning_tokens ??
+        chunk.usage.reasoning_tokens,
+      // xAI's exact provider-reported cost (port of decolua/9router#2453, capability A).
+      cost_in_usd_ticks: chunk.usage.cost_in_usd_ticks,
+    });
+    return carryEstimatedUsageMarker(chunk.usage, normalized);
   }
 
   // Gemini format (Antigravity)
@@ -929,16 +843,13 @@ export function extractUsage(chunk: UsagePayloadLike | null | undefined) {
     // Gemini reports thoughts outside candidates. Fold them into completion so
     // every provider keeps reasoning as a subset of completion tokens.
     const thoughts = usageMeta.thoughtsTokenCount || 0;
-    return copyEstimateFlags(
-      usageMeta,
-      normalizeUsage({
-        prompt_tokens: usageMeta.promptTokenCount || 0,
-        completion_tokens: (usageMeta.candidatesTokenCount || 0) + thoughts,
-        total_tokens: usageMeta.totalTokenCount,
-        cached_tokens: usageMeta.cachedContentTokenCount,
-        reasoning_tokens: thoughts,
-      }) as unknown as Record<string, unknown>
-    ) as unknown as ReturnType<typeof normalizeUsage>;
+    return normalizeUsage({
+      prompt_tokens: usageMeta.promptTokenCount || 0,
+      completion_tokens: (usageMeta.candidatesTokenCount || 0) + thoughts,
+      total_tokens: usageMeta.totalTokenCount,
+      cached_tokens: usageMeta.cachedContentTokenCount,
+      reasoning_tokens: thoughts,
+    });
   }
 
   // Ollama NDJSON format (raw from provider, before translation)
@@ -946,14 +857,11 @@ export function extractUsage(chunk: UsagePayloadLike | null | undefined) {
   if (chunk.done === true && typeof chunk.prompt_eval_count === "number") {
     const promptEvalCount = chunk.prompt_eval_count || 0;
     const evalCount = chunk.eval_count || 0;
-    return copyEstimateFlags(
-      chunk,
-      normalizeUsage({
-        prompt_tokens: promptEvalCount,
-        completion_tokens: evalCount,
-        total_tokens: promptEvalCount + evalCount,
-      }) as unknown as Record<string, unknown>
-    ) as unknown as ReturnType<typeof normalizeUsage>;
+    return normalizeUsage({
+      prompt_tokens: promptEvalCount,
+      completion_tokens: evalCount,
+      total_tokens: promptEvalCount + evalCount,
+    });
   }
 
   return null;

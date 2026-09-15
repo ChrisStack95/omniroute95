@@ -9,8 +9,6 @@
  * caller. Behaviour is byte-identical to the previous inline block.
  */
 
-import { shouldSkipQuotaShare } from "../../utils/billingDecision.ts";
-
 type LoggerLike = { warn?: (...args: unknown[]) => void } | null | undefined;
 type CostResolver = (
   provider: string,
@@ -31,8 +29,6 @@ export function scheduleStreamingQuotaShareConsumption(args: {
   log?: LoggerLike;
 }): void {
   if (!args.apiKeyId || !args.connectionId || args.streamStatus !== 200) return;
-  // Fully estimated usage records nothing (local estimate, never billed).
-  if (shouldSkipQuotaShare(args.streamUsage)) return;
 
   const quotaApiKeyId = args.apiKeyId;
   const quotaConnectionId = args.connectionId;

@@ -9,9 +9,7 @@ import {
   addBufferToUsage,
   filterUsageForFormat,
   normalizeUsage as normalizeTokenUsage,
-  sanitizeUsagePayloadForRequest as sanitizeUsage,
-  withGraftedPromptTokens as graftPrompt,
-  copyEstimateFlags as copyFlags,
+  sanitizeUsagePayloadForRequest,
   type UsageLike,
 } from "./usageTracking.ts";
 import {
@@ -1457,7 +1455,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                     parsed.type.startsWith("content_block") ||
                     parsed.type === "ping" ||
                     parsed.type === "error");
-                if (sanitizeUsage(parsed, body, clientResponseFormat)) {
+                if (sanitizeUsagePayloadForRequest(parsed, body, clientResponseFormat)) {
                   output = `data: ${JSON.stringify(parsed)}\n\n`;
                   injectedUsage = true;
                 }
@@ -1763,7 +1761,6 @@ export function createSSEStream(options: StreamOptions = {}) {
                       u.cache_read_input_tokens = eu.cache_read_input_tokens;
                     if (eu.cache_creation_input_tokens)
                       u.cache_creation_input_tokens = eu.cache_creation_input_tokens;
-                    copyFlags(eu, u as Record<string, unknown>);
                   }
                   if (
                     shouldInjectClaudeEmptyResponseBeforeCurrentEvent(
@@ -1825,8 +1822,12 @@ export function createSSEStream(options: StreamOptions = {}) {
                         Object.keys(parsed.choices[0].delta).length === 0 &&
                         !parsed.choices[0]?.finish_reason))
                   ) {
-                    let emptyChoicesUsage = extractUsage(parsed) ?? parsed.usage;
+                    const emptyChoicesUsage = extractUsage(parsed) ?? parsed.usage;
                     if (hasValidUsage(emptyChoicesUsage) && !passthroughForwardedUsage) {
+                      // Some upstreams (e.g. Ollama Cloud) emit prompt_tokens: 0
+                      // even when input was sent — they simply don't count input
+                      // tokens.  When we have a non-zero output but zero input,
+                      // estimate the real input token count from the request body.
                       if (
                         emptyChoicesUsage &&
                         typeof emptyChoicesUsage === "object" &&
@@ -1840,9 +1841,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                             totalContentLength,
                             sourceFormat || FORMATS.OPENAI
                           );
-                          const graftTokens = estimated?.prompt_tokens;
-                          if (graftTokens !== undefined && graftTokens > 0) {
-                            emptyChoicesUsage = graftPrompt(emptyChoicesUsage, graftTokens);
+                          if (estimated?.prompt_tokens > 0) {
+                            emptyChoicesUsage.prompt_tokens = estimated.prompt_tokens;
+                            emptyChoicesUsage.total_tokens =
+                              (emptyChoicesUsage.total_tokens ?? 0) + estimated.prompt_tokens;
                           }
                         }
                       }
@@ -2170,7 +2172,7 @@ export function createSSEStream(options: StreamOptions = {}) {
           if (parsed && parsed.done) {
             continue;
           }
-          sanitizeUsage(parsed, body, targetFormat);
+          sanitizeUsagePayloadForRequest(parsed, body, targetFormat);
           if (parsed.choices?.[0]?.delta?.tool_calls) {
             lastToolCallChunkTime = now;
           }
@@ -2306,7 +2308,6 @@ export function createSSEStream(options: StreamOptions = {}) {
                 su.cache_creation_input_tokens = eu.cache_creation_input_tokens;
               if (eu.cached_tokens > 0) su.cached_tokens = eu.cached_tokens;
               if (eu.reasoning_tokens > 0) su.reasoning_tokens = eu.reasoning_tokens;
-              copyFlags(eu, su as unknown as Record<string, unknown>);
             }
           }
 
@@ -2374,7 +2375,7 @@ export function createSSEStream(options: StreamOptions = {}) {
               pushProviderPayload: (payload: unknown) => providerPayloadCollector.push(payload),
               pushClientPayload: (payload: unknown) => clientPayloadCollector.push(payload),
               sanitizeUsagePayload: (payload: unknown) =>
-                sanitizeUsage(payload as UsageLike, body, clientResponseFormat),
+                sanitizeUsagePayloadForRequest(payload as UsageLike, body, clientResponseFormat),
               setPassthroughResponsesId: (value: string) => {
                 passthroughResponsesId = value;
               },
@@ -2443,7 +2444,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                   bufferedPayload = bufferedProjectedFailure.publicPayload;
                   output = `data: ${JSON.stringify(bufferedPayload)}\n\n`;
                 }
-                if (sanitizeUsage(bufferedPayload, body, clientResponseFormat))
+                if (sanitizeUsagePayloadForRequest(bufferedPayload, body, clientResponseFormat))
                   output = `data: ${JSON.stringify(bufferedPayload)}\n\n`;
                 if (
                   shouldInjectClaudeEmptyResponseBeforeCurrentEvent(

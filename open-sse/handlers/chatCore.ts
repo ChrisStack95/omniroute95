@@ -141,7 +141,7 @@ import { resolveStreamReadinessTimeout } from "../utils/streamReadinessPolicy.ts
 import { resolveAgentGoalPolicy } from "../utils/agentGoalPolicy.ts";
 import { createStreamController } from "../utils/streamHandler.ts";
 import * as streamFailure from "../utils/streamFailureFinalization.ts";
-import { billableCostUsage, normalizeUsage, selectBillingUsage } from "../utils/billingDecision.ts";
+import { normalizeUsage } from "../utils/usageTracking.ts";
 import {
   refreshWithRetry,
   isUnrecoverableRefreshError,
@@ -5350,7 +5350,7 @@ export async function handleChatCore({
         : isJsonRecord(translatedResponse.usage)
           ? translatedResponse.usage
           : null;
-      const costUsage = billableCostUsage(responseUsage, normalizeUsage);
+      const costUsage = normalizeUsage(responseUsage);
       const estimatedCost = costUsage
         ? await calculateCost(provider, model, costUsage, { serviceTier: effectiveServiceTier })
         : 0;
@@ -5519,7 +5519,7 @@ export async function handleChatCore({
         connectionId: credentials?.connectionId,
         provider,
         model,
-        usage: selectBillingUsage(responseUsage) ?? undefined,
+        usage,
         estimatedCost,
         log,
       });
@@ -5931,7 +5931,7 @@ export async function handleChatCore({
       apiKeyId: apiKeyInfo?.id,
       provider,
       model,
-      streamUsage: selectBillingUsage(streamUsage) ?? undefined,
+      streamUsage,
       serviceTier: effectiveServiceTier,
       calculateCost,
       recordCost,
@@ -5946,7 +5946,7 @@ export async function handleChatCore({
       connectionId: credentials?.connectionId,
       provider,
       model,
-      streamUsage: selectBillingUsage(streamUsage) ?? undefined,
+      streamUsage,
       streamStatus: normalizedStreamStatus,
       serviceTier: effectiveServiceTier,
       calculateCost,

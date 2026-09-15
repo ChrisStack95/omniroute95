@@ -8,8 +8,6 @@
  * byte-identical to the previous inline block.
  */
 
-import { shouldSkipQuotaShare } from "../../utils/billingDecision.ts";
-
 type LoggerLike = { warn?: (...args: unknown[]) => void } | null | undefined;
 
 export async function scheduleQuotaShareConsumption(args: {
@@ -22,12 +20,9 @@ export async function scheduleQuotaShareConsumption(args: {
   log?: LoggerLike;
 }): Promise<void> {
   if (!args.apiKeyId || !args.connectionId) return;
-  // Fully estimated usage records nothing (local estimate, never billed).
-  if (shouldSkipQuotaShare(args.usage)) return;
   try {
-    const { scheduleRecordConsumption, buildConsumptionCost } = await import(
-      "@/lib/quota/spendRecorder"
-    );
+    const { scheduleRecordConsumption, buildConsumptionCost } =
+      await import("@/lib/quota/spendRecorder");
     scheduleRecordConsumption(
       {
         apiKeyId: args.apiKeyId,
