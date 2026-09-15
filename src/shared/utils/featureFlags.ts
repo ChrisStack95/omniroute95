@@ -172,3 +172,33 @@ export function isNetworkRotationSharedEgressGuardEnabled(): boolean {
     return true;
   }
 }
+
+/**
+ * Proxy refusal memory (#13578): pools and account rotation skip a proxy that just failed.
+ * Opt-in; an unreadable flag store keeps the plain selection.
+ */
+export function isProxySkipRecentlyFailedEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("PROXY_SKIP_RECENTLY_FAILED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve PROXY_SKIP_RECENTLY_FAILED, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+export function isServerOwnedToolLoopEnabled(
+  reader: (key: string) => boolean = isFeatureFlagEnabled
+): boolean {
+  try {
+    return reader("SERVER_OWNED_TOOL_LOOP_ENABLED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve SERVER_OWNED_TOOL_LOOP_ENABLED, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
