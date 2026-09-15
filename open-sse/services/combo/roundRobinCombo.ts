@@ -112,6 +112,7 @@ import {
   resolveComboTargets,
 } from "./comboStructure.ts";
 import { releaseStickyPinOnFailure, clearStaleLKGP } from "../combo.ts";
+import { resolveComboDailyReset } from "./comboDailyResetClock.ts";
 
 /** Per-connection TPM budget for quota reservation. Undefined = store keeps prior limit. */
 async function resolveTargetTokenLimit(target: {
@@ -921,7 +922,9 @@ export async function handleRoundRobinCombo({
             provider,
             result.headers,
             profile,
-            structuredError
+            structuredError,
+            null,
+            await resolveComboDailyReset(provider)
           );
           const { cooldownMs } = fallbackResult;
           const selectedConnectionId =
