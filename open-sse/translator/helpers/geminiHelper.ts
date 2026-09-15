@@ -458,13 +458,7 @@ function decodeJsonPointerSegment(segment: unknown): string {
 function forEachSubschema(record: JsonRecord, visitor: (sub: unknown) => void): void {
   for (const [key, value] of Object.entries(record)) {
     if (!value || typeof value !== "object") continue;
-    if (
-      (key === "properties" ||
-        key === "patternProperties" ||
-        key === "$defs" ||
-        key === "definitions") &&
-      !Array.isArray(value)
-    ) {
+    if (SCHEMA_MAP_KEYS.has(key) && !Array.isArray(value)) {
       for (const subSchema of Object.values(value as JsonRecord)) {
         visitor(subSchema);
       }
