@@ -1,12 +1,14 @@
 /**
  * Search stats must not surface "ghost" rows, and must not hide real traffic.
  *
- * Hidden: rows with a NULL provider, the '-' sentinel, or a keyed provider whose
- * provider_connections row is gone (deleted connection).
- * Kept: keyed providers with a live connection (directly or through a registry
- * credential fallback such as perplexity-search → perplexity) and keyless
- * providers (`authType: "none"` — duckduckgo-free, searxng-search, anonymous
- * context7), which are served without any provider_connections row.
+ * Always hidden: rows with a NULL provider or the '-' sentinel.
+ * Hidden only with SEARCH_STATS_HIDE_DELETED_CONNECTIONS on: a keyed provider whose
+ * provider_connections row is gone (deleted connection). Off (the default) keeps
+ * the historical stats, where every retained row with a provider id counts.
+ * Kept either way: keyed providers with a live connection (directly or through a
+ * registry credential fallback such as perplexity-search → perplexity) and
+ * keyless providers (`authType: "none"` — duckduckgo-free, searxng-search,
+ * anonymous context7), which are served without any provider_connections row.
  * Totals and per-provider rows use the same guard, so they always agree.
  */
 import test from "node:test";
@@ -83,13 +85,35 @@ test.after(() => {
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
-const EXPECTED_COUNTS: Record<string, number> = {
+const FLAG = "SEARCH_STATS_HIDE_DELETED_CONNECTIONS";
+
+function withFlag<T>(value: "true" | undefined, fn: () => T): T {
+  const previous = process.env[FLAG];
+  if (value === undefined) delete process.env[FLAG];
+  else process.env[FLAG] = value;
+  try {
+    return fn();
+  } finally {
+    if (previous === undefined) delete process.env[FLAG];
+    else process.env[FLAG] = previous;
+  }
+}
+
+const LIVE_COUNTS: Record<string, number> = {
   "brave-search": 2,
   "duckduckgo-free": 2,
   "perplexity-search": 1,
   "searxng-search": 1,
   context7: 1,
 };
+// Flag off: the deleted tavily-search connection still counts (historical behavior).
+const HISTORICAL_COUNTS: Record<string, number> = { ...LIVE_COUNTS, "tavily-search": 1 };
+
+function todayStartIso(): string {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  return todayStart.toISOString();
+}
 
 test("registry fixtures used here are real: keyless ids and the perplexity fallback", () => {
   for (const id of ["duckduckgo-free", "searxng-search", "context7"]) {
@@ -101,55 +125,99 @@ test("registry fixtures used here are real: keyless ids and the perplexity fallb
   assert.equal(SEARCH_CREDENTIAL_FALLBACKS["perplexity-search"], "perplexity");
 });
 
-test("getSearchProviderStats keeps live + keyless providers and drops ghosts", () => {
-  const rows = mod.getSearchProviderStats();
-  const byProvider = Object.fromEntries(rows.map((r) => [r.provider, r]));
-  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.provider, r.requests])), EXPECTED_COUNTS);
-  assert.equal(byProvider["brave-search"].avg_latency_ms, 100);
-  assert.equal(byProvider["duckduckgo-free"].avg_latency_ms, 50);
+test("flag off (default): NULL and '-' rows are hidden, deleted-connection traffic still counts", () => {
+  withFlag(undefined, () => {
+    const stats = mod.getSearchProviderStats();
+    assert.deepEqual(
+      Object.fromEntries(stats.map((r) => [r.provider, r.requests])),
+      HISTORICAL_COUNTS
+    );
+    assert.deepEqual(
+      Object.fromEntries(mod.getSearchProviderCounts().map((r) => [r.provider, r.cnt])),
+      HISTORICAL_COUNTS
+    );
+    const recent = mod.getRecentSearchLogs().map((r) => r.provider);
+    assert.equal(recent.length, 8);
+    assert.ok(
+      recent.includes("tavily-search"),
+      "deleted connection still listed with the flag off"
+    );
+    assert.ok(!recent.includes("-") && !recent.includes(null as unknown as string));
+    const aggregate = mod.getSearchAggregateStats(todayStartIso());
+    assert.equal(aggregate.total, 8);
+    assert.equal(
+      aggregate.total,
+      mod.getSearchProviderCounts().reduce((sum, r) => sum + r.cnt, 0)
+    );
+  });
 });
 
-test("getSearchProviderCounts keeps live + keyless providers, ordered by count", () => {
-  const rows = mod.getSearchProviderCounts();
-  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.provider, r.cnt])), EXPECTED_COUNTS);
-  for (let i = 1; i < rows.length; i++) {
-    assert.ok(rows[i - 1].cnt >= rows[i].cnt, "ordered by cnt desc");
+test("flag on: getSearchProviderStats keeps live + keyless providers and drops ghosts", () => {
+  withFlag("true", () => {
+    const rows = mod.getSearchProviderStats();
+    const byProvider = Object.fromEntries(rows.map((r) => [r.provider, r]));
+    assert.deepEqual(Object.fromEntries(rows.map((r) => [r.provider, r.requests])), LIVE_COUNTS);
+    assert.equal(byProvider["brave-search"].avg_latency_ms, 100);
+    assert.equal(byProvider["duckduckgo-free"].avg_latency_ms, 50);
+  });
+});
+
+test("flag on: getSearchProviderCounts keeps live + keyless providers, ordered by count", () => {
+  withFlag("true", () => {
+    const rows = mod.getSearchProviderCounts();
+    assert.deepEqual(Object.fromEntries(rows.map((r) => [r.provider, r.cnt])), LIVE_COUNTS);
+    for (let i = 1; i < rows.length; i++) {
+      assert.ok(rows[i - 1].cnt >= rows[i].cnt, "ordered by cnt desc");
+    }
+  });
+});
+
+test("flag on: getRecentSearchLogs keeps keyless traffic and drops ghost rows", () => {
+  withFlag("true", () => {
+    const providers = mod.getRecentSearchLogs().map((r) => r.provider);
+    assert.equal(providers.length, 7);
+    for (const ghost of ["tavily-search", "-", null]) {
+      assert.ok(!providers.includes(ghost as string), `${String(ghost)} excluded`);
+    }
+    for (const live of Object.keys(LIVE_COUNTS)) {
+      assert.ok(providers.includes(live), `${live} present`);
+    }
+  });
+});
+
+test("flag on: aggregate totals agree with the per-provider breakdown", () => {
+  withFlag("true", () => {
+    const stats = mod.getSearchAggregateStats(todayStartIso());
+    const breakdownTotal = mod.getSearchProviderCounts().reduce((sum, r) => sum + r.cnt, 0);
+    assert.equal(stats.total, breakdownTotal);
+    assert.equal(stats.total, 7);
+    assert.equal(stats.today, 7);
+    assert.equal(stats.errors, 1);
+  });
+});
+
+test("GET /api/v1/search/analytics: total equals the sum of byProvider counts in both modes", async () => {
+  for (const mode of [undefined, "true"] as const) {
+    const previous = process.env[FLAG];
+    if (mode === undefined) delete process.env[FLAG];
+    else process.env[FLAG] = mode;
+    try {
+      const response = await analyticsRoute.GET(
+        new Request("http://localhost/api/v1/search/analytics")
+      );
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        total: number;
+        byProvider: Record<string, { count: number }>;
+      };
+      const byProviderTotal = Object.values(body.byProvider).reduce((sum, p) => sum + p.count, 0);
+      assert.equal(body.total, byProviderTotal, `mode=${String(mode)}`);
+      assert.equal(body.byProvider["duckduckgo-free"]?.count, 2);
+      if (mode === "true") assert.equal(body.byProvider["tavily-search"], undefined);
+      else assert.equal(body.byProvider["tavily-search"]?.count, 1);
+    } finally {
+      if (previous === undefined) delete process.env[FLAG];
+      else process.env[FLAG] = previous;
+    }
   }
-});
-
-test("getRecentSearchLogs keeps keyless traffic and drops ghost rows", () => {
-  const providers = mod.getRecentSearchLogs().map((r) => r.provider);
-  assert.equal(providers.length, 7);
-  for (const ghost of ["tavily-search", "-", null]) {
-    assert.ok(!providers.includes(ghost as string), `${String(ghost)} excluded`);
-  }
-  for (const live of Object.keys(EXPECTED_COUNTS)) {
-    assert.ok(providers.includes(live), `${live} present`);
-  }
-});
-
-test("aggregate totals agree with the per-provider breakdown", () => {
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const stats = mod.getSearchAggregateStats(todayStart.toISOString());
-  const breakdownTotal = mod.getSearchProviderCounts().reduce((sum, r) => sum + r.cnt, 0);
-  assert.equal(stats.total, breakdownTotal);
-  assert.equal(stats.total, 7);
-  assert.equal(stats.today, 7);
-  assert.equal(stats.errors, 1);
-});
-
-test("GET /api/v1/search/analytics: total equals the sum of byProvider counts", async () => {
-  const response = await analyticsRoute.GET(
-    new Request("http://localhost/api/v1/search/analytics")
-  );
-  assert.equal(response.status, 200);
-  const body = (await response.json()) as {
-    total: number;
-    byProvider: Record<string, { count: number }>;
-  };
-  const byProviderTotal = Object.values(body.byProvider).reduce((sum, p) => sum + p.count, 0);
-  assert.equal(body.total, byProviderTotal);
-  assert.equal(body.byProvider["duckduckgo-free"]?.count, 2);
-  assert.equal(body.byProvider["tavily-search"], undefined);
 });

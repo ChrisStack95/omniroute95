@@ -4,6 +4,7 @@ import {
   SEARCH_CREDENTIAL_FALLBACKS,
   SEARCH_PROVIDERS,
 } from "@omniroute/open-sse/config/searchRegistry.ts";
+import { isFeatureFlagEnabled } from "@/shared/utils/featureFlags";
 
 /**
  * Aggregation queries over `call_logs` extracted from route handlers.
@@ -167,20 +168,25 @@ function sqlStringLiteral(value: string): string {
 
 let searchLiveProviderGuardSql: string | null = null;
 
+/** Always applied: never surface a NULL provider or the '-' sentinel. */
+const SEARCH_PROVIDER_PRESENT_SQL = "c.provider IS NOT NULL AND c.provider != '-'";
+
 /**
  * WHERE fragment shared by every search query below (alias `c` = call_logs).
  * A search row is surfaced only when its provider is still servable:
  *  - never a NULL provider or the '-' sentinel;
+ *  - with SEARCH_STATS_HIDE_DELETED_CONNECTIONS on, a keyed provider also needs a
+ *    provider_connections row, for itself or for one of its credential fallbacks
+ *    (perplexity-search reuses a `perplexity` key), so a deleted connection stops
+ *    resurfacing from its retained call_logs rows;
  *  - keyless providers (`authType: "none"` in the search registry, e.g.
  *    duckduckgo-free, searxng-search, anonymous context7) are always live —
- *    they are served without any provider_connections row;
- *  - otherwise a provider_connections row must exist for the provider itself
- *    or for one of its credential fallbacks (perplexity-search reuses a
- *    `perplexity` key), so a deleted connection stops resurfacing from its
- *    retained call_logs rows.
- * Built from registry constants on first use (not at module evaluation).
+ *    they are served without any provider_connections row.
+ * The flag defaults to off, which keeps the historical stats: every retained row
+ * with a real provider id counts. Built from registry constants on first use.
  */
 function getSearchLiveProviderGuardSql(): string {
+  if (!isSearchStatsHideDeletedConnectionsEnabled()) return SEARCH_PROVIDER_PRESENT_SQL;
   if (searchLiveProviderGuardSql !== null) return searchLiveProviderGuardSql;
   const keyless = Object.values(SEARCH_PROVIDERS)
     .filter((provider) => provider.authType === "none")
@@ -201,7 +207,7 @@ function getSearchLiveProviderGuardSql(): string {
               WHERE fb.column1 = c.provider
             )`
       : "";
-  searchLiveProviderGuardSql = `c.provider IS NOT NULL AND c.provider != '-'
+  searchLiveProviderGuardSql = `${SEARCH_PROVIDER_PRESENT_SQL}
           AND (
             ${keylessClause}EXISTS (
               SELECT 1 FROM provider_connections pc WHERE pc.provider = c.provider
@@ -210,9 +216,18 @@ function getSearchLiveProviderGuardSql(): string {
   return searchLiveProviderGuardSql;
 }
 
+/** Fail closed to the historical behavior when the flag cannot be resolved. */
+function isSearchStatsHideDeletedConnectionsEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("SEARCH_STATS_HIDE_DELETED_CONNECTIONS");
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Per-provider request count and average latency for search requests.
- * Only providers with a live connection are surfaced (see getSearchLiveProviderGuardSql).
+ * Rows pass the search live-provider guard (see getSearchLiveProviderGuardSql).
  */
 export function getSearchProviderStats(): SearchProviderStatRow[] {
   const db = getDbInstance();
@@ -280,7 +295,7 @@ export function getSearchAggregateStats(todayIso: string): SearchAggregateStats 
 
 /**
  * Per-provider request count for search entries, ordered by count descending.
- * Only providers with a live connection are surfaced (see getSearchLiveProviderGuardSql).
+ * Rows pass the search live-provider guard (see getSearchLiveProviderGuardSql).
  */
 export function getSearchProviderCounts(): SearchProviderCountRow[] {
   const db = getDbInstance();
