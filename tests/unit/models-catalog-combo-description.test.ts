@@ -59,6 +59,28 @@ test("R5: an operator-set display_name is advertised, and omitted when unset", (
   );
 });
 
+test("R6: the combo schemas accept displayName and count it as a real update", async () => {
+  const schemas = await import("../../src/shared/validation/schemas.ts");
+
+  // Without this the field is stripped by Zod and can never be set — the same
+  // silent no-op that made blockedModels unreachable through the API.
+  const upd = schemas.updateComboSchema.safeParse({ displayName: "Codex Sol" });
+  assert.equal(upd.success, true, "displayName alone must be a valid combo update");
+  if (upd.success) assert.equal(upd.data.displayName, "Codex Sol");
+
+  const created = schemas.createComboSchema.safeParse({
+    name: "claude-codex-sol",
+    displayName: "Codex Sol",
+    models: [{ kind: "model", model: "codex/gpt-5.6-sol-xhigh", providerId: "codex" }],
+  });
+  assert.equal(created.success, true, "create must accept displayName");
+  if (created.success) assert.equal(created.data.displayName, "Codex Sol");
+
+  // Clearing it must be expressible, and a non-string rejected.
+  assert.equal(schemas.updateComboSchema.safeParse({ displayName: null }).success, true);
+  assert.equal(schemas.updateComboSchema.safeParse({ displayName: 42 }).success, false);
+});
+
 test("R4: comboMetadata still spreads after the literal fields", () => {
   // Bound the slice by the block itself rather than a byte count, so adding
   // another field to the row cannot silently make this assertion vacuous.

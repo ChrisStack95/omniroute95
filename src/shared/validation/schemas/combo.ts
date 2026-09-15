@@ -350,6 +350,9 @@ export const createComboSchema = z
   .object({
     name: comboNameSchema,
     description: z.string().max(2000).optional(),
+    // Optional label advertised as `display_name` in /v1/models. Lets a combo
+    // carry a machine-oriented name while clients show something readable.
+    displayName: z.string().trim().max(200).optional(),
     models: z.array(comboModelEntry).min(1, "a combo requires at least one model"),
     strategy: comboStrategySchema.optional().default("priority"),
     config: comboRuntimeConfigSchema.optional(),
@@ -409,6 +412,7 @@ export const updateComboSchema = z
   .object({
     name: comboNameSchema.optional(),
     description: z.string().max(2000).optional().nullable(),
+    displayName: z.string().trim().max(200).optional().nullable(),
     // An update may not remove every model from a combo, or a working combo
     // loses every target. Creation refuses an empty list too: since the CLI
     // gained --models (#10954), an empty draft has no remaining legitimate path.
@@ -439,6 +443,7 @@ export const updateComboSchema = z
     if (
       value.name === undefined &&
       value.description === undefined &&
+      value.displayName === undefined &&
       value.models === undefined &&
       value.strategy === undefined &&
       value.config === undefined &&
