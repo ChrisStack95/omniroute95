@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Izinkan pemulihan streaming untuk meminta respons kembali dan menggabungkannya setelah byte telah mencapai klien."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Alihkan sekali ke koneksi saudara ketika stream tertutup sebelum mengirim frame yang berguna dan percobaan ulang terbatas pada koneksi yang sama sudah habis. Jika tidak ada koneksi saudara yang dapat digunakan, error early-EOF asli dikembalikan. Nonaktif: early-EOF tetap final setelah percobaan ulang."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Sertakan bidang nama yang mudah dibaca dalam respons /v1/models. Nonaktifkan ini untuk klien yang hanya menerima ID model."
       },

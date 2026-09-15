@@ -12952,6 +12952,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Leisti atkuriant srautą dar kartą paprašyti atsakymo ir jį sujungti, net jei klientas jau gavo dalį baitų."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Vieną kartą perjungti į giminingą ryšį, kai srautas užsidaro neišsiuntęs jokio naudingo kadro ir ribotas pakartotinis bandymas tame pačiame ryšyje išnaudotas. Jei tinkamo giminingo ryšio nėra, grąžinama pradinė early-EOF klaida. Išjungta: early-EOF po pakartotinio bandymo lieka galutinis."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Į /v1/models atsakymus įtraukti patogiam rodymui skirtus pavadinimų laukus. Išjunkite tai klientams, kurie priima tik modelių ID."
       },

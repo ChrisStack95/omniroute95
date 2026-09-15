@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Allow stream recovery to request the response again and stitch it after bytes have already reached the client."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Conmutar una sola vez a una conexión hermana cuando un stream se cierra antes de emitir cualquier trama útil y se agotó el reintento limitado en la misma conexión. Si no hay una conexión hermana utilizable, se devuelve el error early-EOF original. Desactivado: early-EOF sigue siendo terminal tras el reintento."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Include display-friendly name fields in /v1/models responses. Disable this for clients that accept model IDs only."
       },

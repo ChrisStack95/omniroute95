@@ -12981,6 +12981,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Permite que a recuperação de stream solicite a resposta novamente e a costure depois que bytes já chegaram ao cliente."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Faz failover uma única vez para uma conexão irmã quando um stream fecha antes de emitir qualquer frame útil e a nova tentativa limitada na mesma conexão já foi usada. Sem conexão irmã utilizável, o erro early-EOF original é retornado. Desligado: o early-EOF continua terminal após a nova tentativa."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Inclui campos de nome amigável para exibição nas respostas de /v1/models. Desative isso para clientes que aceitam apenas IDs de modelo."
       },

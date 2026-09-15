@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Stream-Wiederherstellung erlauben, um die Antwort erneut anzufordern und zusammenzufügen, nachdem bereits Bytes den Client erreicht haben."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Einmaliger Failover auf eine Geschwisterverbindung, wenn ein Stream schließt, bevor er einen nützlichen Frame gesendet hat, und der begrenzte Wiederholungsversuch auf derselben Verbindung aufgebraucht ist. Ohne nutzbare Geschwisterverbindung wird der ursprüngliche early-EOF-Fehler zurückgegeben. Aus: early-EOF bleibt nach dem Wiederholungsversuch endgültig."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Benutzerfreundliche Namensfelder in /v1/models-Antworten einschließen. Deaktivieren Sie dies für Clients, die nur Modell-IDs akzeptieren."
       },

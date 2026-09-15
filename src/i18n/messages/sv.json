@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Tillåt strömåterställning att begära svaret igen och sammanfoga det efter att byte redan har nått klienten."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Växla en gång över till en syskonanslutning när en ström stängs innan den har skickat någon användbar ram och det begränsade nya försöket på samma anslutning är förbrukat. Utan en användbar syskonanslutning returneras det ursprungliga early-EOF-felet. Av: early-EOF förblir slutgiltigt efter det nya försöket."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Inkludera visningsvänliga namnfält i svar från /v1/models. Inaktivera detta för klienter som endast accepterar modell-ID:n."
       },

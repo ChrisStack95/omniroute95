@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Benarkan pemulihan strim untuk meminta respons semula dan mencantumkannya selepas bait telah sampai ke pelanggan."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Tukar sekali ke sambungan adik-beradik apabila strim ditutup sebelum menghantar sebarang bingkai berguna dan cubaan semula terhad pada sambungan yang sama telah habis. Tanpa sambungan adik-beradik yang boleh digunakan, ralat early-EOF asal dikembalikan. Mati: early-EOF kekal muktamad selepas cubaan semula."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Sertakan medan nama mesra paparan dalam respons /v1/models. Nyahdayakan ini untuk pelanggan yang hanya menerima ID model."
       },

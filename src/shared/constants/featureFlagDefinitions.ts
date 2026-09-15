@@ -453,7 +453,7 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     key: "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED",
     label: "Early-EOF Sibling Failover",
     description:
-      "Fail over to a sibling connection when an SSE stream closes before emitting any useful frame and the bounded same-connection retry is spent. Off by default: early-EOF stays terminal after the same-connection retry.",
+      "Fail over once to a sibling connection when an SSE stream closes before emitting any useful frame and the bounded same-connection retry is spent; with no usable sibling the original STREAM_EARLY_EOF 502 is returned. Off by default: early-EOF stays terminal after the same-connection retry.",
     descriptionI18nKey: "featureFlagStreamEarlyEofSiblingFailoverEnabledDescription",
     category: "runtime",
     defaultValue: "false",

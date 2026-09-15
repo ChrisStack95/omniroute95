@@ -12977,6 +12977,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Payagan ang pagbawi ng stream na hilingin muli ang tugon at pagdugtungin ito pagkatapos makarating na ang mga byte sa client."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Lumipat nang minsan sa isang kapatid na koneksyon kapag nagsara ang stream bago magpadala ng anumang kapaki-pakinabang na frame at nagamit na ang limitadong muling pagsubok sa parehong koneksyon. Kung walang magagamit na kapatid na koneksyon, ibinabalik ang orihinal na error na early-EOF. Naka-off: nananatiling pinal ang early-EOF pagkatapos ng muling pagsubok."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Isama ang mga display-friendly na field ng pangalan sa mga tugon ng /v1/models. I-disable ito para sa mga client na tumatanggap lamang ng mga model ID."
       },

@@ -12952,6 +12952,9 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "Dopusti oporavku toka da ponovo zatraži odgovor i spoji ga nakon što su bajtovi već stigli do klijenta."
       },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "Jednom se prebaci na srodnu vezu kada se tok zatvori prije slanja ijednog korisnog okvira, a ograničeni ponovni pokušaj na istoj vezi je iskorišten. Ako nema upotrebljive srodne veze, vraća se izvorna early-EOF pogreška. Isključeno: early-EOF ostaje konačan nakon ponovnog pokušaja."
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "Uključi polja s imenima prilagođenim za prikaz u odgovorima /v1/models. Onemogući ovo za klijente koji prihvaćaju samo ID-ove modela."
       },
