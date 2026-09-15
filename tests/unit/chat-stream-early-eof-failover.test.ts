@@ -4,16 +4,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// Stream early EOF sibling failover (direct single-model path).
+// Stream early EOF sibling failover (direct single-model path, #13153).
 //
 // When the upstream opens an SSE stream but closes it before emitting any
-// useful frame, the readiness gate surfaces 502 STREAM_EARLY_EOF. The
-// bounded same-connection retry makes one plain re-attempt; once it is
-// exhausted the request must fail over to a sibling connection instead of
-// returning the 502 while an eligible connection is still available.
-// No account is ever marked unavailable for an early close (an early close
-// is not a bad connection), and STREAM_READINESS_TIMEOUT keeps its
-// terminal return (a slow-but-alive upstream must not be retried twice).
+// useful frame, the readiness gate surfaces 502 STREAM_EARLY_EOF. The bounded
+// same-connection retry (#3758) makes one plain re-attempt. With
+// STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED on, once that retry is spent the
+// request makes exactly ONE hop to a sibling connection; if no sibling can serve
+// it, the ORIGINAL STREAM_EARLY_EOF 502 is surfaced unchanged so combo-level
+// detection (isStreamEarlyEofErrorBody) keeps working. No account is ever marked
+// unavailable for an early close, STREAM_READINESS_TIMEOUT stays terminal, and
+// with the flag off (the default) the release behavior is unchanged.
+//
+// These cases drive handleChat() directly rather than the /v1/chat/completions
+// route: the route wraps streaming requests in withEarlyStreamKeepalive, which
+// commits a synthetic 200 SSE response (dropping the handler's status and
+// headers) whenever the handler takes longer than 2 s — a cold first request or
+// a loaded machine is enough, and the failover assertions would then observe the
+// keepalive wrapper instead of the failover.
 
 const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-early-eof-failover-"));
 process.env.DATA_DIR = TEST_DATA_DIR;
@@ -24,10 +32,15 @@ delete process.env.JWT_SECRET;
 if (!process.env.API_KEY_SECRET) {
   process.env.API_KEY_SECRET = `test-early-eof-failover-${Date.now()}`;
 }
+// A short readiness window so the STREAM_READINESS_TIMEOUT case resolves quickly.
+// Every other stub body is static, so readiness settles on the first read.
+process.env.STREAM_READINESS_TIMEOUT_MS = "1000";
 
 const core = await import("../../src/lib/db/core.ts");
 const providersDb = await import("../../src/lib/db/providers.ts");
-const chatRoute = await import("../../src/app/api/v1/chat/completions/route.ts");
+const { handleChat } = await import("../../src/sse/handlers/chat.ts");
+const { initTranslators } = await import("../../open-sse/translator/index.ts");
+const { clearInflight } = await import("../../open-sse/services/requestDedup.ts");
 const { resetAllCircuitBreakers } = await import("../../src/shared/utils/circuitBreaker.ts");
 
 const originalFetch = globalThis.fetch;
@@ -38,34 +51,48 @@ async function flushBackgroundWork() {
 }
 
 async function resetStorage() {
+  clearInflight();
   core.resetDbInstance();
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
   resetAllCircuitBreakers();
+  initTranslators();
 }
 
-async function seedConnection(name: string, apiKey: string) {
-  return providersDb.createProviderConnection({
+type SeededConnection = { id: string; apiKey: string };
+
+async function seedConnection(name: string, apiKey: string): Promise<SeededConnection> {
+  const row = (await providersDb.createProviderConnection({
     provider: "openai",
     authType: "apikey",
     name,
     apiKey,
     isActive: true,
     testStatus: "active",
-  });
+  })) as { id: string };
+  return { id: row.id, apiKey };
 }
 
 // An SSE body that closes with zero non-ping frames: the exact input shape
 // the readiness gate turns into 502 STREAM_EARLY_EOF.
-function pingOnlyStreamBody(): string {
-  return `: keepalive\n\ndata: ${JSON.stringify({ type: "ping" })}\n\n`;
-}
-
 function pingOnlyStreamResponse(): Response {
-  return new Response(pingOnlyStreamBody(), {
+  return new Response(`: keepalive\n\ndata: ${JSON.stringify({ type: "ping" })}\n\n`, {
     status: 200,
     headers: { "Content-Type": "text/event-stream" },
   });
+}
+
+// An SSE body that stays open without a useful frame: STREAM_READINESS_TIMEOUT.
+function stalledStreamResponse(): Response {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(": keepalive\n\n"));
+      },
+    }),
+    { status: 200, headers: { "Content-Type": "text/event-stream" } }
+  );
 }
 
 function successStreamResponse(content: string): Response {
@@ -83,7 +110,15 @@ function successStreamResponse(content: string): Response {
   );
 }
 
+function unauthorizedResponse(): Response {
+  return new Response(
+    JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request" } }),
+    { status: 401, headers: { "Content-Type": "application/json" } }
+  );
+}
+
 function streamRequest(extraHeaders: Record<string, string> = {}) {
+  // A per-request nonce keeps the semantic cache and request dedup out of the way.
   const nonce = `early-eof-failover-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return new Request("http://localhost/v1/chat/completions", {
     method: "POST",
@@ -104,49 +139,61 @@ function streamRequest(extraHeaders: Record<string, string> = {}) {
 
 // Every outbound fetch carries the connection's own credential, so the stub
 // attributes each dispatch to a connection by its Authorization header.
-type DispatchLog = Array<{ auth: string; url: string }>;
-
-function stubFetch(
-  dispatches: DispatchLog,
-  handler: (_auth: string, callIndex: number) => Response
-) {
-  globalThis.fetch = (async (url: unknown, init: { headers?: unknown }) => {
+function stubFetch(dispatches: string[], handler: (auth: string, callIndex: number) => Response) {
+  globalThis.fetch = (async (_url: unknown, init: { headers?: unknown }) => {
     const headers = new Headers((init?.headers ?? {}) as HeadersInit);
     const auth = headers.get("authorization") ?? "";
     const callIndex = dispatches.length;
-    dispatches.push({ auth: String(auth), url: String(url) });
-    return handler(String(auth), callIndex);
+    dispatches.push(auth);
+    return handler(auth, callIndex);
   }) as typeof fetch;
 }
 
-function authOf(apiKey: string): string {
-  return `Bearer ${apiKey}`;
+function authOf(connection: SeededConnection): string {
+  return `Bearer ${connection.apiKey}`;
 }
 
-// The sibling hop ships off behind STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED
-// (default false): enable it per test, save/restore around each case.
+function errorCodeOf(bodyText: string): string | undefined {
+  try {
+    return (JSON.parse(bodyText) as { error?: { code?: string } })?.error?.code;
+  } catch {
+    return undefined;
+  }
+}
+
+async function assertNotMarked(connection: SeededConnection, label: string) {
+  const row = (await providersDb.getProviderConnectionById(connection.id)) as Record<
+    string,
+    unknown
+  > | null;
+  assert.ok(row, `the ${label} connection must still exist`);
+  const until = (row.rateLimitedUntil as string | null | undefined) ?? null;
+  assert.ok(
+    until === null || new Date(String(until)).getTime() <= Date.now(),
+    `expected no cooldown on the ${label} connection, got rateLimitedUntil=${until}`
+  );
+  assert.notEqual(row.testStatus, "unavailable", `the ${label} connection must not be unavailable`);
+}
+
 const SIBLING_FAILOVER_FLAG = "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED";
 const ORIGINAL_SIBLING_FAILOVER_FLAG = process.env[SIBLING_FAILOVER_FLAG];
 
-function enableSiblingFailover() {
-  process.env[SIBLING_FAILOVER_FLAG] = "true";
-}
-
-function restoreSiblingFailoverFlag() {
-  if (ORIGINAL_SIBLING_FAILOVER_FLAG === undefined) delete process.env[SIBLING_FAILOVER_FLAG];
-  else process.env[SIBLING_FAILOVER_FLAG] = ORIGINAL_SIBLING_FAILOVER_FLAG;
+function setSiblingFailoverFlag(enabled: boolean) {
+  if (enabled) process.env[SIBLING_FAILOVER_FLAG] = "true";
+  else delete process.env[SIBLING_FAILOVER_FLAG];
 }
 
 test.beforeEach(async () => {
   globalThis.fetch = originalFetch;
-  enableSiblingFailover();
+  setSiblingFailoverFlag(true);
   await resetStorage();
 });
 
 test.afterEach(async () => {
   await flushBackgroundWork();
   globalThis.fetch = originalFetch;
-  restoreSiblingFailoverFlag();
+  if (ORIGINAL_SIBLING_FAILOVER_FLAG === undefined) delete process.env[SIBLING_FAILOVER_FLAG];
+  else process.env[SIBLING_FAILOVER_FLAG] = ORIGINAL_SIBLING_FAILOVER_FLAG;
 });
 
 test.after(async () => {
@@ -156,285 +203,162 @@ test.after(async () => {
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
-test("stream early EOF failover", async (t) => {
-  await t.test(
-    "fails over to the sibling connection after the bounded retry is exhausted",
-    async () => {
-      const connA = await seedConnection("openai-failover-a", "sk-failover-conn-a");
-      const connB = await seedConnection("openai-failover-b", "sk-failover-conn-b");
+test("flag off (default): early EOF stays terminal after the same-connection retry, nothing marked", async () => {
+  setSiblingFailoverFlag(false);
+  const connA = await seedConnection("openai-flagoff-a", "sk-failover-flagoff-a");
+  const connB = await seedConnection("openai-flagoff-b", "sk-failover-flagoff-b");
 
-      const dispatches: DispatchLog = [];
-      stubFetch(dispatches, (_auth, callIndex) => {
-        // Attempts 1 and 2 close early with zero useful frames (the bounded
-        // same-connection retry from #3758); the 3rd dispatch must reach the
-        // sibling and succeed so the client never sees the 502. The failover
-        // lives on the post-retry terminal path, where the request used to end.
-        if (callIndex < 2) return pingOnlyStreamResponse();
-        return successStreamResponse("OK");
-      });
+  const dispatches: string[] = [];
+  stubFetch(dispatches, () => pingOnlyStreamResponse());
 
-      // The STREAM warn assertion rides on a leak of the logger's worker-thread
-      // transport timing, so it cannot be observed reliably at the route seam.
-      // Assert the failover through its stable, load-bearing signals instead:
-      // the 3rd dispatch on the sibling, the sibling's selected-connection
-      // header, and a 200 with the sibling's content.
-      const response = await chatRoute.POST(streamRequest());
-      const bodyText = await response.text();
+  const response = await handleChat(streamRequest());
+  const bodyText = await response.text();
 
-      assert.equal(
-        dispatches.length,
-        3,
-        `expected 3 dispatches (1 + retry + sibling), got ${dispatches.length}`
-      );
-      assert.equal(dispatches[0]!.auth, authOf("sk-failover-conn-a"));
-      assert.equal(
-        dispatches[1]!.auth,
-        authOf("sk-failover-conn-a"),
-        "the bounded retry stays on the same connection"
-      );
-      assert.equal(
-        dispatches[2]!.auth,
-        authOf("sk-failover-conn-b"),
-        "the exhausted retry must fail over to the sibling connection"
-      );
-      assert.equal(
-        response.status,
-        200,
-        `expected 200 after sibling failover, got ${response.status}: ${bodyText.slice(0, 300)}`
-      );
-      assert.equal(
-        response.headers.get("X-OmniRoute-Selected-Connection-Id"),
-        connB.id,
-        "the response must carry the sibling as the selected connection"
-      );
-      assert.ok(bodyText.length > 0, "the sibling response must carry a body");
-      assert.ok(
-        !bodyText.includes("STREAM_EARLY_EOF"),
-        "the client must never see the early-EOF 502 after failover"
-      );
-      assert.ok(connA.id.length > 0 && connB.id.length > 0 && connA.id !== connB.id);
-    }
+  // 1 initial + 1 bounded same-connection retry, then the terminal 502 — no
+  // sibling hop despite an eligible sibling.
+  assert.equal(dispatches.length, 2, `expected 2 dispatches, got ${dispatches.length}`);
+  const firstAuth = dispatches[0];
+  assert.equal(dispatches[1], firstAuth, "the bounded retry stays on the same connection");
+  const first = firstAuth === authOf(connA) ? connA : connB;
+  assert.equal(response.status, 502, `expected 502, got ${response.status}: ${bodyText}`);
+  assert.equal(errorCodeOf(bodyText), "STREAM_EARLY_EOF");
+  assert.equal(response.headers.get("X-OmniRoute-Selected-Connection-Id"), first.id);
+  await assertNotMarked(connA, "first");
+  await assertNotMarked(connB, "sibling");
+});
+
+test("flag on: fails over to the sibling after the bounded retry, without marking any account", async () => {
+  const connA = await seedConnection("openai-failover-a", "sk-failover-conn-a");
+  const connB = await seedConnection("openai-failover-b", "sk-failover-conn-b");
+
+  const dispatches: string[] = [];
+  stubFetch(dispatches, (_auth, callIndex) =>
+    callIndex < 2 ? pingOnlyStreamResponse() : successStreamResponse("OK")
   );
 
-  await t.test("returns terminal 502 with a singleton pool", async () => {
-    const conn = await seedConnection("openai-singleton", "sk-failover-singleton");
+  const response = await handleChat(streamRequest());
+  const bodyText = await response.text();
 
-    const dispatches: DispatchLog = [];
-    stubFetch(dispatches, () => pingOnlyStreamResponse());
+  assert.equal(dispatches.length, 3, `expected 1 + retry + sibling, got ${dispatches.length}`);
+  const first = dispatches[0] === authOf(connA) ? connA : connB;
+  const sibling = first === connA ? connB : connA;
+  assert.equal(dispatches[1], authOf(first), "the bounded retry stays on the same connection");
+  assert.equal(dispatches[2], authOf(sibling), "the spent retry must hop to the sibling");
+  assert.equal(response.status, 200, `expected 200, got ${response.status}: ${bodyText}`);
+  assert.equal(
+    response.headers.get("X-OmniRoute-Selected-Connection-Id"),
+    sibling.id,
+    "the response must carry the sibling as the selected connection"
+  );
+  assert.match(bodyText, /OK/, "the client must receive the sibling's content");
+  assert.ok(!bodyText.includes("STREAM_EARLY_EOF"), "the client must not see the early-EOF 502");
+  await assertNotMarked(first, "first");
+  await assertNotMarked(sibling, "sibling");
+});
 
-    const response = await chatRoute.POST(streamRequest());
-    const bodyText = await response.text();
+test("flag on: bounds the failover to exactly one sibling hop per request", async () => {
+  const conns = [
+    await seedConnection("openai-onehop-a", "sk-failover-onehop-a"),
+    await seedConnection("openai-onehop-b", "sk-failover-onehop-b"),
+    await seedConnection("openai-onehop-c", "sk-failover-onehop-c"),
+  ];
 
-    // 1 initial + 1 bounded same-connection retry, then the terminal return:
-    // no sibling exists, so no 3rd dispatch.
-    assert.equal(
-      dispatches.length,
-      2,
-      `expected exactly 2 dispatches on a singleton pool, got ${dispatches.length}`
-    );
-    assert.equal(
-      response.status,
-      502,
-      `expected terminal 502, got ${response.status}: ${bodyText.slice(0, 300)}`
-    );
-    const body = JSON.parse(bodyText) as { error?: { code?: string; type?: string } };
-    const code = body?.error?.code ?? body?.error?.type ?? "";
-    assert.ok(
-      code === "STREAM_EARLY_EOF" || code === "bad_gateway",
-      `expected a stream-early-EOF 502 body, got code=${code}: ${bodyText.slice(0, 300)}`
-    );
-    if (code === "bad_gateway") {
-      assert.match(
-        bodyText,
-        /before producing a non-ping SSE event|early/i,
-        "a generic-code 502 must still carry the early-EOF message"
-      );
-    }
-    assert.equal(response.headers.get("X-OmniRoute-Selected-Connection-Id"), conn.id);
-  });
+  const dispatches: string[] = [];
+  stubFetch(dispatches, () => pingOnlyStreamResponse());
 
-  await t.test("returns terminal 502 with a forced connection", async () => {
-    const connA = await seedConnection("openai-forced-a", "sk-failover-forced-a");
-    await seedConnection("openai-forced-b", "sk-failover-forced-b");
+  const response = await handleChat(streamRequest());
+  const bodyText = await response.text();
 
-    const dispatches: DispatchLog = [];
-    stubFetch(dispatches, () => pingOnlyStreamResponse());
+  // 1 initial + 1 same-connection retry + 1 sibling hop. The sibling's own early
+  // close is terminal: no second hop to the third connection.
+  assert.equal(
+    dispatches.length,
+    3,
+    `expected exactly one hop, got ${dispatches.length} dispatches`
+  );
+  assert.equal(dispatches[1], dispatches[0], "the bounded retry stays on the same connection");
+  assert.notEqual(dispatches[2], dispatches[0], "the single hop must go to a sibling");
+  const sibling = conns.find((conn) => authOf(conn) === dispatches[2]);
+  assert.ok(sibling, "the hop must reach a seeded sibling");
+  assert.equal(response.status, 502, `expected 502, got ${response.status}: ${bodyText}`);
+  assert.equal(errorCodeOf(bodyText), "STREAM_EARLY_EOF", "the terminal body keeps its code");
+  assert.equal(response.headers.get("X-OmniRoute-Selected-Connection-Id"), sibling.id);
+  for (const conn of conns) await assertNotMarked(conn, conn.id);
+});
 
-    const response = await chatRoute.POST(streamRequest({ "x-omniroute-connection": connA.id }));
-    const bodyText = await response.text();
+test("flag on: a singleton pool surfaces the original STREAM_EARLY_EOF 502", async () => {
+  const conn = await seedConnection("openai-singleton", "sk-failover-singleton");
 
-    // The forced pin is an operator instruction: the same-connection retry
-    // is itself skipped for a forced pin, so the terminal return fires after
-    // the single forced dispatch — and it must never silently rotate to the
-    // sibling.
-    assert.equal(
-      dispatches.length,
-      1,
-      `expected exactly 1 dispatch with a forced pin, got ${dispatches.length}`
-    );
-    for (const dispatch of dispatches) {
-      assert.equal(
-        dispatch.auth,
-        authOf("sk-failover-forced-a"),
-        "every dispatch must stay on the forced connection"
-      );
-    }
-    assert.equal(
-      response.status,
-      502,
-      `expected terminal 502, got ${response.status}: ${bodyText.slice(0, 300)}`
-    );
-  });
+  const dispatches: string[] = [];
+  stubFetch(dispatches, () => pingOnlyStreamResponse());
 
-  await t.test("never marks the account unavailable for early EOF", async () => {
-    const connA = await seedConnection("openai-nomark-a", "sk-failover-nomark-a");
-    const connB = await seedConnection("openai-nomark-b", "sk-failover-nomark-b");
+  const response = await handleChat(streamRequest());
+  const bodyText = await response.text();
 
-    const dispatches: DispatchLog = [];
-    stubFetch(dispatches, (_auth, callIndex) => {
-      if (callIndex < 2) return pingOnlyStreamResponse();
-      return successStreamResponse("OK");
-    });
+  assert.equal(dispatches.length, 2, `expected 2 dispatches, got ${dispatches.length}`);
+  assert.equal(response.status, 502, `expected 502, got ${response.status}: ${bodyText}`);
+  assert.equal(
+    errorCodeOf(bodyText),
+    "STREAM_EARLY_EOF",
+    `the original early-EOF body must survive an empty sibling pool: ${bodyText}`
+  );
+  assert.equal(response.headers.get("X-OmniRoute-Selected-Connection-Id"), conn.id);
+  await assertNotMarked(conn, "singleton");
+});
 
-    const response = await chatRoute.POST(streamRequest());
-    await response.text();
-    assert.equal(response.status, 200);
-    assert.equal(
-      dispatches.length,
-      3,
-      "failover must have happened for the no-marking check to be meaningful"
-    );
+test("flag on: a sibling that fails for another reason surfaces the original early-EOF 502", async () => {
+  const connA = await seedConnection("openai-sibfail-a", "sk-failover-sibfail-a");
+  const connB = await seedConnection("openai-sibfail-b", "sk-failover-sibfail-b");
 
-    // Observable via persisted connection state: a marked account carries a
-    // future rateLimitedUntil (cooldown); an early close must leave both
-    // connections unmarked.
-    const afterA = await providersDb.getProviderConnectionById(connA.id);
-    const afterB = await providersDb.getProviderConnectionById(connB.id);
-    for (const [label, row] of [
-      ["first", afterA],
-      ["sibling", afterB],
-    ] as const) {
-      const rowRecord = row as unknown as Record<string, unknown>;
-      const until = (rowRecord?.rateLimitedUntil as string | null) ?? null;
-      assert.ok(
-        until === null || Number(new Date(String(until)).getTime()) <= Date.now(),
-        `expected no cooldown on the ${label} connection after early EOF, got rateLimitedUntil=${until}`
-      );
-      assert.notEqual(
-        rowRecord?.testStatus,
-        "unavailable",
-        `expected no unavailable status on the ${label} connection after early EOF`
-      );
-    }
-  });
-
-  await t.test(
-    "stays terminal with the flag off even when a sibling is available",
-    async () => {
-      restoreSiblingFailoverFlag();
-      try {
-        const connA = await seedConnection("openai-flagoff-a", "sk-failover-flagoff-a");
-        const connB = await seedConnection("openai-flagoff-b", "sk-failover-flagoff-b");
-
-        const dispatches: DispatchLog = [];
-        stubFetch(dispatches, () => pingOnlyStreamResponse());
-
-        const response = await chatRoute.POST(streamRequest());
-        const bodyText = await response.text();
-
-        // Flag off restores the release behavior exactly: bounded same-connection
-        // retry, then terminal — no sibling hop despite an eligible sibling.
-        assert.equal(
-          dispatches.length,
-          2,
-          `expected exactly 2 dispatches with the flag off, got ${dispatches.length}`
-        );
-        for (const dispatch of dispatches) {
-          assert.equal(
-            dispatch.auth,
-            authOf("sk-failover-flagoff-a"),
-            "every dispatch must stay on the first connection with the flag off"
-          );
-        }
-        assert.equal(
-          response.status,
-          502,
-          `expected terminal 502 with the flag off, got ${response.status}: ${bodyText.slice(0, 300)}`
-        );
-        assert.ok(
-          bodyText.includes("STREAM_EARLY_EOF"),
-          "the client must see the early-EOF 502 with the flag off"
-        );
-        assert.ok(connA.id.length > 0);
-
-        // Flag off must also leave both connections unmarked: the terminal
-        // path returns before any markAccountUnavailable call site.
-        const afterA = await providersDb.getProviderConnectionById(connA.id);
-        const afterB = await providersDb.getProviderConnectionById(connB.id);
-        for (const [label, row] of [
-          ["first", afterA],
-          ["sibling", afterB],
-        ] as const) {
-          const rowRecord = row as unknown as Record<string, unknown> | null;
-          if (!rowRecord) continue;
-          const until = (rowRecord?.rateLimitedUntil as string | null) ?? null;
-          assert.ok(
-            until === null || Number(new Date(String(until)).getTime()) <= Date.now(),
-            `expected no cooldown on the ${label} connection with the flag off, got rateLimitedUntil=${until}`
-          );
-          assert.notEqual(
-            rowRecord?.testStatus,
-            "unavailable",
-            `expected no unavailable status on the ${label} connection with the flag off`
-          );
-        }
-      } finally {
-        enableSiblingFailover();
-      }
-    }
+  const dispatches: string[] = [];
+  stubFetch(dispatches, (_auth, callIndex) =>
+    callIndex < 2 ? pingOnlyStreamResponse() : unauthorizedResponse()
   );
 
-  await t.test(
-    "keeps STREAM_READINESS_TIMEOUT terminal even with a sibling available",
-    async () => {
-      const chatSource = fs.readFileSync(
-        new URL("../../src/sse/handlers/chat.ts", import.meta.url),
-        "utf8"
-      );
+  const response = await handleChat(streamRequest());
+  const bodyText = await response.text();
 
-      const startMarker = [
-        "      if (",
-        '        (result.errorType === "stream_timeout" || result.errorType === "stream_early_eof") &&',
-        "        !isAntigravityStreamReadinessFailure",
-        "      ) {",
-      ].join("\n");
-      const start = chatSource.indexOf(startMarker);
-      assert.notEqual(start, -1, "non-Antigravity stream-failure branch must exist");
-      const end = chatSource.indexOf("\n      if (isAntigravityStreamReadinessFailure)", start);
-      assert.notEqual(end, -1, "stream-failure branch end marker must exist");
-      const branch = chatSource.slice(start, end);
+  const first = dispatches[0] === authOf(connA) ? connA : connB;
+  const sibling = first === connA ? connB : connA;
+  assert.equal(dispatches.length, 3, `expected 1 + retry + sibling, got ${dispatches.length}`);
+  assert.equal(dispatches[2], authOf(sibling));
+  assert.equal(response.status, 502, `expected 502, got ${response.status}: ${bodyText}`);
+  assert.equal(errorCodeOf(bodyText), "STREAM_EARLY_EOF", `unexpected body: ${bodyText}`);
+  assert.equal(response.headers.get("X-OmniRoute-Selected-Connection-Id"), first.id);
+  await assertNotMarked(first, "first");
+});
 
-      // The failover gate admits only the terminal early-EOF shape, so the
-      // timeout path can never reach the exclude-and-continue: a stalled
-      // upstream keeps its terminal return (retrying it would double the
-      // latency of a request that is still warming up).
-      const gateIndex = branch.indexOf("isEarlyEofSiblingFailoverOn()");
-      assert.ok(
-        gateIndex >= 0,
-        "the sibling-failover gate must exist and pin hasForcedConnection before any mutation"
-      );
-      const terminalReturn = branch.indexOf("return withSelectedConnectionHeader(");
-      assert.ok(terminalReturn >= 0, "the terminal return must remain");
-      assert.match(
-        branch,
-        /isTerminalStreamEarlyEof && !hasForcedConnection && isEarlyEofSiblingFailoverOn\(\)\) \{[\s\S]*?excludedConnectionIds\.add\(credentials\.connectionId\)[\s\S]*?continue;/,
-        "only the terminal early-EOF path may exclude-and-continue to a sibling"
-      );
-      const gateToReturn = branch.slice(gateIndex, terminalReturn);
-      assert.ok(
-        !gateToReturn.includes("stream_timeout"),
-        "the timeout path must not pass through the sibling-failover gate"
-      );
-    }
-  );
+test("flag on: a forced connection never hops to a sibling", async () => {
+  const connA = await seedConnection("openai-forced-a", "sk-failover-forced-a");
+  await seedConnection("openai-forced-b", "sk-failover-forced-b");
+
+  const dispatches: string[] = [];
+  stubFetch(dispatches, () => pingOnlyStreamResponse());
+
+  const response = await handleChat(streamRequest({ "x-omniroute-connection": connA.id }));
+  const bodyText = await response.text();
+
+  // A forced pin skips the same-connection retry and must never rotate.
+  assert.equal(dispatches.length, 1, `expected 1 dispatch, got ${dispatches.length}`);
+  assert.equal(dispatches[0], authOf(connA));
+  assert.equal(response.status, 502, `expected 502, got ${response.status}: ${bodyText}`);
+  assert.equal(errorCodeOf(bodyText), "STREAM_EARLY_EOF");
+});
+
+test("flag on: STREAM_READINESS_TIMEOUT stays terminal even with a sibling available", async () => {
+  const connA = await seedConnection("openai-timeout-a", "sk-failover-timeout-a");
+  const connB = await seedConnection("openai-timeout-b", "sk-failover-timeout-b");
+
+  const dispatches: string[] = [];
+  stubFetch(dispatches, () => stalledStreamResponse());
+
+  const response = await handleChat(streamRequest());
+  const bodyText = await response.text();
+
+  // A slow-but-alive upstream is neither retried nor failed over.
+  assert.equal(dispatches.length, 1, `expected 1 dispatch, got ${dispatches.length}`);
+  assert.equal(response.status, 504, `expected 504, got ${response.status}: ${bodyText}`);
+  assert.equal(errorCodeOf(bodyText), "STREAM_READINESS_TIMEOUT");
+  await assertNotMarked(connA, "first");
+  await assertNotMarked(connB, "sibling");
 });
