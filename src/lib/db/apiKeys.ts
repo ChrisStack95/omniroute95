@@ -787,7 +787,9 @@ export async function updateApiKeyPermissions(
     normalized.allowedCombos !== undefined ||
     normalized.allowedConnections !== undefined ||
     normalized.allowedQuotas !== undefined ||
-    normalized.disableNonPublicModels !== undefined;
+    normalized.disableNonPublicModels !== undefined ||
+    normalized.allowAutoCombos !== undefined ||
+    normalized.catalogScope !== undefined;
 
   if (
     normalized.name === undefined &&
