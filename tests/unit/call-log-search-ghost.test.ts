@@ -1,9 +1,13 @@
 /**
- * Search provider stats must not surface rows without a live provider connection.
+ * Search stats must not surface "ghost" rows, and must not hide real traffic.
  *
- * Rows with a NULL provider, the '-' sentinel, or a provider with no row in
- * `provider_connections` (deleted connection) must be excluded from the
- * per-provider aggregates and from the recent search entries.
+ * Hidden: rows with a NULL provider, the '-' sentinel, or a keyed provider whose
+ * provider_connections row is gone (deleted connection).
+ * Kept: keyed providers with a live connection (directly or through a registry
+ * credential fallback such as perplexity-search → perplexity) and keyless
+ * providers (`authType: "none"` — duckduckgo-free, searxng-search, anonymous
+ * context7), which are served without any provider_connections row.
+ * Totals and per-provider rows use the same guard, so they always agree.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -16,83 +20,62 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 
 const core = await import("../../src/lib/db/core.ts");
 const mod = await import("../../src/lib/db/callLogStats.ts");
+const { SEARCH_PROVIDERS, SEARCH_CREDENTIAL_FALLBACKS } =
+  await import("../../open-sse/config/searchRegistry.ts");
+const analyticsRoute = await import("../../src/app/api/v1/search/analytics/route.ts");
 
-let _idSeq = 0;
-function insertSearchLog(row: Record<string, unknown>) {
-  const db = core.getDbInstance();
-  const full = {
-    method: "POST",
-    path: "/v1/search",
-    status: 200,
-    model: "search",
-    requested_model: null,
-    provider: "brave",
-    account: null,
-    connection_id: null,
-    duration: 100,
-    tokens_in: 0,
-    tokens_out: 0,
-    cache_source: "upstream",
-    source_format: null,
-    target_format: null,
-    api_key_id: null,
-    api_key_name: null,
-    combo_name: null,
-    combo_step_id: null,
-    combo_execution_key: null,
-    error_summary: null,
-    detail_state: "none",
-    artifact_relpath: null,
-    artifact_size_bytes: null,
-    artifact_sha256: null,
-    has_request_body: 0,
-    has_response_body: 0,
-    has_pipeline_details: 0,
-    request_summary: null,
-    request_type: "search",
-    ...row,
-    id: row.id ?? `log-ghost-${++_idSeq}`,
-    timestamp: row.timestamp ?? new Date().toISOString(),
-  };
-  db.prepare(
-    `INSERT INTO call_logs (
-      id, timestamp, method, path, status, model, requested_model, provider, account,
-      connection_id, duration, tokens_in, tokens_out, cache_source, source_format, target_format,
-      api_key_id, api_key_name, combo_name, combo_step_id, combo_execution_key,
-      error_summary, detail_state, artifact_relpath, artifact_size_bytes, artifact_sha256,
-      has_request_body, has_response_body, has_pipeline_details, request_summary, request_type
-    ) VALUES (
-      @id, @timestamp, @method, @path, @status, @model, @requested_model, @provider, @account,
-      @connection_id, @duration, @tokens_in, @tokens_out, @cache_source, @source_format, @target_format,
-      @api_key_id, @api_key_name, @combo_name, @combo_step_id, @combo_execution_key,
-      @error_summary, @detail_state, @artifact_relpath, @artifact_size_bytes, @artifact_sha256,
-      @has_request_body, @has_response_body, @has_pipeline_details, @request_summary, @request_type
-    )`
-  ).run(full);
+const KEYLESS_IDS = Object.values(SEARCH_PROVIDERS)
+  .filter((provider) => provider.authType === "none")
+  .map((provider) => provider.id);
+
+let idSeq = 0;
+function insertSearchLog(provider: string | null, fields: Record<string, unknown> = {}) {
+  core
+    .getDbInstance()
+    .prepare(
+      `INSERT INTO call_logs (id, timestamp, method, path, status, model, provider, duration,
+        tokens_in, tokens_out, cache_source, request_type, detail_state, error_summary,
+        request_summary, has_request_body, has_response_body, has_pipeline_details)
+       VALUES (@id, @timestamp, 'POST', '/v1/search', @status, 'search', @provider, @duration,
+        0, 0, 'upstream', 'search', 'none', NULL, @summary, 0, 0, 0)`
+    )
+    .run({
+      id: `log-ghost-${++idSeq}`,
+      timestamp: new Date().toISOString(),
+      status: 200,
+      duration: 100,
+      summary: JSON.stringify({ query: `q-${idSeq}` }),
+      provider,
+      ...fields,
+    });
 }
 
-test.before(() => {
-  core.resetDbInstance();
+function insertConnection(id: string, provider: string) {
   const now = new Date().toISOString();
   core
     .getDbInstance()
     .prepare(
       `INSERT INTO provider_connections (id, provider, created_at, updated_at) VALUES (?, ?, ?, ?)`
     )
-    .run("conn-ghost-brave", "brave", now, now);
+    .run(id, provider, now, now);
+}
 
-  insertSearchLog({ provider: "brave", status: 200, duration: 50 });
-  insertSearchLog({ provider: "brave", status: 200, duration: 150 });
-  insertSearchLog({ provider: "-", status: 200, duration: 80 });
-  insertSearchLog({ provider: "ghost-no-conn", status: 200, duration: 80 });
-  core
-    .getDbInstance()
-    .prepare(
-      `INSERT INTO call_logs (id, timestamp, method, path, status, model, provider, duration,
-      tokens_in, tokens_out, cache_source, request_type, detail_state, has_request_body, has_response_body, has_pipeline_details)
-      VALUES (?, ?, 'POST', '/v1/search', 200, 'search', NULL, 80, 0, 0, 'upstream', 'search', 'none', 0, 0, 0)`
-    )
-    .run(`log-ghost-null-${++_idSeq}`, new Date().toISOString());
+test.before(() => {
+  core.resetDbInstance();
+  insertConnection("conn-ghost-brave", "brave-search");
+  insertConnection("conn-ghost-perplexity-chat", "perplexity");
+
+  insertSearchLog("brave-search", { duration: 50 });
+  insertSearchLog("brave-search", { duration: 150, status: 502 });
+  insertSearchLog("perplexity-search", { duration: 90 }); // live via credential fallback
+  insertSearchLog("duckduckgo-free", { duration: 70 }); // keyless, no connection row
+  insertSearchLog("duckduckgo-free", { duration: 30 });
+  insertSearchLog("searxng-search", { duration: 40 }); // keyless, no connection row
+  insertSearchLog("context7", { duration: 60 }); // anonymous tier, no connection row
+  // Ghosts
+  insertSearchLog("tavily-search", { duration: 80 }); // connection deleted
+  insertSearchLog("-", { duration: 80 });
+  insertSearchLog(null, { duration: 80 });
 });
 
 test.after(() => {
@@ -100,46 +83,73 @@ test.after(() => {
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
-test("search provider stats exclude rows without a live connection", () => {
-  const rows = mod.getSearchProviderStats();
-  assert.ok(!rows.some((r) => r.provider === null), "null provider excluded");
-  assert.ok(!rows.some((r) => r.provider === "-"), "sentinel provider excluded");
-  assert.ok(
-    !rows.some((r) => r.provider === "ghost-no-conn"),
-    "provider without connection excluded"
-  );
-  const brave = rows.find((r) => r.provider === "brave");
-  assert.ok(brave, "live provider row present");
-  assert.equal(brave.requests, 2);
-  assert.equal(brave.avg_latency_ms, 100);
+const EXPECTED_COUNTS: Record<string, number> = {
+  "brave-search": 2,
+  "duckduckgo-free": 2,
+  "perplexity-search": 1,
+  "searxng-search": 1,
+  context7: 1,
+};
+
+test("registry fixtures used here are real: keyless ids and the perplexity fallback", () => {
+  for (const id of ["duckduckgo-free", "searxng-search", "context7"]) {
+    assert.ok(KEYLESS_IDS.includes(id), `${id} is authType none in the search registry`);
+  }
+  for (const id of ["brave-search", "tavily-search", "perplexity-search"]) {
+    assert.equal(SEARCH_PROVIDERS[id]?.authType, "apikey", `${id} is a keyed search provider`);
+  }
+  assert.equal(SEARCH_CREDENTIAL_FALLBACKS["perplexity-search"], "perplexity");
 });
 
-test("search provider counts exclude rows without a live connection", () => {
+test("getSearchProviderStats keeps live + keyless providers and drops ghosts", () => {
+  const rows = mod.getSearchProviderStats();
+  const byProvider = Object.fromEntries(rows.map((r) => [r.provider, r]));
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.provider, r.requests])), EXPECTED_COUNTS);
+  assert.equal(byProvider["brave-search"].avg_latency_ms, 100);
+  assert.equal(byProvider["duckduckgo-free"].avg_latency_ms, 50);
+});
+
+test("getSearchProviderCounts keeps live + keyless providers, ordered by count", () => {
   const rows = mod.getSearchProviderCounts();
-  assert.ok(!rows.some((r) => r.provider === null), "null provider excluded");
-  assert.ok(!rows.some((r) => r.provider === "-"), "sentinel provider excluded");
-  assert.ok(
-    !rows.some((r) => r.provider === "ghost-no-conn"),
-    "provider without connection excluded"
-  );
-  const brave = rows.find((r) => r.provider === "brave");
-  assert.ok(brave, "live provider row present");
-  assert.equal(brave.cnt, 2);
-  if (rows.length >= 2) {
-    assert.ok(rows[0].cnt >= rows[rows.length - 1].cnt, "ordered by cnt desc");
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.provider, r.cnt])), EXPECTED_COUNTS);
+  for (let i = 1; i < rows.length; i++) {
+    assert.ok(rows[i - 1].cnt >= rows[i].cnt, "ordered by cnt desc");
   }
 });
 
-test("recent search logs exclude rows without a live connection", () => {
-  const rows = mod.getRecentSearchLogs();
-  assert.ok(!rows.some((r) => r.provider === null), "null provider excluded");
-  assert.ok(!rows.some((r) => r.provider === "-"), "sentinel provider excluded");
-  assert.ok(
-    !rows.some((r) => r.provider === "ghost-no-conn"),
-    "provider without connection excluded"
+test("getRecentSearchLogs keeps keyless traffic and drops ghost rows", () => {
+  const providers = mod.getRecentSearchLogs().map((r) => r.provider);
+  assert.equal(providers.length, 7);
+  for (const ghost of ["tavily-search", "-", null]) {
+    assert.ok(!providers.includes(ghost as string), `${String(ghost)} excluded`);
+  }
+  for (const live of Object.keys(EXPECTED_COUNTS)) {
+    assert.ok(providers.includes(live), `${live} present`);
+  }
+});
+
+test("aggregate totals agree with the per-provider breakdown", () => {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const stats = mod.getSearchAggregateStats(todayStart.toISOString());
+  const breakdownTotal = mod.getSearchProviderCounts().reduce((sum, r) => sum + r.cnt, 0);
+  assert.equal(stats.total, breakdownTotal);
+  assert.equal(stats.total, 7);
+  assert.equal(stats.today, 7);
+  assert.equal(stats.errors, 1);
+});
+
+test("GET /api/v1/search/analytics: total equals the sum of byProvider counts", async () => {
+  const response = await analyticsRoute.GET(
+    new Request("http://localhost/api/v1/search/analytics")
   );
-  assert.ok(
-    rows.some((r) => r.provider === "brave"),
-    "live provider row present"
-  );
+  assert.equal(response.status, 200);
+  const body = (await response.json()) as {
+    total: number;
+    byProvider: Record<string, { count: number }>;
+  };
+  const byProviderTotal = Object.values(body.byProvider).reduce((sum, p) => sum + p.count, 0);
+  assert.equal(body.total, byProviderTotal);
+  assert.equal(body.byProvider["duckduckgo-free"]?.count, 2);
+  assert.equal(body.byProvider["tavily-search"], undefined);
 });
