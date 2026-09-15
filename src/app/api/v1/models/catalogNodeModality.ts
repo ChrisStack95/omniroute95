@@ -1,7 +1,6 @@
 import {
   classifyModelSupportedEndpoints,
   defaultEndpointsForProviderNodeApiType,
-  type ModelSupportedEndpoint,
 } from "@/shared/constants/modelSupportedEndpoints";
 
 // Provider-node modality helpers for the unified model catalog: a node typed
@@ -27,9 +26,11 @@ export function indexNodeApiTypes(
 export function nodeModelEndpoints(
   supportedEndpoints: unknown,
   nodeApiType: string | undefined
-): ModelSupportedEndpoint[] | unknown[] {
+): string[] {
+  // A synced row's list is passed through as-is (the same trust the catalog already
+  // extends to it), so the classifier sees the row's own endpoints, not a narrowed copy.
   return Array.isArray(supportedEndpoints)
-    ? supportedEndpoints
+    ? (supportedEndpoints as string[])
     : defaultEndpointsForProviderNodeApiType(nodeApiType);
 }
 
