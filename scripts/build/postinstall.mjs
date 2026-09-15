@@ -30,15 +30,12 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  isNativeBinaryCompatible,
-  PUBLISHED_BUILD_ARCH,
-  PUBLISHED_BUILD_PLATFORM,
-} from "./native-binary-compat.mjs";
+import { isNativeBinaryCompatible } from "./native-binary-compat.mjs";
+import { getBetterSqlitePrebuildTarget } from "./betterSqlitePrebuildTarget.mjs";
 import { hasStandaloneAppBundle, isTermux } from "./postinstallSupport.mjs";
 import { colocateLlmlinguaOptionals } from "./colocateOptionals.mjs";
 import { fixPlaywrightAndroid } from "./fixPlaywrightAndroid.mjs";
-import { detectRuntimeLibc, resolveWreqJsNativeBinding, WREQ_JS_VERSION } from "./wreqJsNative.mjs";
+import { resolveWreqJsNativeBinding, WREQ_JS_VERSION } from "./wreqJsNative.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -113,20 +110,6 @@ const rootBinary = join(
   "better_sqlite3.node"
 );
 
-function getBetterSqlitePrebuildTarget() {
-  const runtimePlatform = isTermux() ? "android" : process.platform;
-  let libc;
-  if (runtimePlatform === "linux") {
-    try {
-      libc = detectRuntimeLibc();
-    } catch {
-      libc = undefined;
-    }
-  }
-  const targetPlatform = libc === "musl" ? "linuxmusl" : runtimePlatform;
-  return `${targetPlatform}-${process.arch}`;
-}
-
 async function fixBetterSqliteBinary() {
   if (!existsSync(join(ROOT, "dist", "node_modules", "better-sqlite3"))) {
     return;
@@ -178,6 +161,18 @@ async function fixBetterSqliteBinary() {
     }
   }
 
+  // Intentionally no `node-pre-gyp install --fallback-to-build=false` step here
+  // (#12961 review): that step only ever helped when `dist/node_modules/.bin/
+  // node-pre-gyp` (or its `@mapbox/node-pre-gyp` fallback path) was present in
+  // the bundled `dist/` tree AND network access to the prebuilt-binary host was
+  // available — neither is guaranteed, and the 4-candidate resolution above
+  // already covers the case that step existed for (an app-bundled binary that
+  // doesn't match the runtime). What node-pre-gyp could still reach that the
+  // candidates above cannot is a *network-fetched* prebuilt for a target none
+  // of the 4 local candidates matches; on such a host this rebuild step below
+  // still recovers correctly as long as a C++ toolchain is present — only the
+  // narrower "no toolchain, network-fetch was the last resort" case loses
+  // coverage, which is the documented tradeoff of this change.
   console.log(`\n  🔧 Rebuilding better-sqlite3 for ${process.platform}-${process.arch}...`);
 
   // Declared OUTSIDE the try: the catch below reads `isAndroid` to pick the
