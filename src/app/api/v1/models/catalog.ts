@@ -957,6 +957,13 @@ async function buildUnifiedModelsResponseCore(
       const comboMetadata = buildComboCatalogMetadata(combo, visibleTargets);
 
       listedIds.add(combo.name);
+      // #13670 follow-up: advertise the combo's own description. Claude Code's
+      // gateway model discovery reads `description` off each /v1/models entry and
+      // renders it in the picker (an entry without one reads "From gateway"), and
+      // other OpenAI-compatible clients surface it too. Emitted only when the combo
+      // actually has one, so rows stay unchanged for combos that don't.
+      const comboDescription =
+        typeof combo.description === "string" ? combo.description.trim() : "";
       models.push({
         id: combo.name,
         object: "model",
@@ -965,6 +972,7 @@ async function buildUnifiedModelsResponseCore(
         permission: [],
         root: combo.name,
         parent: null,
+        ...(comboDescription ? { description: comboDescription } : {}),
         ...comboMetadata,
       });
 
