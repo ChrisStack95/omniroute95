@@ -994,6 +994,7 @@
   "featureFlagChatVirtualLanesEnabledDescription": "เปิดใช้เลนรับเข้าเสมือนแบบปรับตัวต่อเทนแนนต์สำหรับการส่งไปยังผู้ให้บริการ (#9654): การพุ่งสูงของเทนแนนต์หนึ่งจะไม่ทำให้อีกเทนแนนต์ได้รับ 503 อีกต่อไป ตัวแปรสภาพแวดล้อม OMNIROUTE_CHAT_VIRTUAL_LANES มีผลเหนือการตั้งค่าแดชบอร์ดนี้ การเปลี่ยนแปลงมีผลเมื่อรีสตาร์ทเซิร์ฟเวอร์",
   "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule.",
   "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
+  "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
   "sidebar": {
     "home": "บ้าน",
     "dashboard": "แดชบอร์ด",

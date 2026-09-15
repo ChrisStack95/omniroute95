@@ -994,6 +994,7 @@
   "featureFlagChatVirtualLanesEnabledDescription": "공급자 디스패치를 위해 테넌트별 적응형 가상 승인 레인을 활성화합니다(#9654): 한 테넌트의 폭증이 더 이상 다른 테넌트에 503을 반환하지 않습니다. OMNIROUTE_CHAT_VIRTUAL_LANES 환경 변수가 이 대시보드 설정보다 우선하며, 변경 사항은 서버 재시작 시 적용됩니다.",
   "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule.",
   "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
+  "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
   "sidebar": {
     "home": "홈",
     "dashboard": "대시보드",

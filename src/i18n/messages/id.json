@@ -994,6 +994,7 @@
   "featureFlagChatVirtualLanesEnabledDescription": "Aktifkan jalur penerimaan virtual adaptif per-tenant untuk pengiriman penyedia (#9654): lonjakan satu tenant tidak lagi mengembalikan 503 ke tenant lain. Variabel lingkungan OMNIROUTE_CHAT_VIRTUAL_LANES menang atas pengaturan dasbor ini; perubahan berlaku setelah server dimulai ulang.",
   "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule.",
   "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
+  "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
   "sidebar": {
     "home": "Rumah",
     "dashboard": "Dasbor",

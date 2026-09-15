@@ -994,6 +994,7 @@
   "featureFlagChatVirtualLanesEnabledDescription": "Schakel adaptieve virtuele toegangsbanen per tenant in voor provider-dispatch (#9654): een piek van de ene tenant geeft de andere niet langer een 503. De omgevingsvariabele OMNIROUTE_CHAT_VIRTUAL_LANES wint het van deze dashboard-instelling; wijzigingen gaan in bij een serverherstart.",
   "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule.",
   "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
+  "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
   "sidebar": {
     "home": "Thuis",
     "dashboard": "Dashboard",

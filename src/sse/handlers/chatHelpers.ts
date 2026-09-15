@@ -49,6 +49,7 @@ import { resolveUseUpstream429BreakerHints } from "../../shared/utils/providerHi
 import { isFeatureFlagEnabled } from "../../shared/utils/featureFlags";
 
 import { logProxyEvent } from "../../lib/proxyLogger";
+import { noteProxyOutcome } from "./proxyOutcomeMemory";
 import { logTranslationEvent } from "../../lib/translatorEvents";
 import { getRuntimeProviderProfile } from "@omniroute/open-sse/services/accountFallback.ts";
 
@@ -1042,6 +1043,17 @@ export async function safeLogEvents({
   clientRawRequest,
   tlsFingerprintUsed = false,
 }) {
+  // Feed the provider's real answer back to proxy selection (never result.status: some 429s
+  // are generated locally; proxyInfo carries the status captured around fetch). Must stay
+  // BEFORE the first await: callers fire-and-forget this function, and only the code ahead
+  // of that await runs synchronously at the call site, so a request picking from the same
+  // pool right after already sees a refused member set aside (#13602).
+  try {
+    noteProxyOutcome(provider, proxyInfo);
+  } catch {
+    // proxy selection feedback is best-effort; never break the request path
+  }
+
   try {
     const rawIp =
       clientRawRequest?.headers?.["x-forwarded-for"] ||

@@ -994,6 +994,7 @@
   "featureFlagChatVirtualLanesEnabledDescription": "ਪ੍ਰਦਾਤਾ ਡਿਸਪੈਚ (#9654) ਲਈ ਪ੍ਰਤੀ-ਟੈਨੈਂਟ ਅਨੁਕੂਲ ਵਰਚੁਅਲ ਐਡਮਿਸ਼ਨ ਲੇਨ ਸਮਰੱਥ ਕਰੋ: ਹੁਣ ਇੱਕ ਟੈਨੈਂਟ ਦਾ ਅਚਾਨਕ ਵਧਿਆ ਲੋਡ ਦੂਜੇ ਲਈ 503 ਪੈਦਾ ਨਹੀਂ ਕਰੇਗਾ। OMNIROUTE_CHAT_VIRTUAL_LANES env var ਨੂੰ ਇਸ ਡੈਸ਼ਬੋਰਡ ਓਵਰਰਾਈਡ ਉੱਤੇ ਤਰਜੀਹ ਮਿਲਦੀ ਹੈ; ਤਬਦੀਲੀਆਂ ਸਰਵਰ ਮੁੜ ਚਾਲੂ ਹੋਣ 'ਤੇ ਲਾਗੂ ਹੁੰਦੀਆਂ ਹਨ।",
   "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule.",
   "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
+  "featureFlagProxySkipRecentlyFailedDescription": "__MISSING__:Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
   "sidebar": {
     "home": "ਮੁੱਖ ਪੰਨਾ",
     "dashboard": "ਡੈਸ਼ਬੋਰਡ",
