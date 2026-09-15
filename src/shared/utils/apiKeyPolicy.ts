@@ -189,6 +189,28 @@ function matchesComboAccessRule(comboName: string, requestedModel: string, rule:
   );
 }
 
+/**
+ * Whether a key's `allowedCombos` permits this combo by name.
+ *
+ * The catalog uses this so a key's `/v1/models` lists exactly the combos that
+ * key can dispatch. `allowedCombos` is the gate for combos — `modelAccessMode`
+ * and `allowedModels` gate provider models — so a combo must not be hidden just
+ * because the key is `restricted` with an empty model allow-list. Listing a
+ * combo the key can already dispatch grants no new access.
+ *
+ * An absent list means "no combo restriction configured", matching
+ * `validateComboAccess`, which skips the check when `allowedCombos` is not an array.
+ */
+export function isComboNameAllowedForKey(
+  allowedCombos: string[] | null | undefined,
+  comboName: string
+): boolean {
+  if (!Array.isArray(allowedCombos)) return true;
+  if (!comboName) return false;
+  // In the catalog the requested model IS the combo id, so both arguments match.
+  return allowedCombos.some((rule) => matchesComboAccessRule(comboName, comboName, rule));
+}
+
 function isAnthropicMessagesRequest(request: Request): boolean {
   if (request.headers.has("anthropic-version")) return true;
 

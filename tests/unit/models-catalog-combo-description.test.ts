@@ -46,10 +46,27 @@ test("R3: the description is narrowed to a trimmed string before use", () => {
   );
 });
 
+test("R5: an operator-set display_name is advertised, and omitted when unset", () => {
+  assert.ok(
+    catalog.includes("...(comboDisplayName ? { display_name: comboDisplayName } : {})"),
+    "display_name must be spread conditionally so combos without one are unchanged"
+  );
+  assert.match(
+    catalog,
+    /const comboDisplayName\s*=\s*\n?\s*typeof combo\.displayName === "string" \? combo\.displayName\.trim\(\) : "";/,
+    "display_name must come from an operator-set field, typeof-narrowed and trimmed — " +
+      "never derived heuristically from the combo name"
+  );
+});
+
 test("R4: comboMetadata still spreads after the literal fields", () => {
+  // Bound the slice by the block itself rather than a byte count, so adding
+  // another field to the row cannot silently make this assertion vacuous.
   const rowStart = catalog.indexOf("listedIds.add(combo.name);");
   assert.ok(rowStart > -1, "combo row builder must exist");
-  const row = catalog.slice(rowStart, rowStart + 900);
+  const rowEnd = catalog.indexOf("maybeYieldCatalogBuild", rowStart);
+  assert.ok(rowEnd > rowStart, "combo row builder must be followed by the yield call");
+  const row = catalog.slice(rowStart, rowEnd);
   const descIndex = row.indexOf("description: comboDescription");
   const metaIndex = row.indexOf("...comboMetadata");
   assert.ok(descIndex > -1 && metaIndex > -1, "both spreads must be present in the row");

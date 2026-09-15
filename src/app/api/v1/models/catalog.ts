@@ -1,6 +1,7 @@
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import { NOAUTH_PROVIDERS } from "@/shared/constants/providers";
 import { getCombos } from "@/lib/db/combos";
+import { isComboNameAllowedForKey } from "@/shared/utils/apiKeyPolicy";
 import { getSettings } from "@/lib/db/settings";
 import { getUserDatabaseSettings } from "@/lib/db/databaseSettings";
 import { createLazyConnectionView } from "@/lib/db/providers/lazyConnectionView";
@@ -964,6 +965,12 @@ async function buildUnifiedModelsResponseCore(
       // actually has one, so rows stay unchanged for combos that don't.
       const comboDescription =
         typeof combo.description === "string" ? combo.description.trim() : "";
+      // Operator-set label. Claude Code uses `display_name` as the picker entry's
+      // name when it differs from the id, which lets a combo carry a discovery-
+      // compatible id and still read cleanly. No heuristics: if the operator did
+      // not set one, none is advertised.
+      const comboDisplayName =
+        typeof combo.displayName === "string" ? combo.displayName.trim() : "";
       models.push({
         id: combo.name,
         object: "model",
@@ -972,6 +979,7 @@ async function buildUnifiedModelsResponseCore(
         permission: [],
         root: combo.name,
         parent: null,
+        ...(comboDisplayName ? { display_name: comboDisplayName } : {}),
         ...(comboDescription ? { description: comboDescription } : {}),
         ...comboMetadata,
       });
@@ -1996,6 +2004,19 @@ async function buildUnifiedModelsResponseCore(
       } else {
         const filtered = [];
         for (const m of models) {
+          // A combo is gated by `allowedCombos`, not by the model allow/deny lists:
+          // those govern provider models. Without this branch a `restricted` key with
+          // an empty `allowedModels` gets an EMPTY catalog even though every combo in
+          // its `allowedCombos` dispatches fine — the catalog contradicted the key.
+          // Listing a combo the key can already dispatch grants no new access.
+          // auto/* rows are exempt: they fail open at dispatch (they resolve to no
+          // stored combo), and `allowAutoCombos` already gated their synthesis above.
+          if (m.owned_by === "combo" && !String(m.id).startsWith("auto/")) {
+            if (isComboNameAllowedForKey(keyMeta.allowedCombos, String(m.id))) {
+              filtered.push(m);
+            }
+            continue;
+          }
           // m.id is the full identifier (e.g. openai/gpt-4o), m.root is the raw model string
           // check either one as the config could use either patterns
           if (
