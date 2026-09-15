@@ -139,14 +139,24 @@ export function clearMemoryCache(): void {
 // ─── Signature Generation ─────────────────
 
 /**
- * Generate deterministic cache signature from request params.
- * @param {string} model
- * @param {Array} messages - Normalized messages array
- * @param {number} temperature
- * @param {number} topP
- * @param {string} [apiKeyId] - API key ID for per-key isolation (prevents cross-user cache hits)
- * @returns {string} hex signature
+ * Behavior-changing generation constraints that MUST be folded into the cache signature
+ * (#12734). Without these, a cached response produced under one `tool_choice`/`tools`/
+ * `response_format` could be replayed for a later request that forbids or changes that
+ * behavior (e.g. a cached `tool_calls` response served to a `tool_choice: "none"` request).
+ *
+ * The snake_case fields mirror the raw request body shape and are what `outputContractOf`
+ * (#12307) fills in; the camelCase fields are the pre-existing (#12734) call-site shape.
+ * `generateSignature` folds both spellings in so neither call style silently drops a field.
  */
+export interface SignatureConstraints {
+  toolChoice?: unknown;
+  tools?: unknown;
+  responseFormat?: unknown;
+  tool_choice?: unknown;
+  response_format?: unknown;
+  text_format?: unknown;
+}
+
 /**
  * The parts of a request that decide what a *valid response* looks like.
  * Two calls that agree on the conversation but disagree here are not
@@ -157,10 +167,10 @@ export function clearMemoryCache(): void {
  * Returns null when the request carries none of these, so plain-chat
  * signatures — and every cache entry already written for them — are unchanged.
  */
-export function outputContractOf(body: unknown): unknown {
+export function outputContractOf(body: unknown): SignatureConstraints | null {
   const record = asRecord(body);
   const text = asRecord(record.text);
-  const contract: JsonRecord = {};
+  const contract: SignatureConstraints = {};
   if (record.response_format != null) contract.response_format = record.response_format;
   if (text.format != null) contract.text_format = text.format;
   if (record.tools != null) contract.tools = record.tools;
@@ -168,22 +178,60 @@ export function outputContractOf(body: unknown): unknown {
   return Object.keys(contract).length > 0 ? contract : null;
 }
 
+/** Normalize a single tool definition, keeping only the fields that define its policy. */
+function normalizeTool(tool: unknown): unknown {
+  const record = asRecord(tool);
+  const fn = asRecord(record.function);
+  if (Object.keys(fn).length === 0 && Object.keys(record).length === 0) return tool;
+  return {
+    type: typeof record.type === "string" ? record.type : "function",
+    function: {
+      name: fn.name,
+      description: fn.description,
+      parameters: fn.parameters,
+    },
+  };
+}
+
+/**
+ * Normalize `tools` for consistent hashing (mirrors `normalizeConversation` for messages):
+ * strips volatile/irrelevant fields while keeping name/description/parameters, which are
+ * what actually define the tool policy a cached response was generated under.
+ */
+function normalizeTools(tools: unknown): unknown {
+  if (!Array.isArray(tools) || tools.length === 0) return undefined;
+  return tools.map(normalizeTool);
+}
+
+/**
+ * Generate deterministic cache signature from request params.
+ * @param {string} model
+ * @param {Array} messages - Normalized messages array
+ * @param {number} temperature
+ * @param {number} topP
+ * @param {string} [apiKeyId] - API key ID for per-key isolation (prevents cross-user cache hits)
+ * @param {SignatureConstraints} [constraints] - tool_choice/tools/response_format (#12734)
+ *   plus the Responses-API `text.format` spelling (#12307): these change model behavior
+ *   and must not collide with a signature computed without them.
+ * @returns {string} hex signature
+ */
 export function generateSignature(
   model,
   conversation,
   temperature = 0,
   topP = 1,
   apiKeyId?: string,
-  outputContract?: unknown
+  constraints?: SignatureConstraints | null
 ) {
   const payload = JSON.stringify({
     model,
     messages: normalizeConversation(conversation),
     temperature,
     top_p: topP,
-    // #12307: anything that changes the shape of a valid answer belongs in the
-    // key. Spread only when present so plain-chat signatures stay stable.
-    ...(outputContract != null ? { output: outputContract } : {}),
+    tool_choice: constraints?.toolChoice ?? constraints?.tool_choice,
+    tools: normalizeTools(constraints?.tools),
+    response_format: constraints?.responseFormat ?? constraints?.response_format,
+    text_format: constraints?.text_format,
   });
   const digest = crypto.createHash("sha256").update(payload).digest("hex");
   // Per-key cache isolation (#3740) namespaces the signature with the apiKeyId as a

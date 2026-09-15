@@ -54,8 +54,10 @@ import { handleLeonardoImageGeneration } from "./imageGeneration/providers/leona
 import { handleMagnificImageGeneration } from "./imageGeneration/providers/magnific.ts";
 import { handleNvidiaNimImageGeneration } from "./imageGeneration/providers/nvidiaNim.ts";
 import { handleSegmindImageGeneration } from "./imageGeneration/providers/segmind.ts";
+import { handleUcImageGeneration } from "./imageGeneration/providers/ucImage.ts";
 import { handleCursorAgentImageGeneration } from "./imageGeneration/providers/cursorAgentImage.ts";
 import { handleMinimaxImageGeneration } from "./imageGeneration/providers/minimax.ts";
+import { handleMaxaiImageGeneration } from "./imageGeneration/providers/maxaiImage.ts";
 import { handleAdobeFireflyImageGeneration } from "./imageGeneration/providers/adobeFirefly.ts";
 import { handleAlibabaImageGeneration } from "./imageGeneration/providers/alibabaImage.ts";
 import { handleAiHordeImageGeneration } from "./imageGeneration/providers/aihorde.ts";
@@ -613,6 +615,28 @@ export async function handleImageGeneration({
       credentials,
       log,
       peerLocality,
+    });
+  }
+
+  if (providerConfig.format === "maxai-image") {
+    return handleMaxaiImageGeneration({
+      model,
+      provider,
+      body,
+      credentials,
+      log,
+      signal,
+    });
+  }
+
+  if (providerConfig.format === "uc-image") {
+    return handleUcImageGeneration({
+      model,
+      provider,
+      body,
+      credentials,
+      log,
+      signal,
     });
   }
 
@@ -2655,7 +2679,11 @@ async function handleCodexImageGeneration({
     }
   }
 
-  const wantsUrl = body.response_format !== "b64_json";
+  // OpenAI returns b64_json for the gpt-image-* family and reserves `url` for
+  // fetchable HTTPS links, so clients that omit response_format (Codex CLI's
+  // built-in image_gen among them) expect the bytes in b64_json. Only emit the
+  // data: URI when the caller explicitly asks for `url` (#12268).
+  const wantsUrl = body.response_format === "url";
   const data = wantsUrl
     ? collected.map((item) => ({
         url: `data:image/png;base64,${item.b64_json}`,
@@ -2750,6 +2778,40 @@ export function saveImageSuccessResult({
   };
 }
 
+/**
+ * Render an arbitrary `error` value as a call-log string.
+ *
+ * `saveImageErrorResult` takes `error: unknown`, and the Codex fan-out forwards
+ * whatever `sanitizeImageProviderError()` produced — i.e. the output of
+ * `sanitizeUpstreamDetails()`, which builds every object with
+ * `Object.create(null)` on purpose (#12506) so a hostile upstream key such as
+ * `__proto__` or `constructor` can never reach a real prototype. That object
+ * therefore has NO `toString`/`Symbol.toPrimitive`, so a bare `String(value)`
+ * throws `TypeError: Cannot convert object to primitive value` and turned every
+ * Codex image failure into an unhandled crash instead of the sanitized error.
+ * The null prototype is the correct behavior at the source, so the sink is what
+ * has to be total: serialize objects structurally (the same way the Antigravity
+ * branch already logs its sanitized payload) and keep `String()` semantics for
+ * everything else.
+ */
+function stringifyImageErrorForLog(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  if (value !== null && typeof value === "object") {
+    try {
+      const serialized = JSON.stringify(value);
+      if (typeof serialized === "string") return serialized;
+    } catch {
+      // Circular graph or a throwing toJSON — fall through to String().
+    }
+  }
+  try {
+    return String(value);
+  } catch {
+    return "[unserializable error]";
+  }
+}
+
 export function saveImageErrorResult({
   provider,
   model,
@@ -2782,7 +2844,7 @@ export function saveImageErrorResult({
     model: `${provider}/${model}`,
     provider,
     duration: Date.now() - startTime,
-    error: typeof error === "string" ? error.slice(0, 500) : String(error).slice(0, 500),
+    error: stringifyImageErrorForLog(error).slice(0, 500),
     requestBody,
   }).catch(() => {});
 

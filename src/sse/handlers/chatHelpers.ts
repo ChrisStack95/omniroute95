@@ -3,7 +3,12 @@ import {
   getComboForModel,
   getModelInfoOrRetirementResponse,
 } from "../services/model";
-import { clearAccountError, markAccountUnavailable } from "../services/auth";
+import {
+  clearAccountError,
+  markAccountUnavailable,
+  buildExhaustionOptions,
+} from "../services/auth";
+import { maybeReactivateAfterExplicitProbe } from "../services/explicitInactiveProbe";
 import { connectionHasExtraKeys } from "@omniroute/open-sse/services/apiKeyRotator.ts";
 import { createBuiltinAutoCombo } from "@omniroute/open-sse/services/autoCombo/builtinCatalog.ts";
 import * as log from "../utils/logger";
@@ -23,6 +28,8 @@ import {
 } from "@omniroute/open-sse/utils/error.ts";
 import { inheritTrustedLocalRateLimitResponse } from "@omniroute/open-sse/services/rateLimitManager/errors.ts";
 import { HTTP_STATUS } from "@omniroute/open-sse/config/constants.ts";
+import { getRegistryEntry } from "@omniroute/open-sse/config/providerRegistry.ts";
+import { getCachedProviderNodes } from "@/lib/db/readCache";
 import {
   runWithProxyContext,
   runWithAppliedProxyCapture,
@@ -332,7 +339,15 @@ export async function resolveModelOrError(
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}${ctxTag}`);
   }
 
-  return { provider, model, sourceFormat, targetFormat, extendedContext, apiFormat };
+  return {
+    provider,
+    model,
+    sourceFormat,
+    targetFormat,
+    customModelTargetFormat,
+    extendedContext,
+    apiFormat,
+  };
 }
 
 export async function checkPipelineGates(
@@ -397,6 +412,13 @@ export function checkResourcePressureBeforeProviderWork(): ResourcePressureGuard
   }
 }
 
+// #12254: handleChatCore resolves `{ success: false, status: 5xx }` for most upstream
+// failures, so execute() must not read a resolution as a success (it used to, and that
+// spurious _onSuccess() cancelled the call site's _onFailure() for the same attempt).
+// The chat path accounts for the outcome exactly once where the request context lives:
+// chat.ts via classifyProviderBreakerResult(), combo.ts via recordProviderFailure/Success.
+const chatPathOwnsBreakerAccounting = () => "ignore" as const;
+
 export async function executeChatWithBreaker({
   bypassCircuitBreaker,
   breaker,
@@ -430,6 +452,11 @@ export async function executeChatWithBreaker({
   reasoningTransportFallback = "drop",
   sessionAffinityKey = null,
   managedLease = null,
+  // #12150 P1b: additive, optional video-bridge log/Memory shadow — undefined
+  // for every non-video request. Passed straight through to handleChatCore;
+  // see its own destructure default for the shape and consumers.
+  videoBridgeLog = undefined,
+  fallbackAttempts = undefined,
 }: ExecuteChatWithBreakerOptions): Promise<ExecuteChatWithBreakerResult> {
   let tlsFingerprintUsed = false;
   const normalizedTrafficType: TrafficType =
@@ -489,6 +516,8 @@ export async function executeChatWithBreaker({
             sessionAffinityKey,
             reasoningTransportFallback,
             managedLease,
+            videoBridgeLog,
+            fallbackAttempts,
             skipResourcePressureGuard: true,
             onCredentialsRefreshed: async (newCreds: any) => {
               await updateProviderCredentials(credentials.connectionId, {
@@ -507,6 +536,13 @@ export async function executeChatWithBreaker({
             onRequestSuccess: async () => {
               if (isShadowTraffic) return;
               await clearAccountError(credentials.connectionId, credentials);
+              await maybeReactivateAfterExplicitProbe({
+                connectionId: credentials.connectionId,
+                reactivatedFromInactive: credentials.reactivatedFromInactive,
+                isShadowTraffic,
+                requestedModel: model,
+                provider,
+              });
             },
             onStreamFailure: async (failure: any) => {
               if (isShadowTraffic) return;
@@ -541,7 +577,7 @@ export async function executeChatWithBreaker({
                 provider,
                 model,
                 providerProfile,
-                { isCombo }
+                buildExhaustionOptions(correlationId ?? null, { isCombo })
               );
             },
           })
@@ -590,13 +626,16 @@ export async function executeChatWithBreaker({
     }
 
     if (tlsFingerprintActive) {
-      const tracked = await breaker.execute(async () =>
-        runWithTlsTracking(tlsTrackingIdentity, chatFn)
+      const tracked = await breaker.execute(
+        async () => runWithTlsTracking(tlsTrackingIdentity, chatFn),
+        { classifyResult: chatPathOwnsBreakerAccounting }
       );
       return { result: tracked.result, tlsFingerprintUsed: tracked.tlsFingerprintUsed };
     }
 
-    const result = await breaker.execute(chatFn);
+    const result = await breaker.execute(chatFn, {
+      classifyResult: chatPathOwnsBreakerAccounting,
+    });
     return { result, tlsFingerprintUsed: false };
   } catch (cbErr: any) {
     if (cbErr instanceof CircuitBreakerOpenError) {
@@ -629,6 +668,82 @@ export async function executeChatWithBreaker({
   }
 }
 
+/** A compatible provider node whose prefix is reserved by a built-in provider (#11943). */
+export interface ShadowedProviderNode {
+  id: string;
+  name: string | null;
+  prefix: string;
+}
+
+/**
+ * #11943: find a compatible provider node whose configured prefix collides with
+ * the built-in `provider` (registry id or alias). The runtime model resolver
+ * deliberately gives built-in ids/aliases precedence over user-defined node
+ * prefixes (src/sse/services/model.ts, reserved-prefix guard), so such a node is
+ * unreachable through its prefix — every `<prefix>/model` request lands on the
+ * built-in provider instead. The write-path validation rejects reserved prefixes
+ * at node creation time, but a node created BEFORE the built-in existed (the
+ * issue: an `of/` node predating the `openference` provider, alias `of`) is
+ * never re-validated. Only consulted on the credential-failure path, so the hot
+ * path is untouched; any lookup failure degrades to "no diagnostic".
+ */
+export async function findShadowedCompatibleNode(
+  provider: unknown
+): Promise<ShadowedProviderNode | null> {
+  const reservedByProvider = reservedPrefixesOf(provider);
+  if (!reservedByProvider) return null;
+
+  try {
+    const nodes = await getCachedProviderNodes();
+    for (const node of Array.isArray(nodes) ? nodes : []) {
+      const shadowed = asShadowedCompatibleNode(node, reservedByProvider);
+      if (shadowed) return shadowed;
+    }
+  } catch {
+    // Diagnostic only — never let a node lookup failure change the error path.
+  }
+  return null;
+}
+
+/** Node types whose user-configured prefix the reserved-prefix guard can shadow. */
+const SHADOWABLE_NODE_TYPES: ReadonlySet<unknown> = new Set([
+  "openai-compatible",
+  "anthropic-compatible",
+]);
+
+/**
+ * Registry id + alias that `provider` reserves, or null when it is not a
+ * built-in provider (or reserves nothing).
+ */
+function reservedPrefixesOf(provider: unknown): ReadonlySet<string> | null {
+  if (typeof provider !== "string" || provider.trim().length === 0) return null;
+  const entry = getRegistryEntry(provider) as { id?: unknown; alias?: unknown } | null;
+  if (!entry) return null;
+  const reserved = new Set<string>();
+  for (const value of [entry.id, entry.alias]) {
+    if (typeof value === "string" && value.length > 0) reserved.add(value);
+  }
+  return reserved.size > 0 ? reserved : null;
+}
+
+function trimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** The node as a `ShadowedProviderNode` when its prefix is one of `reserved`, else null. */
+function asShadowedCompatibleNode(
+  node: unknown,
+  reserved: ReadonlySet<string>
+): ShadowedProviderNode | null {
+  if (!node || typeof node !== "object") return null;
+  const record = node as { type?: unknown; prefix?: unknown; id?: unknown; name?: unknown };
+  if (!SHADOWABLE_NODE_TYPES.has(record.type)) return null;
+  const prefix = trimmedString(record.prefix);
+  const id = trimmedString(record.id);
+  if (!id || !prefix || !reserved.has(prefix)) return null;
+  return { id, name: trimmedString(record.name) || null, prefix };
+}
+
 export function handleNoCredentials(
   credentials: any,
   excludeConnectionId: string | null,
@@ -637,7 +752,9 @@ export function handleNoCredentials(
   lastError: string | null,
   lastStatus: number | null,
   candidateAliases?: readonly string[],
-  isCombo: boolean = false
+  isCombo: boolean = false,
+  shadowedNode: ShadowedProviderNode | null = null,
+  correlationId?: string | null
 ) {
   if (credentials?.allRateLimited) {
     const errorMsg = lastError || credentials.lastError || "Unavailable";
@@ -678,14 +795,17 @@ export function handleNoCredentials(
       provider,
       model,
       lastStatus,
+      ...(correlationId ? { correlationId } : {}),
     });
     return errorResponse(lastStatus, lastError);
   }
   if (credentials?.allExpired) {
     // Every connection for this provider is in a terminal state (expired,
-    // banned, or credits_exhausted). Surface as 401 with a re-auth hint
-    // instead of the generic 400 "No credentials", so dashboards/CLIs can
-    // distinguish "never configured" from "needs to reconnect".
+    // banned, or credits_exhausted). Surface expired/banned as 401 with a
+    // re-auth hint instead of the generic 400 "No credentials", so
+    // dashboards/CLIs can distinguish "never configured" from "needs to
+    // reconnect". credits_exhausted is quota (HTTP 402), not invalid
+    // credentials — see #12441.
     const status = credentials.expiredStatus || "expired";
     const count = credentials.expiredCount || 1;
     const reason =
@@ -696,7 +816,12 @@ export function handleNoCredentials(
           : "authentication expired";
     const message = `[${provider}] All ${count} connection(s) ${reason} — please reconnect in the dashboard`;
     log.warn("CHAT", message);
-    return errorResponse(HTTP_STATUS.UNAUTHORIZED, message);
+    // #12441: credits_exhausted is quota, not invalid credentials. Combo
+    // dispatch treats 401 as AUTH_LEVEL skip (#8133). Surface 402 so quota
+    // exhaustion follows the #1731 path instead of "authentication expired".
+    const httpStatus =
+      status === "credits_exhausted" ? HTTP_STATUS.PAYMENT_REQUIRED : HTTP_STATUS.UNAUTHORIZED;
+    return errorResponse(httpStatus, message);
   }
   if (!excludeConnectionId) {
     // Ported from upstream decolua/9router#336 (Ibrahim Ryan): surface as 404
@@ -715,13 +840,30 @@ export function handleNoCredentials(
     // Without this, "No active credentials for provider: byNara" leaves the
     // user staring at a wall — most bugs in this area are actually "wrong
     // provider was picked", not "the provider is broken".
-    const hint =
+    const aliasHint =
       Array.isArray(candidateAliases) && candidateAliases.length > 0
         ? ` Try one of: ${candidateAliases
             .slice(0, 3)
             .map((a) => `${a}/${model}`)
             .join(", ")}.`
         : "";
+
+    // #11943: "No active credentials for provider: openference" is technically
+    // true but misleading when the operator's own compatible node carries the
+    // prefix that resolved to that built-in — the node's connections are healthy,
+    // they were simply never consulted. Say so, and name the node.
+    let shadowHint = "";
+    if (shadowedNode) {
+      const nodeLabel = shadowedNode.name
+        ? `"${shadowedNode.name}" (${shadowedNode.id})`
+        : shadowedNode.id;
+      log.warn(
+        "AUTH",
+        `Custom provider node ${nodeLabel} is shadowed: its prefix "${shadowedNode.prefix}" is reserved by built-in provider "${provider}", so "${shadowedNode.prefix}/${model}" routed to the built-in instead of the node`
+      );
+      shadowHint = ` The prefix "${shadowedNode.prefix}" is reserved by the built-in provider "${provider}", so requests using it (e.g. "${shadowedNode.prefix}/${model}") route to that built-in and never reach your custom provider node ${nodeLabel}. Rename that node's prefix to an unreserved value and update your model ids.`;
+    }
+    const hint = `${aliasHint}${shadowHint}`;
 
     // Issue #2: for single-model (non-combo) requests, a 404 leaks a misleading
     // "No active credentials" status to a direct API client (e.g. OpenCode) that

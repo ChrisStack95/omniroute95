@@ -17,6 +17,7 @@ import { handleDashscopeVideoGeneration } from "./videoGeneration/dashscopeHandl
 import { handleNovitaVideoGeneration } from "./videoGeneration/novitaHandler.ts";
 import { handleXaiVideoGeneration } from "./videoGeneration/xaiGrokImagineHandler.ts";
 import { handleSegmindVideoGeneration } from "./videoGeneration/providers/segmind.ts";
+import { handleUcVideoGeneration } from "./videoGeneration/providers/ucVideo.ts";
 import { handleAdobeFireflyVideoGeneration } from "./videoGeneration/adobeFireflyHandler.ts";
 import { handleOpenAIVideoGeneration } from "./videoGeneration/openai.ts";
 import { getVideoJobPreset, handleVideoJobGeneration } from "./videoGeneration/job.ts";
@@ -194,10 +195,13 @@ export async function handleVideoGeneration({ body, credentials, log, resolvedPr
       log,
     });
   }
-  if (getVideoJobPreset(providerConfig.format)) {
+  const modelJobPreset = providerConfig.models.find((entry) => entry.id === model)?.jobPreset;
+  const jobPresetName =
+    typeof modelJobPreset === "string" && modelJobPreset ? modelJobPreset : providerConfig.format;
+  if (getVideoJobPreset(jobPresetName)) {
     return handleVideoJobGeneration({
       model,
-      presetName: providerConfig.format,
+      presetName: jobPresetName,
       body,
       credentials,
       log,
@@ -300,6 +304,12 @@ export async function handleVideoGeneration({ body, credentials, log, resolvedPr
   }
   if (providerConfig.format === "xai-video") {
     return handleXaiVideoGeneration({ model, provider, providerConfig, body, credentials, log });
+  }
+  if (providerConfig.format === "uc-video") {
+    // UC (uncensored.com): one handler serves both surfaces, picking by
+    // credential — persona web (Clerk JWT, un-metered, upload/generate + HEAD
+    // poll) or uc-direct REST (X-api-key, metered, async submit + status poll).
+    return handleUcVideoGeneration({ model, provider, body, credentials, log });
   }
   if (providerConfig.format === "adobe-firefly-video") {
     return handleAdobeFireflyVideoGeneration({

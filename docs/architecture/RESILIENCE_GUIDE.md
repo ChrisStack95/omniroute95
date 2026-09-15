@@ -628,7 +628,7 @@ rate limit is the same signal as an exhausted quota. Honest limits:
 
 ## TLS Fingerprinting & Stealth
 
-Provider-specific stealth (JA3/JA4, CCH, obfuscation) is separately documented — see [STEALTH_GUIDE.md](../security/STEALTH_GUIDE.md).
+Provider-specific stealth (JA3/JA4, CCH, obfuscation) is separately documented — see `docs/security/STEALTH_GUIDE.md` (git; not compiled into `/docs`).
 
 ---
 
@@ -652,4 +652,4 @@ default `test:integration`, chaos and heap self-skip (without `RUN_CHAOS_INT`/`-
 
 - [Architecture Guide](./ARCHITECTURE.md) — System architecture and internals
 - [User Guide](../guides/USER_GUIDE.md) — Providers, combos, CLI integration
-- [Auto-Combo Engine](../routing/AUTO-COMBO.md) — 13-factor scoring, mode packs
+- [Auto-Combo Engine](../routing/AUTO-COMBO.md) — 16-factor scoring, mode packs
