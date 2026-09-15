@@ -1,16 +1,16 @@
 ---
 title: "Provider Reference"
 version: 3.8.51
-lastUpdated: 2026-09-10
+lastUpdated: 2026-09-15
 ---
 
 # Provider Reference
 
 > **Auto-generated** from `src/shared/constants/providers.ts` — do not edit by hand.
 > Regenerate with: `npm run gen:provider-reference`
-> **Last generated:** 2026-09-10
+> **Last generated:** 2026-09-15
 
-Total providers: **357**. See category breakdown below.
+Total providers: **359**. See category breakdown below.
 
 ## Categories
 
@@ -118,7 +118,7 @@ Use the dashboard at `/dashboard/providers` to enable, configure, and test each 
 | `zai-web` | `zw` | Z.ai Web | Web cookie | [link](https://chat.z.ai) | Copy the "token" value from chat.z.ai → DevTools → Application → Local Storage. Do not copy cookies; OmniRoute handles the per-request CAPTCHA through its browser transport. | — |
 | `zenmux-free` | `zmf` | ZenMux Free (Web) | Web cookie | [link](https://zenmux.ai) | Login at zenmux.ai, then export all cookies using EditThisCookie or Cookie-Editor and paste the full Cookie header string here. Refresh every ~30 days. | — |
 
-## API Key Providers (paid / paid-with-free-credits) (239)
+## API Key Providers (paid / paid-with-free-credits) (241)
 
 | ID | Alias | Name | Tags | Website | Notes |
 |----|-------|------|------|---------|-------|
@@ -182,6 +182,7 @@ Use the dashboard at `/dashboard/providers` to enable, configure, and test each 
 | `dxnt` | `dxnt` | DXNT / DX Token | API key, aggregator | [link](https://www.dxnt.com) | Free accounts are documented at 100 calls/day; the quota may increase through invitations and can vary by account. |
 | `electronhub` | `electronhub` | Electron Hub | API key, aggregator | [link](https://www.electronhub.ai) | Free plan: 5 RPM, $0.25 weekly credits and 10 Neutrinos/day for :free models; family budgets also apply. |
 | `empower` | `empower` | Empower | API key, aggregator | [link](https://docs.empower.dev) | Bearer API key for the Empower OpenAI-compatible endpoint. |
+| `eurouter` | `eurouter` | EURouter | API key, aggregator | [link](https://eurouter.ai) | — |
 | `factory` | `factory` | Factory | API key | [link](https://factory.ai) | Bearer API key for the Factory OpenAI-compatible gateway. |
 | `fal-ai` | `fal` | Fal.ai | API key, image | [link](https://fal.ai) | — |
 | `fastrouter` | `fastrouter` | FastRouter | API key, aggregator | [link](https://fastrouter.ai) | Models with the :free suffix allow 10 requests/day per organization and model; availability may change. |
@@ -210,6 +211,7 @@ Use the dashboard at `/dashboard/providers` to enable, configure, and test each 
 | `glm` | `glm` | GLM Coding | API key | [link](https://z.ai/subscribe) | — |
 | `glm-cn` | `glmcn` | GLM Coding (China) | API key | [link](https://open.bigmodel.cn) | — |
 | `glmt` | `glmt` | GLM Thinking | API key | [link](https://open.bigmodel.cn) | — |
+| `greenpt` | `greenpt` | GreenPT | API key | [link](https://greenpt.com) | API subscription is free to create; inference is billed per token. No free inference allowance is published. |
 | `groq` | `groq` | Groq | API key | [link](https://groq.com) | Free plan: per-model caps (200K tokens/day per chat model; see console.groq.com/docs/rate-limits for RPM/RPD) — no payment method on file. |
 | `haiper` | `hp` | Haiper | API key, video | [link](https://haiper.ai) | Get API key at haiper.ai/haiper-api |
 | `hcnsec` | `hcnsec` | Huancheng Public API | API key | [link](https://api.hcnsec.cn) | Get API key at api.hcnsec.cn |
@@ -328,9 +330,9 @@ Use the dashboard at `/dashboard/providers` to enable, configure, and test each 
 | `tinyfish` | `tf` | TinyFish Fetch | API key | [link](https://docs.tinyfish.ai/fetch-api) | X-API-Key from agent.tinyfish.ai/api-keys |
 | `together` | `together` | Together AI | API key, video | [link](https://www.together.ai) | — |
 | `token-kiosk` | `tk` | Token Kiosk | API key | [link](https://agent-router.gaib.ai) | Use your Token Kiosk API key in Authorization: Bearer <key>. Fully OpenAI-compatible gateway. API base URL: https://agent-router.gaib.ai/v1. |
+| `tokenmarket` | `tokenmarket` | Token Market | API key, aggregator | [link](https://www.tokensmarket.ai) | Create an API key in the Token Market console, then paste it here as a Bearer token. |
 | `tokenreply` | `tokenreply` | TokenReply | API key, aggregator | [link](https://www.tokenreply.com) | Free-tagged models have model- and campaign-specific daily limits; no fixed global free quota is published. |
 | `tokenrouter` | `trk` | TokenRouter | API key | [link](https://tokenrouter.com) | Use your TokenRouter API key in Authorization: Bearer <key>. Fully OpenAI-compatible. API base URL: https://api.tokenrouter.com/v1. |
-| `tokenmarket` | `tokenmarket` | Token Market | API key, aggregator | [link](https://www.tokensmarket.ai) | Create an API key in the Token Market console, then paste it here as a Bearer token. |
 | `topaz` | `topaz` | Topaz | API key, image | [link](https://topazlabs.com) | — |
 | `typhoon` | `typhoon` | Typhoon | API key | [link](https://docs.opentyphoon.ai) | Free API key with a 5 req/s and 200 req/m rate limit. |
 | `uc-direct` | `ucd` | UC Direct (uncensored.com) | API key | [link](https://uncensored.com) | Use your uncensored.com Developer API key (uai_sk_live_...). OmniRoute sends it as the X-api-key header to the OpenAI-compatible https://api.uncensored.com/api/v1 endpoint. The key never expires. This is the metered/credits surface; the un-metered subscription chat is the separate 'uc' provider. |
@@ -445,7 +447,7 @@ Use the dashboard at `/dashboard/providers` to enable, configure, and test each 
 
 - Catalog: [`src/shared/constants/providers.ts`](../../src/shared/constants/providers.ts)
 - Registry (per-model details): [`open-sse/config/providerRegistry.ts`](../../open-sse/config/providerRegistry.ts)
-- Executors: [`open-sse/executors/`](../../open-sse/executors/) (109 implementations)
+- Executors: [`open-sse/executors/`](../../open-sse/executors/) (112 implementations)
 - Translators: [`open-sse/translator/`](../../open-sse/translator/)
 
 ## See Also
