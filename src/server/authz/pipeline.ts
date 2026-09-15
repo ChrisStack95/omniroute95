@@ -1,8 +1,9 @@
-import { jwtVerify, SignJWT } from "jose";
+import { SignJWT } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { getCachedSettings } from "../../lib/db/readCache";
 import { isDraining } from "../../lib/gracefulShutdown";
 import { checkBodySize, getBodySizeLimit } from "../../shared/middleware/bodySizeGuard";
+import { verifyDashboardSessionToken } from "@/shared/utils/dashboardSessionToken";
 import { generateRequestId } from "../../shared/utils/requestId";
 import { applyCorsHeaders } from "../cors/origins";
 import { validateBrowserMutationOrigin } from "../origin/publicOrigin";
@@ -25,7 +26,9 @@ import {
   AUTHZ_HEADER_PEER_LOCALITY,
   AUTHZ_HEADER_REQUEST_ID,
   AUTHZ_HEADER_ROUTE_CLASS,
+  AUTHZ_HEADER_TRUSTED_PEER_IP,
   AUTHZ_TRUSTED_HEADERS,
+  CLI_TOKEN_HEADER,
   PEER_IP_HEADER,
   VIA_PROXY_HEADER,
 } from "./headers";
@@ -151,7 +154,13 @@ async function refreshDashboardSessionIfNeeded(
   if (!token) return;
 
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const payload = await verifyDashboardSessionToken(token, secret);
+    if (!payload) {
+      // Not a dashboard session (foreign/expired/claim-less token): drop it so a
+      // Cursor CLI token can never ride along as the cookie (#13298).
+      response.cookies.delete("auth_token");
+      return;
+    }
     const exp = typeof payload.exp === "number" ? payload.exp : null;
     if (!exp) return;
 
@@ -204,6 +213,7 @@ function drainingResponse(requestId: string): NextResponse {
     { status: 503 }
   );
   response.headers.set(AUTHZ_HEADER_REQUEST_ID, requestId);
+  response.headers.set("Retry-After", "5");
   return response;
 }
 
@@ -330,6 +340,21 @@ export async function runAuthzPipeline(
     process.env.OMNIROUTE_PEER_STAMP_TOKEN
   );
   requestHeaders.set(AUTHZ_HEADER_PEER_LOCALITY, peerLocality);
+  // Stamp the resolved, non-spoofable peer IP for route handlers that need
+  // the real client IP (e.g. login rate-limit key). Only set when the stamp
+  // token is configured and the HMAC signature validates; absent otherwise.
+  const trustedPeerIp = resolveStampedPeer(
+    request.headers.get(PEER_IP_HEADER),
+    process.env.OMNIROUTE_PEER_STAMP_TOKEN
+  );
+  if (trustedPeerIp) {
+    requestHeaders.set(AUTHZ_HEADER_TRUSTED_PEER_IP, trustedPeerIp);
+  }
+  // Local CLI-token auth is decided centrally above. Preserve that trusted
+  // decision for route-level requireManagementAuth without forwarding the
+  // machine token itself: custom client auth headers are stripped before the
+  // route runs, so the route consumes only the stamped auth subject.
+  requestHeaders.delete(CLI_TOKEN_HEADER);
 
   if (method === "OPTIONS") {
     const preflight = new NextResponse(null, { status: 204 });

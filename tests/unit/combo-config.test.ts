@@ -44,6 +44,7 @@ test("getDefaultComboConfig returns a fresh copy of the defaults", () => {
   assert.equal(first.predictiveTtftMs, 0);
   assert.equal(first.evalRouting.enabled, false);
   assert.equal(first.evalRouting.maxAgeHours, 720);
+  assert.equal(first.quotaWeightedFloorPercent, 1);
 
   first.strategy = "weighted";
   assert.equal(second.strategy, "priority");
@@ -643,6 +644,24 @@ test("createComboSchema accepts nestedComboMode and rejects invalid values", () 
     name: "nested-invalid",
     models: ["openai/gpt-4o-mini"],
     config: { nestedComboMode: "redirect" },
+  });
+  assert.equal(invalid.success, false);
+});
+
+test("createComboSchema validates reasoning transport fallback modes", () => {
+  for (const mode of ["skip", "drop"] as const) {
+    const parsed = createComboSchema.parse({
+      name: `reasoning-transport-${mode}`,
+      models: ["openai/gpt-5.4"],
+      config: { reasoningTransportFallback: mode },
+    });
+    assert.equal(parsed.config.reasoningTransportFallback, mode);
+  }
+
+  const invalid = createComboSchema.safeParse({
+    name: "reasoning-transport-invalid",
+    models: ["openai/gpt-5.4"],
+    config: { reasoningTransportFallback: "retry" },
   });
   assert.equal(invalid.success, false);
 });

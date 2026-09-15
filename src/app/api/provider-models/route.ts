@@ -11,7 +11,7 @@ import {
   mergeModelCompatOverride,
   getHiddenModelsByProvider,
   type ModelCompatPatch,
-} from "@/lib/localDb";
+} from "@/lib/db/models";
 import {
   getModelContextOverrideRecord,
   setModelContextOverride,
@@ -28,6 +28,7 @@ import {
   isAnthropicCompatibleProvider,
 } from "@/shared/constants/providers";
 import { isAuthenticated } from "@/shared/utils/apiAuth";
+export const dynamic = "force-dynamic";
 import { providerModelMutationSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
@@ -148,6 +149,7 @@ export async function POST(request) {
       supportsVision,
       // #9820: optional video-generation job preset (job/poll path).
       generationConfig,
+      isFree,
     } = validation.data;
 
     const model = await addCustomModel(
@@ -163,7 +165,8 @@ export async function POST(request) {
         ...(maxOutputTokens != null ? { outputTokenLimit: maxOutputTokens } : {}),
       },
       typeof supportsVision === "boolean" ? supportsVision : undefined,
-      generationConfig
+      generationConfig,
+      typeof isFree === "boolean" ? isFree : undefined
     );
     return Response.json({ model });
   } catch (error) {
@@ -217,6 +220,7 @@ export async function PUT(request) {
       contextWindowOverride,
       supportsVision,
       generationConfig,
+      isFree,
     } = validation.data;
 
     const raw = rawBody as Record<string, unknown>;
@@ -229,8 +233,8 @@ export async function PUT(request) {
     if ("preserveOpenAIDeveloperRole" in raw)
       updates.preserveOpenAIDeveloperRole = preserveOpenAIDeveloperRole;
     if ("upstreamHeaders" in raw) updates.upstreamHeaders = upstreamHeaders;
-    // #1904: manual vision-capability override — null clears back to heuristic.
     if ("supportsVision" in raw) updates.supportsVision = supportsVision;
+    if ("isFree" in raw) updates.isFree = isFree;
     // #9820: video-generation job preset — schema is non-nullable optional, so
     // presence implies a well-formed { preset } object; null is rejected by Zod.
     if ("generationConfig" in raw && generationConfig !== undefined) {
@@ -258,24 +262,34 @@ export async function PUT(request) {
 
     if (!model) {
       const rawKeys = Object.keys(raw);
+      // isFree is intentionally excluded: it has no compat-override home (customModels row only),
+      // so a PUT with isFree against a missing row must 404 rather than enter the compat branch.
       const compatOnly =
         rawKeys.length > 0 &&
         rawKeys.every((k) =>
           [
             "provider",
             "modelId",
+            "modelName",
+            "source",
             "normalizeToolCallId",
             "preserveOpenAIDeveloperRole",
             "upstreamHeaders",
             "compatByProtocol",
             "contextWindowOverride",
+            "apiFormat",
+            "targetFormat",
+            "supportsVision",
           ].includes(k)
         ) &&
         ("normalizeToolCallId" in raw ||
           "preserveOpenAIDeveloperRole" in raw ||
           "upstreamHeaders" in raw ||
           "compatByProtocol" in raw ||
-          "contextWindowOverride" in raw);
+          "contextWindowOverride" in raw ||
+          "apiFormat" in raw ||
+          "targetFormat" in raw ||
+          "supportsVision" in raw);
       if (compatOnly) {
         const knownProvider =
           !!provider &&
@@ -308,6 +322,18 @@ export async function PUT(request) {
           patch.upstreamHeaders =
             upstreamHeaders === null || typeof upstreamHeaders === "object"
               ? upstreamHeaders
+              : undefined;
+        }
+        if ("apiFormat" in raw) {
+          patch.apiFormat = typeof apiFormat === "string" ? apiFormat : null;
+        }
+        if ("targetFormat" in raw) {
+          patch.targetFormat = typeof targetFormat === "string" ? targetFormat : null;
+        }
+        if ("supportsVision" in raw) {
+          patch.supportsVision =
+            supportsVision === null || typeof supportsVision === "boolean"
+              ? supportsVision
               : undefined;
         }
         if (Object.keys(patch).length > 0) {
@@ -386,6 +412,17 @@ export async function PATCH(request) {
       );
     }
 
+    // #12172: optional modality scope (e.g. "chat", "images") so hiding a model on one
+    // registry surface does not also hide an identically-ID'd model on another one.
+    // Omitted = legacy "hide everywhere" behavior, unchanged for existing callers.
+    if (typeof body.modality !== "undefined" && typeof body.modality !== "string") {
+      return Response.json(
+        { error: { message: "modality must be a string when provided", type: "validation_error" } },
+        { status: 400 }
+      );
+    }
+    const modality = typeof body.modality === "string" && body.modality ? body.modality : undefined;
+
     const modelIds = normalizeRequestedModelIds(searchParams, body);
     if (modelIds.length === 0) {
       return Response.json(
@@ -402,7 +439,7 @@ export async function PATCH(request) {
     for (const modelId of modelIds) {
       const updatedModel = await updateCustomModel(provider, modelId, { isHidden: body.isHidden });
       if (!updatedModel) {
-        mergeModelCompatOverride(provider, modelId, { isHidden: body.isHidden });
+        mergeModelCompatOverride(provider, modelId, { isHidden: body.isHidden, modality });
       }
     }
 
@@ -448,6 +485,7 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get("provider");
     const modelId = searchParams.get("model");
+    const resetOverride = searchParams.get("resetOverride") === "true";
 
     if (!provider) {
       return Response.json(
@@ -487,31 +525,25 @@ export async function DELETE(request) {
       );
     }
 
-    // A custom row and a synced row can share one id (the operator manually added
-    // a model the provider also reports). This route is addressed by id alone, so
-    // it cannot tell which of the two the operator clicked. Remove the custom row
-    // first and treat its presence as the intent: deleting the manually-added
-    // entry must leave the provider-synced sibling alone.
+    // Resetting a user-owned overlay must never delete the same-id synced base.
+    // The normal delete action retains its existing behavior for a standalone
+    // synced row, while the detail-page reset control uses resetOverride=true.
     const removedCustom = await removeCustomModel(provider, modelId);
-    const removedSynced = removedCustom
-      ? false
-      : await removeSyncedAvailableModel(provider, modelId);
-    if (removedSynced) {
-      // #3199 + #3782: mark the deleted synced model with the DISTINCT `isDeleted`
-      // marker so a later auto-fetch re-import does not re-add it. We also keep
-      // `isHidden:true` so existing UI/visibility behavior is unchanged. The sync
-      // filter keys on `isDeleted` (not `isHidden`), which is what lets an
-      // eye/visibility-hidden model (`isHidden` only) survive a re-sync while a
-      // deleted one stays dropped.
-      //
-      // Only reached when NO custom row owned the id. Tombstoning on a custom-row
-      // delete would permanently suppress the synced sibling: every later sync
-      // reports `added: N` while `replaceSyncedAvailableModelsForConnection`
-      // filters the id straight back out, so the model never returns to
-      // `/v1/models` and the provider looks empty despite routing fine.
-      mergeModelCompatOverride(provider, modelId, { isDeleted: true, isHidden: true });
-    }
+    const removedSynced =
+      removedCustom || resetOverride ? false : await removeSyncedAvailableModel(provider, modelId);
     const removed = removedCustom || removedSynced;
+    if (resetOverride && removedCustom) {
+      removeModelContextOverride(provider, modelId);
+      const aliasChanges = await syncManagedAvailableModelAliases(provider, [modelId], {
+        pruneMissing: false,
+      });
+      return Response.json({
+        removed,
+        resetOverride: true,
+        aliasChanges,
+      });
+    }
+
     const removedAliases = await deleteManagedAvailableModelAliases(provider, [modelId]);
     return Response.json({ removed, aliasChanges: { removed: removedAliases, assigned: [] } });
   } catch (error) {

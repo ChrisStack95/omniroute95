@@ -43,6 +43,9 @@ test("a heavy structural request waits for capacity instead of failing immediate
       heavyTools: 10,
       heavyTokens: 10_000,
       queueMs: 500,
+      // #10183/#10268: entry into the bounded-wait path requires real heap
+      // pressure now; force it so this test still exercises the wait.
+      heapPressureCheck: () => true,
     }
   );
 
@@ -85,6 +88,9 @@ test("waiting for admission times out into a retryable 503", async () => {
       heavyTools: 10,
       heavyTokens: 10_000,
       queueMs: 50,
+      // #10183/#10268: entry into the bounded-wait/shed path requires real
+      // heap pressure now; force it to still exercise the timeout.
+      heapPressureCheck: () => true,
     }
   );
 
@@ -103,7 +109,13 @@ test("waiting for admission times out into a retryable 503", async () => {
 test("byte-heavy admission waits for capacity when queueMs is set", async () => {
   const controller = new ChatAdmissionController(1);
   const body = JSON.stringify({ messages: [{ role: "user", content: "x".repeat(40) }] });
-  const options = { controller, largeBodyBytes: 32, hardMaxBytes: 1024, queueMs: 500 };
+  const options = {
+    controller,
+    largeBodyBytes: 32,
+    hardMaxBytes: 1024,
+    queueMs: 500,
+    heapPressureCheck: () => true,
+  };
 
   const first = await admitChatRequest(chatRequest(body), options);
   assert.equal(first.admit, true);
@@ -148,6 +160,9 @@ test("expired admission queue keeps the legacy immediate 503 behaviour", async (
       heavyTools: 10,
       heavyTokens: 10_000,
       queueMs: 0,
+      // #10183/#10268: shedding now requires real heap pressure; force it to
+      // still exercise the legacy immediate-reject path.
+      heapPressureCheck: () => true,
     }
   );
 
@@ -174,6 +189,9 @@ test("admission waiters are served FIFO as capacity frees", async () => {
     heavyTools: 10,
     heavyTokens: 10_000,
     queueMs: 500,
+    // #10183/#10268: entry into the bounded-wait path requires real heap
+    // pressure now; force it so both waiters still queue.
+    heapPressureCheck: () => true,
   };
   const first = admitChatStructure(body, null, options);
   const second = admitChatStructure(body, null, options);
@@ -218,20 +236,24 @@ test("aborting the admission wait settles early, grants no lease, and removes th
     settledAfterAbort = true;
   });
   await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(settledAfterAbort, true, "abort must settle the wait promptly, not park for queueMs");
+  assert.equal(
+    settledAfterAbort,
+    true,
+    "abort must settle the wait promptly, not park for queueMs"
+  );
 
   const lease = await pending;
   assert.equal(lease, null, "abort must not grant a lease");
-  assert.equal(controller.activeHeavy, 1, "the holder keeps its lease; the aborted wait consumed nothing");
+  assert.equal(
+    controller.activeHeavy,
+    1,
+    "the holder keeps its lease; the aborted wait consumed nothing"
+  );
 
   // Releasing must NOT wake the removed waiter: capacity stays free.
   held.release();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(
-    controller.activeHeavy,
-    0,
-    "releasing after abort must not wake the removed waiter"
-  );
+  assert.equal(controller.activeHeavy, 0, "releasing after abort must not wake the removed waiter");
 });
 
 test("aborting the head waiter preserves FIFO order for remaining waiters", async () => {
@@ -329,7 +351,13 @@ test("byte-heavy admission enforces the queued-bytes cap end-to-end", async () =
   assert.ok(held);
 
   const body = JSON.stringify({ messages: [{ role: "user", content: "x".repeat(40) }] });
-  const options = { controller, largeBodyBytes: 32, hardMaxBytes: 1024, queueMs: 2_000 };
+  const options = {
+    controller,
+    largeBodyBytes: 32,
+    hardMaxBytes: 1024,
+    queueMs: 2_000,
+    heapPressureCheck: () => true,
+  };
 
   // First request parks: declared length (~70B) fits the budget.
   const first = admitChatRequest(chatRequest(body), options);
@@ -367,6 +395,9 @@ test("structural admission enforces the queued-bytes cap end-to-end", async () =
     heavyTools: 10,
     heavyTokens: 10_000,
     queueMs: 2_000,
+    // #10183/#10268: entry into the bounded-wait path requires real heap
+    // pressure now; force it so the queued-bytes cap is still exercised.
+    heapPressureCheck: () => true,
   };
 
   // First structural wait parks, charging the conservative 256KB weight.
@@ -437,6 +468,7 @@ test("aborting the request signal cancels a queued byte-heavy wait", async () =>
     largeBodyBytes: 32,
     hardMaxBytes: 1024,
     queueMs: 2_000,
+    heapPressureCheck: () => true,
   });
 
   let settled = false;
@@ -485,6 +517,9 @@ test("aborting the signal cancels a structural queue-wait", async () => {
       heavyTokens: 10_000,
       queueMs: 2_000,
       signal: abortController.signal,
+      // #10183/#10268: entry into the bounded-wait path requires real heap
+      // pressure now; force it so the abort is still exercised mid-wait.
+      heapPressureCheck: () => true,
     }
   );
 

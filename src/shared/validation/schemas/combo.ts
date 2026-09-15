@@ -29,6 +29,7 @@ export const comboModelStepInputSchema = z.object({
   providerId: z.string().trim().min(1).max(120).optional(),
   model: z.string().trim().min(1).max(300),
   connectionId: z.string().trim().min(1).max(200).nullable().optional(),
+  allowedConnectionIds: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   tags: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
   // Pipeline strategy (open-sse/services/pipeline.ts): an optional per-step
   // instruction. Steps run in `models` order — each step's output feeds the next
@@ -90,6 +91,20 @@ export const scoringWeightsSchema = z
     cacheAffinity: z.number().min(0).max(1).optional().default(0),
     sessionAvailability: z.number().min(0).max(1).optional().default(0.05),
     resetWindowAffinity: z.number().min(0).max(1).optional().default(0),
+    // The scorer weighs these two as well (`DEFAULT_WEIGHTS`); leaving them out
+    // meant zod dropped them from a saved config, and `normalizeScoringWeights`
+    // then read the gap as a deliberate zero — silently disabling
+    // anti-concentration and the quality signal, and inflating every other
+    // weight to make the distribution sum to 1 again.
+    //
+    // The defaults below therefore DO change the effective weights of a stored
+    // config that omitted these keys: the other thirteen stop being renormalized
+    // upward (quota 0.1549 -> 0.1429, health 0.1740 -> 0.1605, and so on). That is
+    // the correction, not a side effect — but it is a behaviour change, and the
+    // PR says so rather than claiming the routing is untouched.
+    connectionDensity: z.number().min(0).max(1).optional().default(0.0476),
+    quality: z.number().min(0).max(1).optional().default(0.03),
+    reliability: z.number().min(0).max(1).optional().default(0),
   })
   .optional();
 
@@ -183,9 +198,13 @@ export const comboRuntimeConfigSchema = z
     handoffProviders: z.array(z.string().trim().min(1).max(100)).max(10).optional(),
     maxMessagesForSummary: z.coerce.number().int().min(5).max(100).optional(),
     maxComboDepth: z.coerce.number().int().min(1).max(10).optional(),
+    // #11134: shared per-request attempt budget. Bounds mirror
+    // MAX_GLOBAL_ATTEMPTS_HARD_CAP (200) in comboPredicates.ts.
+    maxGlobalAttempts: z.coerce.number().int().min(1).max(200).optional(),
     nestedComboMode: z.enum(["flatten", "execute"]).optional(),
     trackMetrics: z.boolean().optional(),
     reasoningTokenBufferEnabled: z.boolean().optional(),
+    reasoningTransportFallback: z.enum(["skip", "drop"]).optional(),
     compressionMode: compressionModeSchema.optional(),
     failoverBeforeRetry: z.boolean().optional(),
     maxSetRetries: z.coerce.number().int().min(0).max(10).optional(),
@@ -196,6 +215,7 @@ export const comboRuntimeConfigSchema = z
     fallbackCompressionMode: compressionModeSchema.optional(),
     fallbackCompressionThreshold: z.coerce.number().int().min(0).max(2_000_000).optional(),
     predictiveTtftMs: z.coerce.number().int().min(0).max(300000).optional(),
+    relayMode: z.enum(["schema-locked", "standard"]).optional(),
     // Auto-Combo / LKGP Extensions
     candidatePool: z.array(z.string().min(1)).optional(),
     weights: scoringWeightsSchema.optional(),
@@ -213,6 +233,7 @@ export const comboRuntimeConfigSchema = z
     resetAwareWeeklyWeight: z.coerce.number().min(0).max(100).optional(),
     resetAwareTieBandPercent: z.coerce.number().min(0).max(100).optional(),
     resetAwareExhaustionGuardPercent: z.coerce.number().min(0).max(100).optional(),
+    quotaWeightedFloorPercent: z.coerce.number().min(0).max(100).optional(),
     resetAwareQuotaCacheTtlMs: z.coerce.number().int().min(0).max(300_000).optional(),
     resetAwareQuotaCacheMaxStaleMs: z.coerce.number().int().min(0).max(3_600_000).optional(),
     resetWindowWindows: z.array(z.enum(["weekly", "session", "monthly"])).optional(),
@@ -220,6 +241,9 @@ export const comboRuntimeConfigSchema = z
     resetWindowTieBandMs: z.coerce.number().int().min(0).max(86_400_000).optional(),
     resetWindowQuotaCacheTtlMs: z.coerce.number().int().min(0).max(300_000).optional(),
     resetWindowQuotaCacheMaxStaleMs: z.coerce.number().int().min(0).max(3_600_000).optional(),
+    // Connection-aware expansion for group-B combo strategies is opt-in.
+    connectionAwareExpansion: z.boolean().optional(),
+    connectionAwareExpansionMaxPerTarget: z.coerce.number().int().min(1).max(64).optional(),
     shadowRouting: shadowRoutingSchema.optional(),
     evalRouting: evalRoutingSchema.optional(),
     // Fusion strategy (open-sse/services/fusion.ts): the panel is the combo's
@@ -252,6 +276,12 @@ export const comboRuntimeConfigSchema = z
         contextFilterMode: z.enum(["strict", "lenient"]).optional(),
       })
       .strict()
+      .optional(),
+    // Optional client-side sort hint for combo models.
+    // Honored in the dashboard builder; reserved for future server-side use. Inert on execution.
+    modelSort: z
+      .object({ method: z.enum(["manual", "provider", "score", "name"]) })
+      .passthrough()
       .optional(),
   })
   .passthrough()
@@ -320,7 +350,7 @@ export const createComboSchema = z
   .object({
     name: comboNameSchema,
     description: z.string().max(2000).optional(),
-    models: z.array(comboModelEntry).optional().default([]),
+    models: z.array(comboModelEntry).min(1, "a combo requires at least one model"),
     strategy: comboStrategySchema.optional().default("priority"),
     config: comboRuntimeConfigSchema.optional(),
     allowedProviders: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
@@ -379,15 +409,24 @@ export const updateComboSchema = z
   .object({
     name: comboNameSchema.optional(),
     description: z.string().max(2000).optional().nullable(),
-    models: z.array(comboModelEntry).optional(),
+    // An update may not remove every model from a combo, or a working combo
+    // loses every target. Creation refuses an empty list too: since the CLI
+    // gained --models (#10954), an empty draft has no remaining legitimate path.
+    models: z
+      .array(comboModelEntry)
+      .min(1, "an update cannot remove every model from a combo")
+      .optional(),
     strategy: comboStrategySchema.optional(),
     config: comboRuntimeConfigSchema.optional(),
     isActive: z.boolean().optional(),
     allowedProviders: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
     allowedModelFamilies: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
-    system_message: z.string().max(50000).optional(),
-    tool_filter_regex: z.string().max(1000).optional(),
-    context_cache_protection: z.boolean().optional(),
+    // Nullable like `description` and `context_length` above: an absent field means
+    // "leave unchanged" because updateCombo merges over the stored record, so clearing
+    // one needs an explicit null for updateCombo's null-means-delete pass (#12158).
+    system_message: z.string().max(50000).optional().nullable(),
+    tool_filter_regex: z.string().max(1000).optional().nullable(),
+    context_cache_protection: z.boolean().optional().nullable(),
     context_length: z.number().int().min(1000).max(2000000).optional().nullable(),
     compressionOverride: comboCompressionOverrideSchema.optional(),
     dimensions: z
@@ -437,4 +476,11 @@ export const reorderCombosSchema = z
 
 export const testComboSchema = z.object({
   comboName: z.string().trim().min(1, "comboName is required"),
+});
+
+// POST /api/combos/duplicate - Resolve an auto-combo template (e.g. "auto/best-coding")
+// into a static, editable combo snapshot.
+export const duplicateAutoComboSchema = z.object({
+  name: z.string().trim().min(1, 'Missing required field: "name" (e.g. auto/best-coding)'),
+  strategy: comboStrategySchema.optional(),
 });

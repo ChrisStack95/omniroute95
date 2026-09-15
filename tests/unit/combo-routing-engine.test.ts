@@ -16,6 +16,8 @@ const {
   handleComboChat,
 } = await import("../../open-sse/services/combo.ts");
 const { resolveComboTargets } = await import("../../open-sse/services/combo/comboStructure.ts");
+const { getComboFailureCount, __resetComboFailureTrackerForTests } =
+  await import("../../open-sse/services/combo/failureTracker.ts");
 const { applyPromptCacheAffinity } =
   await import("../../open-sse/services/combo/promptCacheAffinity.ts");
 const { resolveReasoningBufferedMaxTokens } =
@@ -126,7 +128,7 @@ async function cleanupTestDataDir() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       core.resetDbInstance();
-      fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+      fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       return;
     } catch (error: any) {
       lastError = error;
@@ -897,7 +899,15 @@ test("handleComboChat records per-target metrics separately when the same model 
   assert.equal(metrics.byTarget[secondStep.id].connectionId, "conn-openai-b");
 });
 
-test("handleComboChat surfaces the last failing target's status AND error message together, not a cross-target mismatch (#8486)", async () => {
+// #10314/#10501: superseded the original "last writer wins" contract (a single
+// `lastError` + raw `[model (status), ...]` suffix). Combo terminal aggregation
+// now lists every distinct per-target reason separately (comboErrorAggregation.ts
+// ::formatComboOutcomes) and derives the terminal status from an explicit policy
+// instead of whichever target happened to fail LAST — a provider 500 mixed with a
+// rate_limit 429 is a heterogeneous, non-client-fault outcome, so it normalizes to
+// a 5xx (::resolveComboTerminalStatus), never a bare 429 that would misrepresent
+// model-a's real 500 as "the client should retry the rate limit".
+test("handleComboChat surfaces EVERY failing target's reason (never drops one) and normalizes a heterogeneous 500+429 mix to 5xx (#8486/#10314/#10501)", async () => {
   const result = await handleComboChat({
     body: {},
     combo: {
@@ -918,11 +928,12 @@ test("handleComboChat surfaces the last failing target's status AND error messag
 
   const payload = (await result.json()) as any;
 
-  assert.equal(result.status, 429); // #8486: status/message from the SAME (last) failing target
-  // The last error message is preserved and now carries an aggregated
-  // per-model diagnostics suffix (status codes for every target attempted
-  // in this set try), added alongside the global comboTimeoutMs feature.
-  assert.equal(payload.error.message, "fail:model-b [model-a (500), model-b (429)]");
+  assert.ok(
+    result.status >= 500,
+    `heterogeneous provider(500)+rate_limit(429) must normalize to a 5xx status, got ${result.status}`
+  );
+  assert.match(payload.error.message, /model-a.*fail:model-a.*HTTP 500/);
+  assert.match(payload.error.message, /model-b.*fail:model-b.*HTTP 429/);
 });
 
 interface ComboErrorPayload {
@@ -1318,6 +1329,42 @@ test("handleComboChat returns 404 model_not_found when a combo has no executable
   assert.match(payload.error.message, /Combo has no executable targets/);
 });
 
+test("#11408 guard: no-executable-targets early exit still records the combo failure (silent-stop counter, #5923)", async () => {
+  __resetComboFailureTrackerForTests();
+  const result = await handleComboChat({
+    body: {},
+    combo: {
+      name: "guard-empty-11408",
+      strategy: "priority",
+      models: [],
+      context_cache_protection: true,
+    },
+    handleSingleModel: async () => {
+      throw new Error("handleSingleModel should not run for empty combos");
+    },
+    isModelAvailable: async () => true,
+    log: createLog(),
+    settings: {
+      comboDefaults: {
+        maxRetries: 0,
+        retryDelayMs: 1,
+      },
+    },
+    relayOptions: { sessionId: "sess-guard-11408" },
+    allCombos: null,
+  });
+
+  assert.equal(result.status, 404);
+  // The quota-share slot release must not replace the #5923 silent-stop
+  // bookkeeping: the consecutive-failure counter must still advance so the
+  // session pin auto-clears after COMBO_FAILURE_THRESHOLD no-target failures.
+  assert.equal(
+    getComboFailureCount("sess-guard-11408", "guard-empty-11408"),
+    1,
+    "recordComboFailure must run on the no-executable-targets early exit"
+  );
+});
+
 test("handleComboChat round-robin returns 404 when no models are configured", async () => {
   const result = await handleComboChat({
     body: {},
@@ -1679,7 +1726,12 @@ test("handleComboChat round-robin falls through generic 400s when a later model 
   assert.deepEqual(calls, ["model-a", "model-b"]);
 });
 
-test("handleComboChat round-robin falls through 400s and returns the LAST target's status+message together, not a cross-target mismatch (#8486)", async () => {
+// #10314/#10501: same policy update as the priority-strategy test above, applied
+// to the round-robin twin. model-a's 400 is a genuine request-shape/model-class
+// error, but model-b's 500 is an infra/provider failure — since NOT every target
+// failed with a "model" (request-is-invalid) reason, this is a heterogeneous mix
+// and must normalize to a 5xx, never a bare "trust the last target's status" 500.
+test("handleComboChat round-robin surfaces EVERY target's reason and normalizes a heterogeneous 400+500 mix to 5xx (#8486/#10314/#10501)", async () => {
   const calls: any[] = [];
 
   const result = await handleComboChat({
@@ -1717,8 +1769,12 @@ test("handleComboChat round-robin falls through 400s and returns the LAST target
   });
 
   const payload = (await result.json()) as any;
-  assert.equal(result.status, 500); // #8486: status/message from the SAME (last) failing target
-  assert.equal(payload.error.message, "rr-final-fail");
+  assert.ok(
+    result.status >= 500,
+    `heterogeneous model(400)+provider(500) mix must normalize to a 5xx status, got ${result.status}`
+  );
+  assert.match(payload.error.message, /model-a.*unsupported message role.*HTTP 400/);
+  assert.match(payload.error.message, /model-b.*rr-final-fail.*HTTP 500/);
   assert.deepEqual(calls, ["model-a", "model-b"]);
 });
 

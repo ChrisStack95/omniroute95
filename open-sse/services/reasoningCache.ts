@@ -45,13 +45,16 @@ const REASONING_REPLAY_PROVIDERS = new Set([
   // 400s with "Param Incorrect: The reasoning_content in the thinking mode
   // must be passed back to the API."
   "xiaomi-mimo",
+  // Command Code routes upstream DeepSeek models and requires the same
+  // reasoning_content replay contract.
+  "command-code",
 ]);
 
 const REASONING_REPLAY_MODEL_PATTERNS = [
   /deepseek-r1/i,
   /deepseek-reasoner/i,
   /deepseek-chat/i,
-  /deepseek[-/]v4[-.](flash|pro)(-free)?/i,
+  /deepseek[-/]v4(?:[-.]\d+)?[-.](flash|pro)(-free)?/i,
   /zen\/deepseek-v4/i,
   // Match native kimi-kN and namespaced kimi/kN families without treating
   // generic aliases such as kimi-latest as strict thinking models.
@@ -64,7 +67,7 @@ const REASONING_REPLAY_MODEL_PATTERNS = [
   /^mimo[-.]?v\d/i,
 ];
 
-const DEEPSEEK_V4_MODEL_PATTERN = /deepseek[-/]v4[-.](flash|pro)/i;
+const DEEPSEEK_V4_MODEL_PATTERN = /deepseek[-/]v4(?:[-.]\d+)?[-.](flash|pro)/i;
 const K3_REASONING_REPLAY_MODEL_PATTERN = /(?:^|\/)(?:kimi-)?k3(?:$|-)/i;
 const NATIVE_K27_REASONING_REPLAY_MODEL_PATTERN = /(?:^|\/)kimi-k2\.7-code(?:$|-)/i;
 
@@ -573,16 +576,16 @@ export function cleanupReasoningCache(): number {
 
 // ──────────────── Auto-start periodic cleanup ────────────────
 //
-// server-init.ts was supposed to start the cleanup job, but that module is
-// never imported anywhere (it is stranded/dead code).  As a result, the
-// reasoning_cache SQLite table accumulates expired entries indefinitely.
+// server-init.ts was supposed to start the cleanup job, but that module was
+// never imported anywhere (it was stranded dead code, since removed). As a
+// result, the reasoning_cache SQLite table accumulates expired entries
+// indefinitely.
 //
 // Fix: start the periodic cleanup directly from this module so it runs
 // regardless of how the server boots.  On first import we run one
 // immediate sweep, then schedule a 30-minute interval.
 //
-// See: src/lib/jobs/reasoningCacheCleanupJob.ts (the original job module,
-// which also remains valid if server-init.ts ever gets wired in).
+// See: src/lib/jobs/reasoningCacheCleanupJob.ts (the original job module).
 
 const DEFAULT_CLEANUP_INTERVAL_MS = 30 * 60 * 1000; // 30 min
 

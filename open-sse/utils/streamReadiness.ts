@@ -34,6 +34,14 @@ function hasUsefulValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(hasUsefulValue);
   if (!isRecord(value)) return false;
 
+  // A Responses compaction item IS the turn's output: remote compaction
+  // completes with output = [{type:"compaction", encrypted_content}] and no
+  // assistant text. Deliberately NOT a blanket encrypted_content key — an
+  // encrypted reasoning item alone is not user-visible output and must keep
+  // tripping the #8649 empty-content guard.
+  // This shape is specific to Responses streams; chat-completion frames do not produce it.
+  if (value.type === "compaction" && hasNonEmptyString(value.encrypted_content)) return true;
+
   for (const key of [
     "content",
     "text",
@@ -167,6 +175,59 @@ const TERMINAL_REASON_PATTERN = /"(?:finish_reason|stop_reason)"\s*:\s*"([^"]+)"
 
 const SSE_FIELD_LINE = /(?:^|\r?\n)\s*(?:data|event):/;
 
+/** Same spirit as combo `isSubstantiveError` — non-empty string or non-empty object. */
+function isSubstantiveErrorValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    if (hasNonEmptyString(record.message)) return true;
+    return Object.keys(record).length > 0;
+  }
+  return value === true;
+}
+
+/**
+ * True when an SSE frame already carries a structured upstream/client error
+ * (OpenAI `error`, Claude `event:error` / `type:error`, Responses `response.failed`).
+ * Used by #8649 so we do not invent "Provider returned empty content" after an
+ * executor already emitted an actionable error (Claude #3685 / readiness #8972 parity).
+ */
+export function frameHasStructuredStreamError(frame: string): boolean {
+  const lines = frame.split(/\r?\n/);
+  let eventType = "";
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith(":")) continue;
+    if (trimmed.startsWith("event:")) {
+      eventType = trimmed.slice(6).trim();
+      if (/^error$/i.test(eventType)) return true;
+      continue;
+    }
+    if (!trimmed.startsWith("data:")) continue;
+
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+
+    try {
+      const parsed: unknown = JSON.parse(data);
+      if (!isRecord(parsed)) continue;
+      const type = getPayloadType(parsed, eventType);
+      if (type === "error" || type === "response.failed" || eventType === "response.failed") {
+        return true;
+      }
+      if (isSubstantiveErrorValue(parsed.error)) return true;
+      const nestedResponse = isRecord(parsed.response) ? parsed.response : null;
+      if (nestedResponse?.status === "failed" && nestedResponse.error != null) return true;
+    } catch {
+      // non-JSON data lines are not structured errors
+    }
+  }
+
+  return false;
+}
+
 export type StreamContentWatcher = {
   /** Feed a decoded slice of the client-facing stream. Safe to call with partial frames. */
   note: (text: string) => void;
@@ -183,6 +244,11 @@ export type StreamContentWatcher = {
    * so callers must not read emptiness into it.
    */
   sawSseFrame: () => boolean;
+  /**
+   * True once a substantive SSE error frame was seen. Separate from sawContent
+   * so #8649 can stand down without treating errors as model output.
+   */
+  sawError: () => boolean;
 };
 
 /**
@@ -195,6 +261,9 @@ export type StreamContentWatcher = {
  * single frame larger than the cap is scanned in pieces, which can only ever
  * lose content-detection precision in the direction of "saw content", never
  * toward a false empty.
+ *
+ * Also tracks `sawError` so an already-emitted structured error is not rewritten
+ * as empty content (parity with Claude #3685 `lifecycle.hasError` and readiness #8972).
  */
 export function createStreamContentWatcher(): StreamContentWatcher {
   const MAX_BUFFERED = 64 * 1024;
@@ -202,10 +271,12 @@ export function createStreamContentWatcher(): StreamContentWatcher {
   let content = false;
   let legitEmpty = false;
   let sse = false;
+  let error = false;
 
   const inspect = (frame: string): void => {
     if (!frame) return;
     if (!sse && SSE_FIELD_LINE.test(frame)) sse = true;
+    if (!error && frameHasStructuredStreamError(frame)) error = true;
     if (!content && hasUsefulStreamContent(frame)) content = true;
     if (legitEmpty) return;
     for (const match of frame.matchAll(TERMINAL_REASON_PATTERN)) {
@@ -238,6 +309,7 @@ export function createStreamContentWatcher(): StreamContentWatcher {
     sawContent: () => content,
     sawLegitEmptyTerminal: () => legitEmpty,
     sawSseFrame: () => sse,
+    sawError: () => error,
   };
 }
 
@@ -262,11 +334,7 @@ function processStreamReadinessEvent(state: StreamReadinessSignalState): boolean
 
   try {
     const payload: unknown = JSON.parse(data);
-    if (
-      !state.upstreamDiagnostic &&
-      isRecord(payload) &&
-      isErrorOnlyStructuredPayload(payload)
-    ) {
+    if (!state.upstreamDiagnostic && isRecord(payload) && isErrorOnlyStructuredPayload(payload)) {
       const error = payload.error;
       const rawMessage =
         typeof error === "string"
@@ -353,29 +421,67 @@ function prependBufferedChunks(
   chunks: Uint8Array[],
   reader: ReadableStreamDefaultReader<Uint8Array>
 ): ReadableStream<Uint8Array> {
+  let bufferedIndex = 0;
+  let readInFlight = false;
+  let cancelRequested = false;
+  let readerReleased = false;
+
+  const releaseReader = () => {
+    if (readerReleased) return;
+    readerReleased = true;
+    reader.releaseLock();
+  };
+
+  const cancelReader = (reason: unknown) => {
+    if (cancelRequested) return;
+    cancelRequested = true;
+
+    try {
+      // The provider controls this promise and may never settle. Cancellation
+      // of the replay stream must remain bounded, so cleanup is deliberately
+      // fire-and-forget while the in-flight read releases the lock in `pull`.
+      void reader.cancel(reason).catch(() => {});
+    } catch {
+      // A synchronous cancellation failure is cleanup-only; the downstream
+      // stream has already been cancelled by its consumer.
+    }
+
+    if (!readInFlight) releaseReader();
+  };
+
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
+    async pull(controller) {
+      if (cancelRequested) return;
+
+      // Replay exactly one readiness chunk per demand. Reading the source
+      // eagerly here would let a subsequent source error clear this queue
+      // before the consumer has observed the buffered prefix.
+      if (bufferedIndex < chunks.length) {
+        controller.enqueue(chunks[bufferedIndex]);
+        bufferedIndex += 1;
+        return;
+      }
+
+      readInFlight = true;
       try {
-        for (const chunk of chunks) {
-          controller.enqueue(chunk);
+        const { done, value } = await reader.read();
+        if (cancelRequested) return;
+        if (done) {
+          releaseReader();
+          controller.close();
+        } else if (value) {
+          controller.enqueue(value);
         }
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) controller.enqueue(value);
-        }
-
-        controller.close();
       } catch (error) {
-        controller.error(error);
+        releaseReader();
+        if (!cancelRequested) controller.error(error);
       } finally {
-        reader.releaseLock();
+        readInFlight = false;
+        if (cancelRequested) releaseReader();
       }
     },
-    async cancel(reason) {
-      await reader.cancel(reason).catch(() => {});
-      reader.releaseLock();
+    cancel(reason) {
+      cancelReader(reason);
     },
   });
 }
@@ -403,6 +509,9 @@ export async function ensureStreamReadiness(
   response: Response,
   options: {
     timeoutMs: number;
+    /** Hard ceiling for liveness-extended deadlines. When omitted, no hard ceiling
+     *  is applied beyond `timeoutMs`. */
+    maxTimeoutMs?: number;
     provider?: string | null;
     model?: string | null;
     log?: StreamReadinessLogger | null;
@@ -421,7 +530,14 @@ export async function ensureStreamReadiness(
   };
   const startedAt = Date.now();
   const effectiveTimeoutMs = Math.max(0, Math.floor(options.timeoutMs));
-  const deadline = startedAt + effectiveTimeoutMs;
+  // Hard ceiling: the deadline may extend on liveness signals (bytes arriving),
+  // but never past this absolute maximum.  When maxTimeoutMs is omitted the
+  // initial timeoutMs itself acts as the ceiling (no extension).
+  const maxDeadline =
+    options.maxTimeoutMs != null
+      ? startedAt + Math.max(effectiveTimeoutMs, Math.floor(options.maxTimeoutMs))
+      : startedAt + effectiveTimeoutMs;
+  let deadline = startedAt + effectiveTimeoutMs;
   let handedOffReader = false;
 
   const buildReadyResponse = () =>
@@ -432,7 +548,7 @@ export async function ensureStreamReadiness(
     });
 
   const timeoutReason = () =>
-    `Stream produced no non-ping SSE event within ${effectiveTimeoutMs}ms`;
+    `Stream produced no non-ping SSE event within ${deadline - startedAt}ms (max=${maxDeadline - startedAt}ms)`;
 
   try {
     while (true) {
@@ -524,6 +640,22 @@ export async function ensureStreamReadiness(
       if (!readResult.value) continue;
       chunks.push(readResult.value);
       const decodedChunk = decoder.decode(readResult.value, { stream: true });
+
+      // Liveness extension: bytes arrived → connection is alive, not dead.
+      // Reset the deadline so slow-but-alive upstreams (reasoning warm-ups,
+      // keepalive-only phases) are not aborted.  The hard ceiling (maxDeadline)
+      // prevents unbounded waits and preserves the operator's fast-fail intent
+      // for truly dead connections.
+      const now = Date.now();
+      if (deadline < maxDeadline) {
+        deadline = Math.min(now + effectiveTimeoutMs, maxDeadline);
+        if (now - startedAt > effectiveTimeoutMs) {
+          options.log?.debug?.(
+            "STREAM",
+            `readiness deadline extended to ${deadline - startedAt}ms (liveness signal) (${options.provider || "provider"}/${options.model || "unknown"})`
+          );
+        }
+      }
 
       if (appendStreamReadinessSignal(readinessState, decodedChunk)) {
         options.log?.debug?.(

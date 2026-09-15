@@ -3,9 +3,11 @@ import {
   GROK_BUILD_DEFAULT_CONTEXT_WINDOW,
   getGrokBuildModelsHeaders,
   GROK_BUILD_MODELS_URL,
+  GROK_BUILD_SUPPORTED_REASONING_EFFORTS,
 } from "@omniroute/open-sse/config/grokBuild.ts";
 import { getAntigravityContentHeaders } from "@omniroute/open-sse/services/antigravityHeaders.ts";
 import { parseGeminiModelsList } from "@/lib/providerModels/geminiModelsParser";
+import { buildClaudeModelsHeaders } from "@/lib/providerModels/claudeModelsHeaders";
 import {
   CLINE_MODELS_ENDPOINT,
   CLINEPASS_MODELS_ENDPOINT,
@@ -86,10 +88,28 @@ export function parseAlibabaModelStudioModelsForConnection(
 export function parseQwenCloudTextModels(data: any): any[] {
   return parseCuratedDashscopeModels(data, QWEN_CLOUD_TEXT_MODELS, QWEN_CLOUD_TEXT_MODEL_IDS);
 }
-type ProviderModelsHeaderContext = {
+
+// Perplexity's /v1/models lists the Agent API catalog (vendor-prefixed ids like
+// "anthropic/claude-fable-5"), but chat requests always go to the classic
+// /chat/completions endpoint, which only accepts the Sonar family. Filter
+// discovery to Sonar-family ids so agent-style ids never surface as routable
+// chat models (#11060). Bounded pattern — no ReDoS-prone quantifiers.
+export function parsePerplexitySonarModels(data: any): any[] {
+  const models = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.models)
+      ? data.models
+      : [];
+  return models.filter(
+    (model: any) => typeof model?.id === "string" && /^sonar(-|$)/.test(model.id)
+  );
+}
+export type ProviderModelsHeaderContext = {
   authType?: string;
   providerSpecificData?: unknown;
   email?: string | null;
+  accessToken?: string | null;
+  apiKey?: string | null;
 };
 
 export type ProviderModelsConfigEntry = {
@@ -106,6 +126,20 @@ export type ProviderModelsConfigEntry = {
   ) => Record<string, string>;
   parseResponse: (data: any) => any;
 };
+
+export function assembleProviderModelsHeaders(
+  config: ProviderModelsConfigEntry,
+  token: string,
+  context?: ProviderModelsHeaderContext,
+): Record<string, string> {
+  const headers = config.buildHeaders
+    ? config.buildHeaders(token, context)
+    : { ...config.headers };
+  if (!config.buildHeaders && config.authHeader && !config.authQuery) {
+    headers[config.authHeader] = (config.authPrefix || "") + token;
+  }
+  return headers;
+}
 
 const DASHSCOPE_TEXT_MODELS_CONFIG: ProviderModelsConfigEntry = {
   url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
@@ -220,7 +254,10 @@ function getGrokBuildModelItems(data: unknown): unknown[] {
   return Array.isArray(envelope.models) ? envelope.models : [];
 }
 
-function hasGrokBuildReasoning(model: GrokBuildModelRecord, metadata: GrokBuildModelRecord) {
+function hasGrokBuildReasoning(
+  model: GrokBuildModelRecord,
+  metadata: GrokBuildModelRecord
+): boolean {
   const flags = [
     model.supportsReasoningEffort,
     model.supports_reasoning_effort,
@@ -243,6 +280,35 @@ function hasGrokBuildReasoning(model: GrokBuildModelRecord, metadata: GrokBuildM
     ) !== undefined ||
     effortLists.some((value) => Array.isArray(value) && value.length > 0)
   );
+}
+
+function getGrokBuildReasoningEfforts(
+  model: GrokBuildModelRecord,
+  metadata: GrokBuildModelRecord
+): string[] {
+  const supported = new Set(GROK_BUILD_SUPPORTED_REASONING_EFFORTS);
+  const effortLists = [
+    model.reasoningEfforts,
+    model.reasoning_efforts,
+    metadata.reasoningEfforts,
+    metadata.reasoning_efforts,
+  ];
+  const hasExplicitEffortList = effortLists.some((value) => Array.isArray(value));
+  const discovered = effortLists
+    .flatMap((value) => (Array.isArray(value) ? value : []))
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => supported.has(value));
+  if (hasExplicitEffortList) return [...new Set(discovered)];
+
+  const singleEffort = grokBuildString(
+    model.reasoningEffort,
+    model.reasoning_effort,
+    metadata.reasoningEffort,
+    metadata.reasoning_effort
+  )?.toLowerCase();
+  if (singleEffort && supported.has(singleEffort)) return [singleEffort];
+  return hasGrokBuildReasoning(model, metadata) ? [...GROK_BUILD_SUPPORTED_REASONING_EFFORTS] : [];
 }
 
 function normalizeGrokBuildModel(value: unknown): GrokBuildModelRecord | null {
@@ -285,6 +351,8 @@ function normalizeGrokBuildModel(value: unknown): GrokBuildModelRecord | null {
     model.max_completion_tokens
   );
   const description = grokBuildString(model.description);
+  const supportsThinking = hasGrokBuildReasoning(model, metadata);
+  const supportedThinkingEfforts = getGrokBuildReasoningEfforts(model, metadata);
 
   return {
     id,
@@ -293,7 +361,8 @@ function normalizeGrokBuildModel(value: unknown): GrokBuildModelRecord | null {
     ...(description ? { description } : {}),
     inputTokenLimit,
     ...(outputTokenLimit ? { outputTokenLimit } : {}),
-    ...(hasGrokBuildReasoning(model, metadata) ? { supportsThinking: true } : {}),
+    ...(supportsThinking ? { supportsThinking: true } : {}),
+    ...(supportedThinkingEfforts.length > 0 ? { supportedThinkingEfforts } : {}),
     apiFormat: "responses",
     supportedEndpoints: ["responses"],
   };
@@ -335,10 +404,14 @@ export const PROVIDER_MODELS_CONFIG: Record<string, ProviderModelsConfigEntry> =
     url: "https://api.anthropic.com/v1/models",
     method: "GET",
     headers: {
-      "Anthropic-Version": "2023-06-01",
+      "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
     },
-    authHeader: "x-api-key",
+    buildHeaders: (_token, context) =>
+      buildClaudeModelsHeaders({
+        accessToken: context?.accessToken,
+        apiKey: context?.apiKey,
+      }),
     parseResponse: (data) => data.data || [],
   },
   gemini: {
@@ -355,25 +428,6 @@ export const PROVIDER_MODELS_CONFIG: Record<string, ProviderModelsConfigEntry> =
     authHeader: "Authorization",
     authPrefix: "Bearer ",
     parseResponse: (data) => normalizeOpenAiLikeModelsResponse(data, "huggingface"),
-  },
-  // #3931: qwen-web (cookie provider) was missing here, so its discovery page
-  // showed nothing.
-  // `chat.qwen.ai/api/v2/models/` is public (no auth header configured/sent);
-  // shape `{ data: { data: [{ id, name, owned_by }] } }`, flatter `{ data: [] }` fallback.
-  "qwen-web": {
-    url: "https://chat.qwen.ai/api/v2/models/",
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    parseResponse: (data) => {
-      const innerData = data?.data?.data || data?.data || [];
-      return (Array.isArray(innerData) ? innerData : [])
-        .map((item: any) => ({
-          id: item.id || item.name,
-          name: item.name || item.id,
-          owned_by: item.owned_by || "qwen",
-        }))
-        .filter((m: any) => m.id);
-    },
   },
   "qwen-cloud": QWEN_CLOUD_TEXT_MODELS_CONFIG,
   antigravity: {
@@ -622,6 +676,17 @@ export const PROVIDER_MODELS_CONFIG: Record<string, ProviderModelsConfigEntry> =
     method: "GET",
     headers: { Accept: "application/json" },
     parseResponse: parseClinepassRecommendedModels,
+  },
+  // Perplexity's /v1/models lists the Agent API catalog (vendor-prefixed agent
+  // ids), but chat only accepts the Sonar family on /chat/completions. Import
+  // must keep Sonar-family ids only (#11060).
+  perplexity: {
+    url: "https://api.perplexity.ai/v1/models",
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    parseResponse: parsePerplexitySonarModels,
   },
   cohere: {
     url: "https://api.cohere.com/v2/models",

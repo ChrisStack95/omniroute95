@@ -4,8 +4,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-chatcore-translation-"));
+const TEST_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-chatcore-translation-"));
+const TEST_DATA_DIR = path.join(TEST_ROOT, "data");
+const TEST_PLUGINS_DIR = path.join(TEST_ROOT, "plugins");
+const ORIGINAL_DATA_DIR = process.env.DATA_DIR;
+const ORIGINAL_PLUGINS_DIR = process.env.OMNIROUTE_PLUGINS_DIR;
+fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
+fs.mkdirSync(TEST_PLUGINS_DIR, { recursive: true });
 process.env.DATA_DIR = TEST_DATA_DIR;
+process.env.OMNIROUTE_PLUGINS_DIR = TEST_PLUGINS_DIR;
 const core = await import("../../src/lib/db/core.ts");
 const providersDb = await import("../../src/lib/db/providers.ts");
 const settingsDb = await import("../../src/lib/db/settings.ts");
@@ -36,7 +43,8 @@ const {
   setBackgroundDegradationConfig,
   resetStats: resetBackgroundStats,
 } = await import("../../open-sse/services/backgroundTaskDetector.ts");
-const { getCallLogs, getCallLogById } = await import("../../src/lib/usage/callLogs.ts");
+const { getCallLogs, getCallLogById, waitForCallLogSaves } =
+  await import("../../src/lib/usage/callLogs.ts");
 const {
   handleChatCore,
   shouldUseNativeCodexPassthrough,
@@ -211,6 +219,64 @@ function buildResponsesResponse(text = "ok") {
   );
 }
 
+function buildDeepSeekResponsesToolResponse({
+  stream,
+  callId,
+  reasoning,
+}: {
+  stream: boolean;
+  callId: string;
+  reasoning: string;
+}) {
+  const reasoningItem = {
+    id: "rs_deepseek_tool",
+    type: "reasoning",
+    status: "completed",
+    summary: [],
+    content: [{ type: "reasoning_text", text: reasoning }],
+  };
+  const functionCall = {
+    id: "fc_deepseek_tool",
+    type: "function_call",
+    status: "completed",
+    call_id: callId,
+    name: "inspect",
+    arguments: "{}",
+  };
+  const response = {
+    id: "resp_deepseek_tool",
+    object: "response",
+    status: "completed",
+    model: "deepseek-v4-flash",
+    output: [reasoningItem, functionCall],
+    usage: { input_tokens: 4, output_tokens: 2, total_tokens: 6 },
+  };
+
+  if (!stream) {
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const events = [
+    {
+      type: "response.created",
+      response: { id: response.id, model: response.model, status: "in_progress" },
+    },
+    { type: "response.output_item.done", output_index: 0, item: reasoningItem },
+    { type: "response.output_item.done", output_index: 1, item: functionCall },
+    { type: "response.completed", response },
+  ];
+  return new Response(
+    `${events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}`).join("\n\n")}\n\ndata: [DONE]\n\n`,
+    {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }
+  );
+}
+
 function capabilityEntry(limitContext) {
   return {
     tool_call: true,
@@ -263,7 +329,7 @@ async function resetStorage() {
   resetBackgroundStats();
   globalThis.setTimeout = originalSetTimeout;
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 }
 
@@ -286,6 +352,7 @@ async function flushAsyncSideEffects() {
 }
 
 async function getLatestCallLog() {
+  await waitForCallLogSaves(5000);
   const rows = await getCallLogs({ limit: 5 });
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return getCallLogById(rows[0].id);
@@ -309,6 +376,9 @@ async function invokeChatCore({
   onCredentialsRefreshed = null,
   onRequestSuccess = null,
   sessionAffinityKey = null,
+  reasoningTransportFallback = "drop",
+  managedLease = null,
+  cachedSettings = null,
 }: any = {}) {
   const calls: any[] = [];
 
@@ -355,6 +425,9 @@ async function invokeChatCore({
       sessionAffinityKey,
       isCombo,
       comboStrategy,
+      reasoningTransportFallback,
+      managedLease,
+      cachedSettings,
       onCredentialsRefreshed,
       onRequestSuccess,
     } as any);
@@ -382,7 +455,11 @@ test.after(async () => {
   resetAccountSemaphores();
   await flushAsyncSideEffects();
   await resetStorage();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  if (ORIGINAL_DATA_DIR === undefined) delete process.env.DATA_DIR;
+  else process.env.DATA_DIR = ORIGINAL_DATA_DIR;
+  if (ORIGINAL_PLUGINS_DIR === undefined) delete process.env.OMNIROUTE_PLUGINS_DIR;
+  else process.env.OMNIROUTE_PLUGINS_DIR = ORIGINAL_PLUGINS_DIR;
+  fs.rmSync(TEST_ROOT, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 test("chatCore times out upstream execution before provider response headers", async () => {
   // This test asserts pendingDetail.providerRequest — only attached when the
@@ -390,7 +467,7 @@ test("chatCore times out upstream execution before provider response headers", a
   // (fresh-DB default leaves it off → the waitFor below would never resolve;
   // failed deterministically on CI and on an isolated run, incl. at v3.8.18).
   await settingsDb.updateSettings({ call_log_pipeline_enabled: true });
-  const executor = getExecutor("openai");
+  const executor = await getExecutor("openai");
   const originalGetTimeoutMs = executor.getTimeoutMs?.bind(executor);
   executor.getTimeoutMs = () => 200;
 
@@ -475,11 +552,11 @@ test("chatCore can disable pipeline stream chunk capture through environment", a
 test("chatCore keeps Responses-native Codex payloads in native passthrough mode", async () => {
   const { call, result } = await invokeChatCore({
     provider: "codex",
-    model: "gpt-5.1-codex",
+    model: "gpt-5.6-sol",
     endpoint: "/v1/responses",
     credentials: { accessToken: "codex-token", providerSpecificData: {} },
     body: {
-      model: "gpt-5.1-codex",
+      model: "gpt-5.6-sol",
       input: "ship it",
       instructions: "custom system prompt",
       store: true,
@@ -528,7 +605,44 @@ test("chatCore honors providerSpecificData.apiType for legacy openai-compatible 
   assert.equal("messages" in call.body, false);
   assert.equal(payload.choices[0].message.content, "ok");
 });
-test("chatCore applies Responses input policy to openai-compatible targets", async () => {
+test("chatCore translates a streaming Responses upstream for a Chat client", async () => {
+  const { call, result } = await invokeChatCore({
+    provider: "openai-compatible-sp-openai",
+    model: "gpt-5.4",
+    endpoint: "/v1/chat/completions",
+    accept: "text/event-stream",
+    credentials: {
+      apiKey: "sk-test",
+      providerSpecificData: {
+        apiType: "responses",
+        baseUrl: "https://proxy.example.com/v1",
+        prefix: "sp-openai",
+      },
+    },
+    body: {
+      model: "gpt-5.4",
+      stream: true,
+      messages: [{ role: "user", content: "Reply with OK only." }],
+    },
+    responseFactory: () =>
+      new Response(
+        [
+          'data: {"type":"response.output_text.delta","delta":"ok"}',
+          "",
+          'data: {"type":"response.completed","response":{"id":"resp_stream","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}',
+          "",
+        ].join("\n"),
+        { status: 200, headers: { "Content-Type": "text/event-stream" } }
+      ),
+  });
+
+  assert.equal(result.success, true);
+  assert.match(call.url, /\/responses$/);
+  const streamed = await result.response.text();
+  assert.match(streamed, /"content":"ok"/);
+  assert.match(streamed, /data: \[DONE\]/);
+});
+test("chatCore drops opaque reasoning for plaintext Responses targets by default (#10959)", async () => {
   const reasoningItems = [
     { id: "rs_valid", type: "reasoning", encrypted_content: "encrypted-blob" },
     { type: "reasoning", encrypted_content: "" },
@@ -537,41 +651,306 @@ test("chatCore applies Responses input policy to openai-compatible targets", asy
     { id: "fc_call", type: "function_call", call_id: "call_1", name: "search", arguments: "{}" },
   ];
 
-  for (const preserveEncryptedReasoning of [false, true]) {
-    const { call, result } = await invokeChatCore({
+  const dropped = await invokeChatCore({
+    provider: "openai-compatible-sp-openai",
+    model: "gpt-5.4",
+    endpoint: "/v1/responses",
+    credentials: {
+      apiKey: "sk-test",
+      providerSpecificData: {
+        apiType: "responses",
+        baseUrl: "https://proxy.example.com/v1",
+        prefix: "sp-openai",
+      },
+    },
+    body: { model: "gpt-5.4", stream: false, input: reasoningItems },
+    responseFormat: "openai-responses",
+  });
+
+  assert.equal(dropped.result.success, true);
+  assert.equal(dropped.calls.length, 1);
+  assert.deepEqual(
+    dropped.call.body.input.filter((item) => item.type === "reasoning"),
+    [{ type: "reasoning", summary: [{ text: "not self-contained" }] }]
+  );
+
+  const enabled = await invokeChatCore({
+    provider: "openai-compatible-sp-openai",
+    model: "gpt-5.4",
+    endpoint: "/v1/responses",
+    credentials: {
+      apiKey: "sk-test",
+      providerSpecificData: {
+        apiType: "responses",
+        baseUrl: "https://proxy.example.com/v1",
+        prefix: "sp-openai",
+        preserveEncryptedReasoning: true,
+      },
+    },
+    body: { model: "gpt-5.4", stream: false, input: reasoningItems },
+    responseFormat: "openai-responses",
+  });
+
+  assert.equal(enabled.result.success, true);
+  const input = enabled.call.body.input as Array<Record<string, unknown>>;
+  assert.deepEqual(
+    input.filter((item) => item.type === "reasoning"),
+    [
+      { id: "rs_valid", type: "reasoning", encrypted_content: "encrypted-blob", summary: [] }, // summary defaulted by #11110
+      { type: "reasoning", summary: [{ text: "not self-contained" }] },
+    ]
+  );
+  assert.equal(
+    input.some((item) => item.type === "item_reference"),
+    false
+  );
+  assert.equal(input.find((item) => item.type === "function_call")?.id, undefined);
+});
+
+test("chatCore drops incompatible Chat reasoning before stream mode diverges (#10959)", async () => {
+  for (const stream of [false, true]) {
+    const dropped = await invokeChatCore({
       provider: "openai-compatible-sp-openai",
       model: "gpt-5.4",
-      endpoint: "/v1/responses",
+      endpoint: "/v1/chat/completions",
       credentials: {
         apiKey: "sk-test",
         providerSpecificData: {
-          apiType: "responses",
+          apiType: "openai",
           baseUrl: "https://proxy.example.com/v1",
           prefix: "sp-openai",
-          preserveEncryptedReasoning,
         },
       },
-      body: { model: "gpt-5.4", stream: false, input: reasoningItems },
-      responseFormat: "openai-responses",
+      body: {
+        model: "gpt-5.4",
+        stream,
+        messages: [
+          {
+            role: "assistant",
+            content: null,
+            reasoning_details: [{ type: "reasoning.encrypted", data: "provider-state" }],
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: { name: "search", arguments: "{}" },
+              },
+            ],
+          },
+          { role: "tool", tool_call_id: "call_1", content: "result" },
+        ],
+      },
     });
 
-    assert.equal(result.success, true);
-    const input = call.body.input as Array<Record<string, unknown>>;
-    assert.deepEqual(
-      input.filter((item) => item.type === "reasoning"),
-      preserveEncryptedReasoning ? [{ type: "reasoning", encrypted_content: "encrypted-blob" }] : []
-    );
-    assert.equal(
-      input.some((item) => item.type === "item_reference"),
-      false
-    );
-    assert.equal(input.find((item) => item.type === "function_call")?.id, undefined);
+    assert.equal(dropped.result.success, true, `stream=${stream}`);
+    assert.equal(dropped.calls.length, 1, `stream=${stream}`);
+    assert.equal(dropped.call.body.messages[0].reasoning_details, undefined, `stream=${stream}`);
   }
 });
 
+test("chatCore preserves Combo skip behavior for incompatible reasoning", async () => {
+  const skipped = await invokeChatCore({
+    provider: "openai-compatible-sp-openai",
+    model: "gpt-5.4",
+    endpoint: "/v1/responses",
+    credentials: {
+      apiKey: "sk-test",
+      providerSpecificData: {
+        apiType: "responses",
+        baseUrl: "https://proxy.example.com/v1",
+        prefix: "sp-openai",
+      },
+    },
+    body: {
+      model: "gpt-5.4",
+      stream: false,
+      input: [
+        { id: "rs_valid", type: "reasoning", encrypted_content: "encrypted-blob" },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "continue" }] },
+      ],
+    },
+    responseFormat: "openai-responses",
+    isCombo: true,
+    reasoningTransportFallback: "skip",
+  });
+
+  assert.equal(skipped.result.success, false);
+  assert.equal(skipped.result.status, 400);
+  assert.equal(skipped.calls.length, 0);
+});
+
+test("chatCore carries Chat reasoning_content into official DeepSeek Responses input", async () => {
+  const { call, result } = await invokeChatCore({
+    provider: "deepseek",
+    model: "deepseek-v4-pro",
+    endpoint: "/v1/chat/completions",
+    body: {
+      model: "deepseek-v4-pro",
+      stream: false,
+      messages: [
+        {
+          role: "assistant",
+          content: null,
+          reasoning_content: "Inspect before calling the tool",
+          tool_calls: [
+            {
+              id: "call_1",
+              type: "function",
+              function: { name: "search", arguments: "{}" },
+            },
+          ],
+        },
+        { role: "tool", tool_call_id: "call_1", content: "found" },
+      ],
+    },
+    responseFormat: "openai-responses",
+  });
+
+  assert.equal(result.success, true);
+  assert.match(call.url, /\/responses$/);
+  assert.deepEqual(call.body.input.slice(0, 3), [
+    {
+      type: "reasoning",
+      summary: [], // defaulted on freshly-built reasoning items (#11129)
+      content: [{ type: "reasoning_text", text: "Inspect before calling the tool" }],
+    },
+    {
+      type: "function_call",
+      call_id: "call_1",
+      name: "search",
+      arguments: "{}",
+      status: "completed",
+    },
+    { type: "function_call_output", call_id: "call_1", output: "found", status: "completed" },
+  ]);
+});
+
+test("chatCore replays nonstream DeepSeek Responses reasoning across a Chat tool turn", async () => {
+  const callId = "call_deepseek_nonstream_replay";
+  const reasoning = "Authentic nonstream DeepSeek reasoning";
+  const apiKeyInfo = { id: "deepseek-nonstream-chat-key" };
+  const first = await invokeChatCore({
+    provider: "deepseek",
+    model: "deepseek-v4-flash",
+    endpoint: "/v1/chat/completions",
+    body: {
+      model: "deepseek-v4-flash",
+      stream: false,
+      reasoning_effort: "high",
+      messages: [{ role: "user", content: "Inspect the repository" }],
+      tools: [
+        {
+          type: "function",
+          function: { name: "inspect", description: "Inspect", parameters: { type: "object" } },
+        },
+      ],
+    },
+    apiKeyInfo,
+    responseFactory: () => buildDeepSeekResponsesToolResponse({ stream: false, callId, reasoning }),
+  });
+
+  assert.equal(first.result.success, true);
+  const firstPayload = (await first.result.response.json()) as {
+    choices: Array<{ message: Record<string, unknown> & { reasoning_content?: string } }>;
+  };
+  assert.equal(firstPayload.choices[0].message.reasoning_content, reasoning);
+  const assistant = structuredClone(firstPayload.choices[0].message);
+  delete assistant.reasoning_content;
+
+  const second = await invokeChatCore({
+    provider: "deepseek",
+    model: "deepseek-v4-flash",
+    endpoint: "/v1/chat/completions",
+    body: {
+      model: "deepseek-v4-flash",
+      stream: false,
+      reasoning_effort: "high",
+      messages: [
+        { role: "user", content: "Inspect the repository" },
+        assistant,
+        { role: "tool", tool_call_id: callId, content: "inspection complete" },
+      ],
+    },
+    apiKeyInfo,
+    responseFactory: () => buildResponsesResponse("done"),
+  });
+
+  assert.equal(second.result.success, true);
+  assert.deepEqual(
+    second.call.body.input.find((item) => item.type === "reasoning"),
+    { type: "reasoning", content: [{ type: "reasoning_text", text: reasoning }], summary: [] } // summary defaulted by #11129
+  );
+});
+
+test("chatCore replays streamed DeepSeek Responses reasoning across a Chat tool turn", async () => {
+  const callId = "call_deepseek_stream_replay";
+  const reasoning = "Authentic streamed DeepSeek reasoning";
+  const apiKeyInfo = { id: "deepseek-stream-chat-key" };
+  const first = await invokeChatCore({
+    provider: "deepseek",
+    model: "deepseek-v4-flash",
+    endpoint: "/v1/chat/completions",
+    body: {
+      model: "deepseek-v4-flash",
+      stream: true,
+      reasoning_effort: "high",
+      messages: [{ role: "user", content: "Inspect the repository" }],
+      tools: [
+        {
+          type: "function",
+          function: { name: "inspect", description: "Inspect", parameters: { type: "object" } },
+        },
+      ],
+    },
+    apiKeyInfo,
+    responseFactory: () => buildDeepSeekResponsesToolResponse({ stream: true, callId, reasoning }),
+  });
+
+  assert.equal(first.result.success, true);
+  const streamed = await first.result.response.text();
+  assert.match(streamed, new RegExp(reasoning));
+  await flushAsyncSideEffects();
+
+  const second = await invokeChatCore({
+    provider: "deepseek",
+    model: "deepseek-v4-flash",
+    endpoint: "/v1/chat/completions",
+    body: {
+      model: "deepseek-v4-flash",
+      stream: false,
+      reasoning_effort: "high",
+      messages: [
+        { role: "user", content: "Inspect the repository" },
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: callId,
+              type: "function",
+              function: { name: "inspect", arguments: "{}" },
+            },
+          ],
+        },
+        { role: "tool", tool_call_id: callId, content: "inspection complete" },
+      ],
+    },
+    apiKeyInfo,
+    responseFactory: () => buildResponsesResponse("done"),
+  });
+
+  assert.equal(second.result.success, true);
+  assert.deepEqual(
+    second.call.body.input.find((item) => item.type === "reasoning"),
+    { type: "reasoning", content: [{ type: "reasoning_text", text: reasoning }], summary: [] } // summary defaulted by #11129
+  );
+});
+
 test("chatCore replays no-tool reasoning across public Responses turns", async () => {
+  // Direct DeepSeek now speaks Responses upstream. Keep this regression on a
+  // Chat-compatible DeepSeek host so it continues to exercise the Responses-to-Chat replay path.
   saveModelsDevCapabilities({
-    deepseek: {
+    siliconflow: {
       "deepseek-v4-pro": {
         ...capabilityEntry(128_000),
         reasoning: true,
@@ -603,7 +982,7 @@ test("chatCore replays no-tool reasoning across public Responses turns", async (
     );
 
   const first = await invokeChatCore({
-    provider: "deepseek",
+    provider: "siliconflow",
     model: "deepseek-v4-pro",
     endpoint: "/v1/responses",
     body: {
@@ -619,7 +998,7 @@ test("chatCore replays no-tool reasoning across public Responses turns", async (
   assert.equal(first.result.success, true);
 
   const second = await invokeChatCore({
-    provider: "deepseek",
+    provider: "siliconflow",
     model: "deepseek-v4-pro",
     endpoint: "/v1/responses",
     body: {
@@ -650,7 +1029,7 @@ test("chatCore replays no-tool reasoning across public Responses turns", async (
 });
 test("chatCore captures streaming no-tool reasoning for Responses replay", async () => {
   saveModelsDevCapabilities({
-    deepseek: {
+    siliconflow: {
       "deepseek-v4-pro": {
         ...capabilityEntry(128_000),
         reasoning: true,
@@ -693,7 +1072,7 @@ test("chatCore captures streaming no-tool reasoning for Responses replay", async
     );
 
   const first = await invokeChatCore({
-    provider: "deepseek",
+    provider: "siliconflow",
     model: "deepseek-v4-pro",
     endpoint: "/v1/responses",
     body: {
@@ -711,7 +1090,7 @@ test("chatCore captures streaming no-tool reasoning for Responses replay", async
   await flushAsyncSideEffects();
 
   const second = await invokeChatCore({
-    provider: "deepseek",
+    provider: "siliconflow",
     model: "deepseek-v4-pro",
     endpoint: "/v1/responses",
     body: {
@@ -740,17 +1119,17 @@ test("chatCore captures streaming no-tool reasoning for Responses replay", async
   assert.equal(second.result.success, true);
   assert.equal(second.call.body.messages[1].reasoning_content, "Authentic streaming reasoning");
 });
-test("chatCore preserves opted-in encrypted reasoning for Codex", async () => {
+test("chatCore automatically preserves provider-generated opaque reasoning for Codex", async () => {
   const { call, result } = await invokeChatCore({
     provider: "codex",
-    model: "gpt-5.1-codex",
+    model: "gpt-5.6-sol",
     endpoint: "/v1/responses",
     credentials: {
       accessToken: "codex-token",
-      providerSpecificData: { preserveEncryptedReasoning: true },
+      providerSpecificData: {},
     },
     body: {
-      model: "gpt-5.1-codex",
+      model: "gpt-5.6-sol",
       stream: false,
       input: [
         { id: "rs_valid", type: "reasoning", encrypted_content: "encrypted-blob" },
@@ -765,7 +1144,7 @@ test("chatCore preserves opted-in encrypted reasoning for Codex", async () => {
   assert.equal(result.success, true);
   assert.deepEqual(
     call.body.input.filter((item) => item.type === "reasoning"),
-    [{ type: "reasoning", encrypted_content: "encrypted-blob" }]
+    [{ id: "rs_valid", type: "reasoning", encrypted_content: "encrypted-blob", summary: [] }] // summary defaulted by #11110
   );
   assert.equal(
     call.body.input.some((item) => item.type === "item_reference"),
@@ -1040,13 +1419,16 @@ test("chatCore preserves Opus 5 mid-conversation system cache breakpoints", asyn
   );
   assert.deepEqual(call.body.messages[2].content[0].cache_control, {
     type: "ephemeral",
-    ttl: "1h",
+    ttl: "5m",
   });
   assert.equal(
     call.body.system.some((block: { text?: string }) => block.text === "compact continuation"),
     false
   );
-  assert.equal(call.body.messages[3].content[0].cache_control, undefined);
+  assert.deepEqual(call.body.messages[3].content[0].cache_control, {
+    type: "ephemeral",
+    ttl: "5m",
+  });
 });
 test("chatCore keeps Claude normalization for non-Claude-Code Claude passthrough", async () => {
   const { call, result } = await invokeChatCore({
@@ -1219,12 +1601,12 @@ test("chatCore preserves cache_control automatically for Claude Code single-mode
   assert.deepEqual(call.body.system[2].cache_control, { type: "ephemeral", ttl: "5m" });
   assert.deepEqual(call.body.messages[0].content[0].cache_control, {
     type: "ephemeral",
-    ttl: "1h",
+    ttl: "5m",
   });
   // base.ts executor explicitly strips cache_control from tools for Claude Code clients
   assert.equal(call.body.tools[0].cache_control, undefined);
 });
-test("chatCore supplements a missing message cache breakpoint for native Claude Code requests", async () => {
+test("chatCore advances a message cache breakpoint for native Claude Code requests", async () => {
   await settingsDb.updateSettings({ alwaysPreserveClientCache: "auto" });
   invalidateCacheControlSettingsCache();
 
@@ -1249,7 +1631,16 @@ test("chatCore supplements a missing message cache breakpoint for native Claude 
         },
       ],
       messages: [
-        { role: "user", content: [{ type: "text", text: "first turn" }] },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "first turn",
+              cache_control: { type: "ephemeral" },
+            },
+          ],
+        },
         { role: "assistant", content: [{ type: "text", text: "first response" }] },
         { role: "user", content: [{ type: "text", text: "latest turn" }] },
       ],
@@ -1268,7 +1659,7 @@ test("chatCore supplements a missing message cache breakpoint for native Claude 
 
   assert.deepEqual(call.body.messages[2].content[0].cache_control, {
     type: "ephemeral",
-    ttl: "1h",
+    ttl: "5m",
   });
   assert.equal(call.body.tools[0].cache_control, undefined);
 });
@@ -1356,10 +1747,12 @@ test("chatCore disables raw Claude passthrough when cache preservation is off an
     ),
     true
   );
-  // Cache preservation is on for native Claude, so cache markers are intact
+  // Cache preservation is on for native Claude, so cache markers are intact. This PR:
+  // an omitted TTL now defaults to "5m" once a "5m" boundary breakpoint (the system
+  // block above) has already appeared, instead of always defaulting to "1h".
   assert.deepEqual(call.body.messages[0].content[0].cache_control, {
     type: "ephemeral",
-    ttl: "1h",
+    ttl: "5m",
   });
   // Tools disable flag is applied
   assert.equal("_disableToolPrefix" in call.body, false);
@@ -1522,7 +1915,8 @@ test("chatCore downgrades unsupported xhigh effort for assistant-prefill OpenAI-
 
   assert.equal(result.success, true);
   assert.equal(call.body.model, "glm-5.1");
-  assert.equal(call.body.reasoning_effort, "high");
+  // GLM 5.1+ natively uses `max` as the top tier (#11875); xhigh maps to max.
+  assert.equal(call.body.reasoning_effort, "max");
 });
 test("chatCore logs chat completions endpoint as OpenAI protocol", async () => {
   const { call, result } = await invokeChatCore({
@@ -1555,35 +1949,12 @@ test("chatCore surfaces translation errors with explicit status codes", async ()
     FORMATS.OPENAI_RESPONSES,
     FORMATS.OPENAI,
     () => {
-      const error = new Error("responses translator rejected the payload");
-      error.statusCode = 409;
-      throw error;
-    },
-    null
-  );
-
-  const { result } = await invokeChatCore({
-    provider: "openai",
-    model: "gpt-4o-mini",
-    endpoint: "/v1/responses",
-    body: {
-      model: "gpt-4o-mini",
-      input: "hello",
-    },
-  });
-
-  assert.equal(result.success, false);
-  assert.equal(result.status, 409);
-  assert.equal(result.error, "responses translator rejected the payload");
-});
-test("chatCore surfaces typed translation errors with the declared error type", async () => {
-  register(
-    FORMATS.OPENAI_RESPONSES,
-    FORMATS.OPENAI,
-    () => {
-      const error = new Error("typed translator failure");
+      const error = new Error(
+        "translator rejected access_token=translation-secret at /srv/private/translator.ts\n" +
+          "    at translate (/srv/private/translator.ts:41:8)"
+      );
       error.statusCode = 422;
-      error.errorType = "unsupported_feature";
+      error.errorType = "unsupported_feature access_token=type-secret /srv/private/type.ts";
       throw error;
     },
     null
@@ -1601,10 +1972,16 @@ test("chatCore surfaces typed translation errors with the declared error type", 
 
   assert.equal(result.success, false);
   assert.equal(result.status, 422);
-
-  const payload = (await result.response.json()) as any;
-  assert.equal(payload.error.type, "unsupported_feature");
-  assert.equal(payload.error.code, "unsupported_feature");
+  const payload = (await result.response.json()) as {
+    error: { message: string; type: string; code: string };
+  };
+  assert.equal(payload.error.type, "invalid_request_error");
+  assert.equal(payload.error.code, "");
+  assert.match(payload.error.message, /translator rejected/);
+  assert.doesNotMatch(
+    JSON.stringify({ payload, internalError: result.error }),
+    /translation-secret|type-secret|srv\/private|translator\.ts|type\.ts|\bat translate\b/i
+  );
 });
 test("chatCore returns 500 when translation throws a generic error", async () => {
   register(
@@ -2121,7 +2498,7 @@ test("chatCore preserves Codex dual-window scope cooldowns on 429 responses", as
   const resetAt7d = new Date(Date.now() + 3_600_000).toISOString();
   const { result } = await invokeChatCore({
     provider: "codex",
-    model: "gpt-5.1-codex",
+    model: "gpt-5.6-sol",
     endpoint: "/v1/responses",
     connectionId: connection.id,
     credentials: {
@@ -2129,7 +2506,7 @@ test("chatCore preserves Codex dual-window scope cooldowns on 429 responses", as
       providerSpecificData: {},
     },
     body: {
-      model: "gpt-5.1-codex",
+      model: "gpt-5.6-sol",
       input: "persist quota",
       stream: false,
     },
@@ -2554,7 +2931,7 @@ test("chatCore injects progress events into streaming responses when requested",
   assert.equal(result.response.headers.get("X-OmniRoute-Progress"), "enabled");
   assert.match(streamText, /event: progress/);
 });
-test("chatCore emits final SSE metadata comments before [DONE] on streaming responses", async () => {
+test("chatCore keeps the SSE stream comment-free by default and still ends with [DONE]", async () => {
   const { result } = await invokeChatCore({
     provider: "openai",
     model: "gpt-4o-mini",
@@ -2572,14 +2949,20 @@ test("chatCore emits final SSE metadata comments before [DONE] on streaming resp
   const streamText = await result.response.text();
 
   assert.equal(result.success, true);
+  // The per-request metadata reaches the client through these headers regardless
+  // of the comment setting — that is what makes the trailer optional.
   assert.equal(result.response.headers.get("X-OmniRoute-Provider"), "openai");
   assert.equal(result.response.headers.get("X-OmniRoute-Model"), "gpt-4o-mini");
-  assert.match(streamText, /: x-omniroute-response-cost=\d+\.\d{10}/);
-  assert.match(streamText, /: x-omniroute-tokens-in=\d+/);
-  assert.match(streamText, /: x-omniroute-tokens-out=\d+/);
-  assert.ok(
-    streamText.indexOf(": x-omniroute-response-cost=") < streamText.indexOf("data: [DONE]")
-  );
+
+  // #10524 flipped OMNIROUTE_SSE_COMMENTS to off-by-default: strict SSE clients
+  // JSON.parse every line and crash on `: x-omniroute-*` comments. This test used
+  // to assert the opposite and went red on the release branch when that default
+  // landed. The opt-in half — trailer present, after the finish chunk and before
+  // [DONE] — is owned by sse-comments-optout-9305.test.ts, which drives the env
+  // var through all three states; enabling it here instead leaks process.env into
+  // the sibling call-log tests in this file.
+  assert.doesNotMatch(streamText, /: x-omniroute-/);
+  assert.match(streamText, /data: \[DONE\]/);
 });
 test("buildStreamingResponseHeaders drops upstream compression and framing headers", () => {
   const headers = new Headers(

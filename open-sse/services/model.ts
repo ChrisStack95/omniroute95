@@ -1,6 +1,9 @@
 import { PROVIDER_ID_TO_ALIAS, PROVIDER_MODELS } from "../config/providerModels.ts";
+import { ALIAS_TO_PROVIDER_ID, resolveProviderAlias } from "./providerAlias.ts";
 import { resolveWildcardAlias } from "./wildcardRouter.ts";
 import { getRegisteredProviderEffortBaseModelId } from "../utils/registeredEffortVariants.ts";
+
+export { resolveProviderAlias };
 
 type ProviderModelAliasMap = Record<string, Record<string, string>>;
 type ModelAliasValue = string | { provider?: string; model?: string };
@@ -26,38 +29,6 @@ export function stripContextWindowSuffix(
   if (typeof modelStr !== "string" || !modelStr) return modelStr;
   return modelStr.replace(CONTEXT_WINDOW_SUFFIX_RE, "").trimEnd();
 }
-
-// Derive alias→provider mapping from the single source of truth (PROVIDER_ID_TO_ALIAS)
-// This prevents the two maps from drifting out of sync
-const ALIAS_TO_PROVIDER_ID: Record<string, string> = {};
-for (const [id, alias] of Object.entries(PROVIDER_ID_TO_ALIAS)) {
-  if (ALIAS_TO_PROVIDER_ID[alias]) {
-    console.log(
-      `[MODEL] Warning: alias "${alias}" maps to both "${ALIAS_TO_PROVIDER_ID[alias]}" and "${id}". Using "${id}".`
-    );
-  }
-  ALIAS_TO_PROVIDER_ID[alias] = id;
-}
-// Manual alias overrides — maps slug-style prefixes to canonical provider IDs.
-// These live outside the registry because they represent multiple providers
-// or backward-compatible slug changes, not a single provider's display name.
-// opencode/ → opencode-zen (the main free/open tier; opencode-go is a separate paid tier)
-ALIAS_TO_PROVIDER_ID["opencode"] = "opencode-zen";
-// xiaomi/ is the user-visible prefix for MiMo models; register it so
-// parseModel("xiaomi/mimo-v2-flash") resolves provider = "xiaomi-mimo" instead
-// of falling through to the identity fallback ("xiaomi").
-ALIAS_TO_PROVIDER_ID["xiaomi"] = "xiaomi-mimo";
-// llamacpp/ is the user-visible alias for the llama-cpp self-hosted provider.
-// The canonical ID is "llama-cpp" (with a hyphen), but the catalog and user-facing
-// prefix is "llamacpp". Register it so parseModel("llamacpp/<model>") resolves
-// provider = "llama-cpp" instead of the identity fallback ("llamacpp").
-ALIAS_TO_PROVIDER_ID["llamacpp"] = "llama-cpp";
-// agy/ is the short alias for antigravity provider.
-ALIAS_TO_PROVIDER_ID["agy"] = "antigravity";
-// aq/ is the user-visible prefix for the Amazon Q (AWS Builder ID) provider.
-// The canonical provider ID is "amazon-q". Register it so parseModel("aq/<model>")
-// resolves provider = "amazon-q" instead of falling through to the identity fallback.
-ALIAS_TO_PROVIDER_ID["aq"] = "amazon-q";
 
 // Provider-scoped legacy model aliases. Used to normalize provider/model inputs
 // and keep backward compatibility when upstream IDs change.
@@ -181,31 +152,6 @@ interface ProviderConnectionLike {
 }
 
 /**
- * Resolve provider alias to provider ID
- */
-export function resolveProviderAlias(aliasOrId: string | null | undefined): string | null {
-  if (typeof aliasOrId !== "string") return null;
-  // Follow the alias chain transitively so intermediate alias-only hops resolve
-  // to the final target, but STOP as soon as a hop lands on a registered
-  // provider id (#2901): "oc" must resolve to the no-auth "opencode" provider,
-  // NOT continue through the manual "opencode" → "opencode-zen" slug override —
-  // that override is for user-typed `opencode/` prefixes only. Without this
-  // boundary the no-auth provider becomes unreachable by any prefix.
-  // Guarded against infinite loops with both a depth limit and a seen-set.
-  let current = aliasOrId;
-  const seen = new Set<string>();
-  for (let i = 0; i < 10; i++) {
-    const next = ALIAS_TO_PROVIDER_ID[current];
-    if (!next || next === current) return current;
-    if (next in PROVIDER_ID_TO_ALIAS) return next;
-    if (seen.has(next)) return next;
-    seen.add(next);
-    current = next;
-  }
-  return current;
-}
-
-/**
  * #474 — Resolve a bare model name to the selected connection's `defaultModel`.
  *
  * When the client requested a bare model name (no "/", e.g. an alias that
@@ -276,7 +222,16 @@ function resolveProviderModelAlias(
   return aliases?.[modelId] || modelId;
 }
 
-function hasKnownProviderModel(providerOrAlias: string | null | undefined, modelId: string | null) {
+/**
+ * True when the provider serves `modelId` under that exact id (static model list or
+ * a provider-specific alias). Exported for the deprecation-alias provider guard
+ * (#11503): a globally deprecated id that this provider still serves must not be
+ * rewritten out from under the request.
+ */
+export function hasKnownProviderModel(
+  providerOrAlias: string | null | undefined,
+  modelId: string | null
+) {
   if (!providerOrAlias || !modelId) return false;
 
   const providerId = resolveProviderAlias(providerOrAlias);
@@ -323,7 +278,7 @@ function getProviderIdFromConnection(connection: unknown) {
 
 async function getActiveProviderSet() {
   try {
-    const { getCachedProviderConnections } = await import("@/lib/localDb");
+    const { getCachedProviderConnections } = await import("@/lib/db/readCache");
     const conns = (await getCachedProviderConnections()) as unknown[];
     const providers = conns
       .map(getProviderIdFromConnection)
@@ -336,7 +291,7 @@ async function getActiveProviderSet() {
 
 async function getActiveSyncedProvidersForModel(modelId: string) {
   try {
-    const { getActiveProvidersWithSyncedModel } = await import("@/lib/localDb");
+    const { getActiveProvidersWithSyncedModel } = await import("@/lib/db/models");
     const providers = await getActiveProvidersWithSyncedModel(modelId);
     return providers
       .map(resolveProviderAlias)
@@ -394,7 +349,7 @@ function isTruthyEnv(value: string | undefined) {
 
 async function getPreferClaudeCodeForUnprefixedClaudeModels() {
   try {
-    const { getCachedSettings } = await import("@/lib/localDb");
+    const { getCachedSettings } = await import("@/lib/db/readCache");
     const settings = (await getCachedSettings()) as Record<string, unknown>;
     if (typeof settings.preferClaudeCodeForUnprefixedClaudeModels === "boolean") {
       return settings.preferClaudeCodeForUnprefixedClaudeModels;
@@ -645,6 +600,27 @@ async function resolveModelByProviderInference(modelId: string, extendedContext:
     }
   }
 
+  // Opencode free-tier models always route to opencode when active — prevents
+  // prefix inference from misrouting -free names to other providers when the
+  // live catalog is temporarily unreachable.
+  //
+  // A literal `activeProviders?.has("opencode")` check is unreachable in
+  // practice: `getActiveProviderSet()` canonicalizes every connection's
+  // provider id through `resolveProviderAlias()`, and the manual override
+  // above (`ALIAS_TO_PROVIDER_ID["opencode"] = "opencode-zen"`) rewrites any
+  // "opencode" id to "opencode-zen" before it ever reaches the active set —
+  // so an active no-auth opencode connection never appears as "opencode".
+  // Check both opencode-family canonical ids that catalog this model id.
+  if (modelId === "big-pickle" || modelId.endsWith("-free")) {
+    const candidates = MODEL_TO_PROVIDERS.get(modelId) || [];
+    const activeOpencodeCandidate = candidates.find(
+      (p) => (p === "opencode" || p === "opencode-zen") && activeProviders?.has(p)
+    );
+    if (activeOpencodeCandidate) {
+      return { provider: activeOpencodeCandidate, model: modelId, extendedContext };
+    }
+  }
+
   const candidateProviders = getInferredProvidersForModel(modelId, activeSyncedProviders);
   const { providers, excludedProviders } = await reconcileInferredProvidersWithActiveCatalog(
     candidateProviders,
@@ -797,11 +773,15 @@ async function resolveModelByProviderInference(modelId: string, extendedContext:
       return { provider: "claude", model: modelId, extendedContext };
     }
     // Claude models → Anthropic provider (canonical source for Claude models)
-    return { provider: "anthropic", model: modelId, extendedContext };
+    if (activeProviders?.has("anthropic")) {
+      return { provider: "anthropic", model: modelId, extendedContext };
+    }
   }
   if (/^gemini-/i.test(modelId) || /^gemma-/i.test(modelId)) {
     // Gemini/Gemma models → Gemini provider
-    return { provider: "gemini", model: modelId, extendedContext };
+    if (activeProviders?.has("gemini")) {
+      return { provider: "gemini", model: modelId, extendedContext };
+    }
   }
 
   // Last resort: no provider could be inferred — return a clear error instead

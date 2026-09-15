@@ -60,7 +60,16 @@ const IGNORE_FROM_CODE = new Set([
   // OS / Node internals frequently surfaced by indirect dependencies.
   "APPDATA",
   "LOCALAPPDATA",
+  "PROGRAMFILES",
   "XDG_CONFIG_HOME",
+  // Codex-owned task/runtime locations and child-process markers. OmniRoute reads
+  // them as external execution context, not as product configuration.
+  "CODEX_HOME",
+  "CODEX_CHATGPT_WEB_BROWSER_HELPER_PROCESS",
+  // systemd-injected notify socket path (sd_notify protocol, see
+  // scripts/dev/systemd-notify.mjs) — set by systemd only when running under
+  // a unit, never user config.
+  "NOTIFY_SOCKET",
   // XDG Base Directory cache root — read (never defined by OmniRoute) so the
   // Android/Termux serve path can honor an operator-set cache location (#8519).
   "XDG_CACHE_HOME",
@@ -122,6 +131,10 @@ const IGNORE_FROM_CODE = new Set([
   // ("http://192.168.0.15:20128" / null), never OmniRoute runtime config (#5151).
   "COMBO_LIVE_BASE_URL",
   "COMBO_LIVE_API_KEY",
+  // Ad-hoc mesh/coverage scripts under scripts/ad-hoc/*.mjs (mesh-send, mesh-run,
+  // verify-coverage). Operator-supplied script secrets, not OmniRoute runtime config.
+  "BOT_TOKEN",
+  "BOT_URL",
   // Homologation E2E suite (npm run homolog) vars — configured via the dedicated
   // .env.homolog file (template: .env.homolog.example), never in the runtime .env.
   // Test/ops-only signals against the homologation VPS, same class as COMBO_LIVE_*.
@@ -148,8 +161,11 @@ const IGNORE_FROM_CODE = new Set([
   // X11/Wayland display server vars used by tray heuristic (isTraySupported).
   "DISPLAY",
   "WAYLAND_DISPLAY",
-  // Build-time override for OpenAPI spec path used by generate-api-commands.mjs.
+  // Build-time overrides for generate-api-commands.mjs (spec input / commands output dir).
+  // OPENAPI_OUT_DIR exists so tests/unit/cli-api-generator-ref-params.test.ts can regenerate
+  // into a scratch dir instead of the real bin/cli/api-commands/ tree.
   "OPENAPI_SPEC",
+  "OPENAPI_OUT_DIR",
   // Aliases for documented vars handled via fallback ordering.
   "API_KEY",
   "APP_URL",
@@ -197,12 +213,19 @@ const IGNORE_FROM_CODE = new Set([
   // NVIDIA diagnostic/test helpers used only by ad-hoc scripts.
   "NVIDIA_BASE_URL",
   "NVIDIA_MODEL",
+  // Discord integration ad-hoc script (scripts/ad-hoc/mesh-send.mjs) —
+  // operator-supplied bot credentials, not user-facing OmniRoute config.
+  "BOT_TOKEN",
+  "BOT_URL",
   // XDG standard data directory — set by OS/desktop session, not OmniRoute config.
   // Read by setup-open-code.mjs to locate platform-specific OpenCode data dir.
   "XDG_DATA_HOME",
   // Test-only override: points setup-open-code.mjs at a fixture plugin dir without
   // requiring the real bundled plugin to be built.
   "OMNIROUTE_OPENCODE_PLUGIN_DIR",
+  // Test-only escape hatch: makes getMachineIdRaw() skip the macOS ioreg strategy so
+  // machineId tests reach the fallback strategies on darwin (#13539). Not user config.
+  "DISABLE_IOREG_STRATEGY",
 ]);
 
 // Vars documented in ENVIRONMENT.md but intentionally absent from .env.example.
@@ -263,6 +286,9 @@ const ENV_ONLY_ALLOWLIST = new Set([
   "PII_WINDOW_SIZE",
   "TRAE_STREAM_TIMEOUT_MS",
   "TRAE_TOKEN",
+  // #12190: Trae host/Origin override. ENVIRONMENT.md documents no Trae variable at
+  // all; this joins its two siblings above under the same .env.example-only tier.
+  "TRAE_WEB_ORIGIN",
 ]);
 
 // ─── Parsing helpers ───────────────────────────────────────────────────────

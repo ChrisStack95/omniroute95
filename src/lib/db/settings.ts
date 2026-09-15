@@ -5,12 +5,20 @@
 import { getDbInstance } from "./core";
 import { backupDbFile } from "./backup";
 import { PROVIDER_ID_TO_ALIAS } from "@omniroute/open-sse/config/providerModels.ts";
+import {
+  getProxyRefusalSeq,
+  hasProxyRefusals,
+  proxyEgressKey,
+  proxySetAsideSeq,
+} from "@omniroute/open-sse/utils/proxyRefusalMemory.ts";
+import { isProxySkipRecentlyFailedEnabled } from "@/shared/utils/featureFlags";
 import { invalidateDbCache } from "./readCache";
 import { encrypt, decrypt } from "./encryption";
 import { getProxyRegistryGeneration, resolveProxyForScopeFromRegistry } from "./proxies";
 import { getComboModelProvider as getComboEntryProvider } from "@/lib/combos/steps";
 import { requestBodyLimitMbFromEnv } from "@/shared/constants/bodySize";
 import { DEFAULT_RESPONSES_PREVIOUS_RESPONSE_ID_MODE } from "@/shared/constants/responsesPreviousResponseId";
+import { decodeUserinfo } from "@/shared/utils/decodeUserinfo";
 import { type JsonRecord, toRecord } from "./settings/shared";
 import { resolveNoAuthSharedProviderProxy } from "./settings/noAuthProxyFallback";
 
@@ -21,11 +29,14 @@ type ProxyResolutionResult = {
   levelId: string | null;
   source?: string;
 };
-type ProxyResolutionCacheEntry = {
+// State observed when a resolution started; an entry is stored only if it still holds.
+type ProxyResolutionStamp = {
   generation: number;
   registryGeneration: number;
-  result: ProxyResolutionResult;
+  // Proxy refusal memory sequence (see isCachedPoolMemberSetAside).
+  refusalSeq: number;
 };
+type ProxyResolutionCacheEntry = ProxyResolutionStamp & { result: ProxyResolutionResult };
 
 const PROXY_RESOLUTION_CACHE_MAX_ENTRIES = 100;
 
@@ -43,17 +54,16 @@ export function bumpProxyConfigGeneration() {
 
 function cacheProxyResolution(
   connectionId: string,
-  generation: number,
-  registryGeneration: number,
+  stamp: ProxyResolutionStamp,
   result: ProxyResolutionResult
 ) {
-  if (generation !== proxyConfigGeneration) return;
-  if (registryGeneration !== getProxyRegistryGeneration()) return;
+  if (stamp.generation !== proxyConfigGeneration) return;
+  if (stamp.registryGeneration !== getProxyRegistryGeneration()) return;
   if (proxyResolutionCache.size >= PROXY_RESOLUTION_CACHE_MAX_ENTRIES) {
     const oldestKey = proxyResolutionCache.keys().next().value;
     if (oldestKey) proxyResolutionCache.delete(oldestKey);
   }
-  proxyResolutionCache.set(connectionId, { generation, registryGeneration, result });
+  proxyResolutionCache.set(connectionId, { ...stamp, result });
 }
 type ProxyMap = Record<string, ProxyValue>;
 
@@ -147,13 +157,15 @@ export async function getSettings() {
     tailscaleUrl: "",
     stickyRoundRobinLimit: 3,
     disableSessionStickiness: false,
+    // Global connection-aware expansion fallback for group-B combo strategies is opt-in.
+    connectionAwareExpansion: false,
     promptCacheAffinityEnabled: true,
     comboStrategy: "fallback",
     comboStickyRoundRobinLimit: null, // null = inherit stickyRoundRobinLimit (a literal default here shadows the documented batched-rotation default of 3 — #6678 regression caught by the v3.8.47 release CI)
     providerStrategies: {},
     // Per-operator quota row visibility (dashboard usage tab). Keyed by
     // provider id → { hidden: [<quota visibility key>] }. Independent of the
-    // model catalog's isHidden/isDeleted flags (collectHiddenQuotaModelIds in
+    // model catalog's isHidden flag (collectHiddenQuotaModelIds in
     // ProviderLimits/utils.tsx) — this is a personal view preference, not an
     // admin model-catalog edit. Ported from upstream decolua/9router#2371.
     quotaVisibility: {},
@@ -162,6 +174,7 @@ export async function getSettings() {
     antigravitySignatureCacheMode: "enabled",
     requireLogin: true,
     oidcEnabled: false,
+    oidcDisablePasswordLogin: false,
     oidcIssuer: "",
     oidcClientId: "",
     oidcClientSecret: "",
@@ -212,7 +225,9 @@ export async function getSettings() {
     idempotencyWindowMs: 5000,
     wsAuth: false,
     maxBodySizeMb: requestBodyLimitMbFromEnv(process.env.MAX_BODY_SIZE_BYTES),
-    debugMode: true,
+    // #10312: opt-in only — a fresh install (or one missing the persisted key)
+    // must not run in debug mode; installs that persisted `true` keep it.
+    debugMode: false,
     // Opt-in diagnostic: when true, the chat handler emits a `log.debug("TOOLS", …)`
     // line per request summarizing tool count + MCP/hosted/client source breakdown.
     logToolSources: false,
@@ -225,6 +240,7 @@ export async function getSettings() {
     localOnlyManageScopeBypassEnabled: true,
     localOnlyManageScopeBypassPrefixes: ["/api/mcp/"],
     customBannedSignals: [],
+    autoDisableBannedScope: "all",
     proxyEnabled: true,
     perKeyProxyEnabled: false,
     customSystemPromptEnabled: false,
@@ -234,12 +250,25 @@ export async function getSettings() {
     // (`:free` suffix, zero-price pricing, or FREE_MODEL_BUDGETS membership). Default
     // false preserves prior behaviour; opt-in only.
     hidePaidModels: false,
+    // Opt-in, default off: same shape as hidePaidModels above, but requires a
+    // live hard-stop-guaranteed quota check for non-keyless free candidates.
+    // See open-sse/services/autoCombo/strictZeroCostFilter.ts.
+    freeAccessPolicy: "off",
+    excludeTosAvoid: false,
     // #9418: Opt-in filter that hides auto/* virtual combos from the /v1/models catalog.
     // User-defined combos are unaffected; routing still works for hidden ids sent explicitly.
     hideAutoCombos: false,
     // #9418: Opt-in filter that hides no-think/* gateway variants from the /v1/models catalog.
     // Routing still works for hidden ids sent explicitly.
     hideNoThinkVariants: false,
+    // #11481: Opt-in explicit model exposure allow/deny list, mirrored into the
+    // auto/* combo candidate pool (open-sse/services/autoCombo/modelExposureFilter.ts)
+    // so a denied model can't sneak back in via combo routing — the same trap
+    // #6512 already fixed once for hidePaidModels. See
+    // src/shared/utils/modelExposureList.ts for the matching predicate. Empty
+    // arrays preserve prior behaviour; opt-in only.
+    modelVisibilityAllowlist: [],
+    modelVisibilityDenylist: [],
     // #6977: Opt-in per-connection auto-ping that warms a Codex OAuth connection's
     // quota window right after it resets, so the first real request doesn't land in
     // a cold window. `connections` maps connection id -> enabled. Default empty map
@@ -392,8 +421,8 @@ function migrateProxyEntry(value: unknown): JsonRecord | null {
       port:
         url.port ||
         (url.protocol === "socks5:" ? "1080" : url.protocol === "https:" ? "443" : "8080"),
-      username: url.username ? decodeURIComponent(url.username) : "",
-      password: url.password ? decodeURIComponent(url.password) : "",
+      username: url.username ? decodeUserinfo(url.username) : "",
+      password: url.password ? decodeUserinfo(url.password) : "",
     };
   } catch {
     const parts = value.split(":");
@@ -484,6 +513,20 @@ export async function deleteProxyForLevel(level: string, id: string | null) {
   return setProxyForLevel(level, id, null);
 }
 
+// With PROXY_SKIP_RECENTLY_FAILED on, a pool member set aside AFTER its resolution started is
+// not re-served from the cache: the cascade runs again so the pool can pick another member.
+// Once per set-aside event: the new entry records the sequence it started from, so a member
+// the pool hands back anyway (every member set aside) is then served from the cache instead
+// of costing a DB cascade on every request. Legacy single-proxy levels have no alternative
+// and stay cached, like a result without a proxy. The flag is read last, only on a real hit.
+function isCachedPoolMemberSetAside(entry: ProxyResolutionCacheEntry): boolean {
+  const { result } = entry;
+  if (!hasProxyRefusals() || result.source !== "registry" || result.proxy == null) return false;
+  const setAsideSeq = proxySetAsideSeq(proxyEgressKey(result.proxy));
+  if (setAsideSeq === null || setAsideSeq <= entry.refusalSeq) return false;
+  return isProxySkipRecentlyFailedEnabled();
+}
+
 export async function resolveProxyForConnection(
   connectionId: string,
   apiKeyId?: string,
@@ -494,13 +537,17 @@ export async function resolveProxyForConnection(
     : apiKeyId
       ? `${connectionId}:${apiKeyId}`
       : connectionId;
-  const startGeneration = proxyConfigGeneration;
-  const startRegistryGeneration = getProxyRegistryGeneration();
+  const stamp: ProxyResolutionStamp = {
+    generation: proxyConfigGeneration,
+    registryGeneration: getProxyRegistryGeneration(),
+    refusalSeq: getProxyRefusalSeq(),
+  };
   const cached = proxyResolutionCache.get(cacheKey);
   if (
     cached &&
-    cached.generation === startGeneration &&
-    cached.registryGeneration === startRegistryGeneration
+    cached.generation === stamp.generation &&
+    cached.registryGeneration === stamp.registryGeneration &&
+    !isCachedPoolMemberSetAside(cached)
   ) {
     return cached.result;
   }
@@ -551,7 +598,7 @@ export async function resolveProxyForConnection(
   // fallback candidates from the proxy pool.
   if (connectionRecord && !connectionProxyEnabled) {
     const result: ProxyResolutionResult = { proxy: null, level: "direct", levelId: null };
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, result);
+    cacheProxyResolution(cacheKey, stamp, result);
     return result;
   }
 
@@ -612,7 +659,7 @@ export async function resolveProxyForConnection(
               levelId: apiKeyId,
               source: "api_key" as const,
             };
-            cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, result);
+            cacheProxyResolution(cacheKey, stamp, result);
             return result;
           }
         }
@@ -625,7 +672,7 @@ export async function resolveProxyForConnection(
   // Step 3: Account-level registry
   const registryAccount = await resolveProxyForScopeFromRegistry("account", connectionId);
   if (registryAccount?.proxy) {
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryAccount);
+    cacheProxyResolution(cacheKey, stamp, registryAccount);
     return registryAccount;
   }
 
@@ -636,7 +683,7 @@ export async function resolveProxyForConnection(
       level: "key",
       levelId: connectionId,
     };
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, result);
+    cacheProxyResolution(cacheKey, stamp, result);
     return result;
   }
 
@@ -649,7 +696,7 @@ export async function resolveProxyForConnection(
         connectionProvider
       );
       if (registryProvider?.proxy) {
-        cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryProvider);
+        cacheProxyResolution(cacheKey, stamp, registryProvider);
         return registryProvider;
       }
     }
@@ -679,7 +726,7 @@ export async function resolveProxyForConnection(
 
           const registryCombo = await resolveProxyForScopeFromRegistry("combo", comboId);
           if (registryCombo?.proxy) {
-            cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryCombo);
+            cacheProxyResolution(cacheKey, stamp, registryCombo);
             return registryCombo;
           }
 
@@ -689,7 +736,7 @@ export async function resolveProxyForConnection(
               level: "combo",
               levelId: comboId,
             };
-            cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, result);
+            cacheProxyResolution(cacheKey, stamp, result);
             return result;
           }
         } catch {
@@ -705,7 +752,7 @@ export async function resolveProxyForConnection(
         level: "provider",
         levelId: connectionProvider,
       };
-      cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, result);
+      cacheProxyResolution(cacheKey, stamp, result);
       return result;
     }
   }
@@ -718,7 +765,7 @@ export async function resolveProxyForConnection(
   if (!connectionRecord) {
     const noAuthFallback = await resolveNoAuthSharedProviderProxy(config.providers, providerId);
     if (noAuthFallback) {
-      cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, noAuthFallback);
+      cacheProxyResolution(cacheKey, stamp, noAuthFallback);
       return noAuthFallback;
     }
   }
@@ -726,14 +773,14 @@ export async function resolveProxyForConnection(
   // Step 9: Global registry
   const registryGlobal = await resolveProxyForScopeFromRegistry("global");
   if (registryGlobal?.proxy) {
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, registryGlobal);
+    cacheProxyResolution(cacheKey, stamp, registryGlobal);
     return registryGlobal;
   }
 
   // Step 10: Legacy global
   if (config.global) {
     const result = { proxy: withFamilyDefault(config.global), level: "global", levelId: null };
-    cacheProxyResolution(cacheKey, startGeneration, startRegistryGeneration, result);
+    cacheProxyResolution(cacheKey, stamp, result);
     return result;
   }
 
@@ -749,12 +796,7 @@ export async function resolveProxyForConnection(
         fallback.proxy && typeof fallback.proxy === "object"
           ? { ...fallback, proxy: withFamilyDefault(fallback.proxy as ProxyValue) }
           : fallback;
-      cacheProxyResolution(
-        cacheKey,
-        startGeneration,
-        startRegistryGeneration,
-        normalizedFallback as ProxyResolutionResult
-      );
+      cacheProxyResolution(cacheKey, stamp, normalizedFallback as ProxyResolutionResult);
       return normalizedFallback;
     }
   } catch (err) {
@@ -821,6 +863,8 @@ export {
   setLKGP,
   clearAllLKGP,
   clearLKGP,
+  deleteLKGPByComboName,
+  deleteLKGPRowsByComboName,
   deleteLKGPByConnectionIds,
 } from "./settings/lkgp";
 

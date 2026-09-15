@@ -5,11 +5,16 @@ import {
 } from "../services/geminiThoughtSignatureStore.ts";
 import { normalizeOpenAICompatibleFinishReasonString } from "../utils/finishReason.ts";
 import { containsTextualToolCallMarker } from "../utils/textualToolCall.ts";
+import { stripObfuscationZeroWidth } from "../utils/zeroWidth.ts";
 import { getAnyReasoningValue } from "../utils/reasoningFields.ts";
 import {
   caseInsensitiveToolNameLookup,
   restoreOpenAIToolNames,
 } from "../translator/helpers/toolCallHelper.ts";
+import { restoreClaudeToolName } from "../services/claudeCodeToolRemapper.ts";
+import { extractReplayableResponsesReasoningText } from "../services/reasoningInputPolicy.ts";
+import { sanitizeToolId } from "../translator/helpers/schemaCoercion.ts";
+import { stripEmptyOptionalToolArgs } from "../translator/response/openai-responses/pureHelpers.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -59,7 +64,7 @@ function parseTextualToolCall(text: unknown): { name: string; args: unknown } | 
   // variations, e.g. a leading "(empty)" marker or zero-width chars inserted
   // into argument strings. Normalize those variants before parsing so the
   // response is still surfaced as a structured OpenAI tool call.
-  const normalized = text.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  const normalized = stripObfuscationZeroWidth(text);
   const match = normalized.match(
     /^[\s\S]*?\[Tool call:\s*([^\]\n]+)\]\s*\nArguments:\s*([\s\S]+?)\s*$/
   );
@@ -132,12 +137,28 @@ function findBestMessageText(output: unknown[]): {
  * Handles different provider response formats (Gemini, Claude, etc.)
  *
  * @param toolNameMap - Optional Map<prefixedName, originalName> for Claude OAuth tool name stripping
+ * @param toolSchemas - Optional Map<toolName, parametersSchema> for schema-aware optional-arg cleanup
  */
+export function translateNonStreamingResponse(
+  responseBody: JsonRecord,
+  targetFormat: string,
+  sourceFormat: string,
+  toolNameMap?: Map<string, string> | null,
+  toolSchemas?: Map<string, JsonRecord> | null
+): JsonRecord;
 export function translateNonStreamingResponse(
   responseBody: unknown,
   targetFormat: string,
   sourceFormat: string,
-  toolNameMap?: Map<string, string> | null
+  toolNameMap?: Map<string, string> | null,
+  toolSchemas?: Map<string, JsonRecord> | null
+): unknown;
+export function translateNonStreamingResponse(
+  responseBody: unknown,
+  targetFormat: string,
+  sourceFormat: string,
+  toolNameMap?: Map<string, string> | null,
+  toolSchemas?: Map<string, JsonRecord> | null
 ): unknown {
   // If already in source format, return as-is
   if (targetFormat === sourceFormat) {
@@ -165,7 +186,8 @@ export function translateNonStreamingResponse(
 
     const messageSelection = findBestMessageText(output);
     let textContent = messageSelection.text;
-    let reasoningContent = "";
+    let replayableReasoningContent = "";
+    let reasoningSummary = "";
     const toolCalls: JsonRecord[] = [];
 
     for (const item of output) {
@@ -179,16 +201,22 @@ export function translateNonStreamingResponse(
           if (partObj.type === "summary_text" && typeof partObj.text === "string") {
             // #9500 — reasoning summary parts are discrete segments; join with "\n\n"
             // (matches extractThinkingFromContent convention) so they don't glue back-to-back.
-            reasoningContent += reasoningContent ? `\n\n${partObj.text}` : partObj.text;
+            reasoningSummary += reasoningSummary ? `\n\n${partObj.text}` : partObj.text;
           }
         }
-      } else if (itemObj.type === "reasoning" && Array.isArray(itemObj.summary)) {
-        for (const part of itemObj.summary) {
-          const partObj = toRecord(part);
-          if (partObj.type === "summary_text" && typeof partObj.text === "string") {
-            // #9500 — reasoning summary parts are discrete segments; join with "\n\n"
-            // (matches extractThinkingFromContent convention) so they don't glue back-to-back.
-            reasoningContent += reasoningContent ? `\n\n${partObj.text}` : partObj.text;
+      } else if (itemObj.type === "reasoning") {
+        const replayable = extractReplayableResponsesReasoningText(itemObj);
+        if (replayable) {
+          replayableReasoningContent += replayableReasoningContent
+            ? `\n\n${replayable}`
+            : replayable;
+        }
+        if (Array.isArray(itemObj.summary)) {
+          for (const part of itemObj.summary) {
+            const partObj = toRecord(part);
+            if (partObj.type === "summary_text" && typeof partObj.text === "string") {
+              reasoningSummary += reasoningSummary ? `\n\n${partObj.text}` : partObj.text;
+            }
           }
         }
       } else if (itemObj.type === "function_call") {
@@ -197,6 +225,11 @@ export function translateNonStreamingResponse(
           toString(itemObj.id) ||
           `call_${Date.now()}_${toolCalls.length}`;
         let argsToEmit = itemObj.arguments;
+        const rawName = toString(itemObj.name);
+        const toolSchema = toolSchemas?.get(rawName);
+        if (toolSchema) {
+          argsToEmit = stripEmptyOptionalToolArgs(argsToEmit, rawName, toolSchema);
+        }
         if (argsToEmit != null && typeof argsToEmit === "object" && !Array.isArray(argsToEmit)) {
           const cleaned: JsonRecord = { ...(argsToEmit as JsonRecord) };
           for (const [k, v] of Object.entries(cleaned)) {
@@ -207,7 +240,6 @@ export function translateNonStreamingResponse(
 
         const fnArgs =
           typeof argsToEmit === "string" ? argsToEmit : JSON.stringify(argsToEmit || {});
-        const rawName = toString(itemObj.name);
         // Strip Claude OAuth proxy_ prefix using toolNameMap
         const resolvedName = caseInsensitiveToolNameLookup(rawName, toolNameMap) ?? rawName;
         toolCalls.push({
@@ -225,13 +257,24 @@ export function translateNonStreamingResponse(
     if (textContent) {
       message.content = textContent;
     }
-    if (reasoningContent) {
-      message.reasoning_content = reasoningContent;
+    if (replayableReasoningContent) {
+      message.reasoning_content = replayableReasoningContent;
+    }
+    if (reasoningSummary) {
+      message.reasoning_summary = [{ type: "summary_text", text: reasoningSummary }];
     }
     if (toolCalls.length > 0) {
       message.tool_calls = toolCalls;
     }
-    if (message.content === undefined) {
+    if (
+      (!message.content ||
+        (typeof message.content === "string" && message.content.trim().length === 0)) &&
+      toolCalls.length === 0 &&
+      replayableReasoningContent &&
+      replayableReasoningContent.trim().length > 0
+    ) {
+      message.content = replayableReasoningContent;
+    } else if (message.content === undefined) {
       message.content = "";
     }
 
@@ -277,10 +320,15 @@ export function translateNonStreamingResponse(
         promptTokensDetails.cached_tokens,
         usage.cache_read_input_tokens
       );
+      // `cache_write_tokens` is the alias emitted by the codex-chatgpt-web bridge
+      // (input_tokens_details) and by OpenRouter/Devin Desktop (top level).
       const cacheCreationInputTokens = firstPositiveNumber(
         inputTokensDetails.cache_creation_tokens,
         promptTokensDetails.cache_creation_tokens,
-        usage.cache_creation_input_tokens
+        usage.cache_creation_input_tokens,
+        inputTokensDetails.cache_write_tokens,
+        promptTokensDetails.cache_write_tokens,
+        usage.cache_write_tokens
       );
       const reasoningTokens = firstPositiveNumber(
         outputTokensDetails.reasoning_tokens,
@@ -607,7 +655,7 @@ export function translateNonStreamingResponse(
 
   // Phase 3: Translate from OpenAI back to Client Source format
   if (sourceFormat === FORMATS.CLAUDE && sourceFormat !== targetFormat) {
-    return convertOpenAINonStreamingToClaude(toRecord(intermediateOpenAI));
+    return convertOpenAINonStreamingToClaude(toRecord(intermediateOpenAI), toolNameMap ?? null);
   }
 
   // Gemini-family clients (Gemini, Antigravity): the streaming SSE path already
@@ -643,8 +691,18 @@ function resolveReasoningText(messageObj: JsonRecord): string {
 
 /**
  * Helper to convert an OpenAI chat.completion JSON object to Claude format for non-streaming.
+ *
+ * `toolNameMap` carries request-side aliases; when it does not resolve a name,
+ * `restoreClaudeToolName` upgrades known Claude Code tools to their canonical
+ * PascalCase ("bash" → "Bash", "croncreate" → "CronCreate"). Without this, a
+ * non-streaming upstream JSON body (or a stream:true request the upstream
+ * answered with application/json) reaches Claude Code with lowercase tool_use
+ * names the CLI rejects as "No such tool available".
  */
-function convertOpenAINonStreamingToClaude(openaiResponse: JsonRecord): JsonRecord {
+function convertOpenAINonStreamingToClaude(
+  openaiResponse: JsonRecord,
+  toolNameMap?: Map<string, string> | null
+): JsonRecord {
   const choices = openaiResponse.choices as unknown[] | undefined;
   const isChoicesArray = Array.isArray(choices);
   if (!isChoicesArray && openaiResponse.object !== "chat.completion") {
@@ -689,10 +747,11 @@ function convertOpenAINonStreamingToClaude(openaiResponse: JsonRecord): JsonReco
     for (const tool of messageObj.tool_calls) {
       const toolObj = toRecord(tool);
       const fn = toRecord(toolObj.function);
+      const rawId = toString(toolObj.id, `call_${Date.now()}`);
       content.push({
         type: "tool_use",
-        id: toString(toolObj.id, `call_${Date.now()}`),
-        name: toString(fn.name),
+        id: sanitizeToolId(rawId),
+        name: restoreClaudeToolName(toString(fn.name), toolNameMap ?? null),
         input:
           typeof fn.arguments === "string" ? JSON.parse(fn.arguments || "{}") : fn.arguments || {},
       });

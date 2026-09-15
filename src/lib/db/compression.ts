@@ -26,6 +26,8 @@ import {
   DEFAULT_CODEX_RESPONSES_CONFIG,
   type CodexResponsesConfig,
   type ContextEditingConfig,
+  DEFAULT_OMNIGLYPH_CONFIG,
+  type OmniglyphConfig,
   type EngineToggle,
   type HeadroomConfig,
   type McpAccessibilityConfig,
@@ -301,6 +303,19 @@ function normalizeLanguageConfig(value: unknown): CompressionLanguageConfig {
         ? record.autoDetect
         : DEFAULT_COMPRESSION_LANGUAGE_CONFIG.autoDetect,
     enabledPacks: [...new Set(enabledPacks.length > 0 ? enabledPacks : ["en"])],
+  };
+}
+
+function normalizeOmniglyphConfig(value: unknown): OmniglyphConfig {
+  const record = toRecord(value);
+  const profile = record.profile;
+  // Um perfil desconhecido não pode virar "roda com a política padrão": cai para
+  // o default explícito, e o adapter ainda falha fechado se algo passar por aqui.
+  return {
+    profile:
+      profile === "coding-safe" || profile === "balanced" || profile === "passthrough"
+        ? profile
+        : DEFAULT_OMNIGLYPH_CONFIG.profile,
   };
 }
 
@@ -621,6 +636,7 @@ export async function getCompressionSettings(): Promise<CompressionConfig> {
     ...buildDetailConfigDefaults(),
     contextBudget: normalizeContextBudgetConfig(undefined),
     contextEditing: { ...DEFAULT_CONTEXT_EDITING_CONFIG },
+    omniglyph: { ...DEFAULT_OMNIGLYPH_CONFIG },
     liveZone: { enabled: false },
     engines: {},
     activeComboId: null,
@@ -743,6 +759,9 @@ export async function getCompressionSettings(): Promise<CompressionConfig> {
         break;
       case "contextEditing":
         config.contextEditing = normalizeContextEditingConfig(parsed);
+        break;
+      case "omniglyph":
+        config.omniglyph = normalizeOmniglyphConfig(parsed);
         break;
       case "liveZone":
         config.liveZone = { enabled: toRecord(parsed).enabled === true };
@@ -876,4 +895,50 @@ export async function setMcpAccessibilityConfig(
   );
   compressionSettingsCache = null;
   invalidateDbCache();
+}
+
+// Proactive-compression threshold knob (livewell backport branch).
+// The ratio of the (context limit - reserved tool tokens) at which proactive
+// context compression triggers used to be a hardcoded 0.7 in open-sse/handlers/
+// chatCore.ts. That left operators no way to move compression relative to a
+// client's own compaction point — e.g. Codex Desktop self-compacts at ~0.85 of
+// its window, so a 0.7 proxy threshold always preempts the client's (correct)
+// compaction with the proxy's (lossier) one. Stored in key_value (namespace
+// 'compression', key 'proactiveConfig', JSON {"thresholdRatio": 0.7}). Lives
+// here (not in the handler) per Hard Rule #5 — no raw SQL outside src/lib/db/.
+// better-sqlite3 is synchronous so the read stays in the sync hot path. 30s
+// TTL cache keeps per-request overhead at zero while still letting a plain
+// sqlite UPDATE take effect without a restart.
+const PROACTIVE_COMPRESSION_DEFAULT_RATIO = 0.7;
+const PROACTIVE_COMPRESSION_RATIO_MIN = 0.1;
+const PROACTIVE_COMPRESSION_RATIO_MAX = 0.99;
+const PROACTIVE_COMPRESSION_CACHE_TTL_MS = 30_000;
+let proactiveRatioCache: { value: number; readAt: number } | null = null;
+
+export function getProactiveCompressionRatio(): number {
+  const now = Date.now();
+  if (proactiveRatioCache && now - proactiveRatioCache.readAt < PROACTIVE_COMPRESSION_CACHE_TTL_MS) {
+    return proactiveRatioCache.value;
+  }
+  let ratio = PROACTIVE_COMPRESSION_DEFAULT_RATIO;
+  try {
+    const row = getDbInstance()
+      .prepare("SELECT value FROM key_value WHERE namespace = ? AND key = ?")
+      .get(NAMESPACE, "proactiveConfig") as { value?: string } | undefined;
+    if (row?.value) {
+      const parsed = JSON.parse(row.value) as { thresholdRatio?: unknown };
+      const candidate = Number(parsed?.thresholdRatio);
+      if (
+        Number.isFinite(candidate) &&
+        candidate >= PROACTIVE_COMPRESSION_RATIO_MIN &&
+        candidate <= PROACTIVE_COMPRESSION_RATIO_MAX
+      ) {
+        ratio = candidate;
+      }
+    }
+  } catch {
+    // Missing table/row or unparsable JSON: fall back to the shipped default.
+  }
+  proactiveRatioCache = { value: ratio, readAt: now };
+  return ratio;
 }

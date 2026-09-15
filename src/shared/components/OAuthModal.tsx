@@ -144,7 +144,9 @@ export default function OAuthModal({
   const [gheUrl, setGheUrl] = useState("");
   const [polling, setPolling] = useState(false);
   const [deviceCodeExpiresAt, setDeviceCodeExpiresAt] = useState<number | null>(null);
-  const [deviceCodeSecondsRemaining, setDeviceCodeSecondsRemaining] = useState<number | null>(null);
+  // Wall-clock tick driving the device-code countdown; ticked by the interval
+  // effect below and re-anchored whenever a device flow (re)starts.
+  const [now, setNow] = useState(() => Date.now());
   // API-key paste mode for direct-token providers.
   const [showPasteToken, setShowPasteToken] = useState(IMPORT_TOKEN_ONLY_PROVIDERS.has(provider));
   const [pasteToken, setPasteToken] = useState("");
@@ -204,7 +206,6 @@ export default function OAuthModal({
     deviceFlowRunRef.current += 1;
     setPolling(false);
     setDeviceCodeExpiresAt(null);
-    setDeviceCodeSecondsRemaining(null);
   }, []);
 
   // Define all useCallback hooks BEFORE the useEffects that reference them
@@ -323,6 +324,7 @@ export default function OAuthModal({
 
       setPolling(true);
       setDeviceCodeExpiresAt(deadline);
+      setNow(Date.now());
 
       while (Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, currentInterval * 1000));
@@ -430,13 +432,17 @@ export default function OAuthModal({
           const verifyUrl = data.verification_uri_complete || data.verification_uri;
           if (typeof verifyUrl === "string" && verifyUrl) window.open(verifyUrl, "oauth_verify");
 
-          // Start polling - pass extraData for Kiro (contains _clientId, _clientSecret)
+          // Start polling - pass extraData for Kiro (contains _clientId, _clientSecret).
+          // _authMethod must be forwarded too: pollToken falls back to "builder-id" without it,
+          // which makes postExchange skip the Q Developer profile lookup. An IdC connection then
+          // gets persisted with no profileArn and every usage call returns 403.
           const extraData =
             provider === "kiro" || provider === "amazon-q"
               ? {
                   _clientId: data._clientId,
                   _clientSecret: data._clientSecret,
                   _region: data._region,
+                  _authMethod: data._authMethod,
                 }
               : provider === "ghe-copilot" && gheUrl.trim()
                 ? { gheUrl: gheUrl.trim() }
@@ -456,11 +462,17 @@ export default function OAuthModal({
         // Claude Code and Cline OAuth flows can finish on provider-hosted pages that
         // show an auth code instead of redirecting back to OmniRoute.
         // Start directly in manual mode so users always have an input to paste code/url.
-        // zed-hosted's native-app sign-in always redirects the browser to a local
-        // 127.0.0.1:<port> callback that OmniRoute never listens on (the port is
-        // arbitrary and unrelated to the dashboard's own port) — nothing can
-        // auto-close the popup, so always show the manual paste-URL input.
-        if (provider === "claude" || provider === "cline" || provider === "zed-hosted") {
+        // zed-hosted's native-app sign-in redirects the browser to a local
+        // 127.0.0.1:<native_app_port> callback. On true localhost that port IS the
+        // dashboard's own (buildAuthUrl reuses it), so the redirect lands on the
+        // /callback relay and the popup flow auto-completes. Elsewhere (LAN/remote)
+        // the port is unreachable — nothing can auto-close the popup, so always
+        // show the manual paste-URL input.
+        if (
+          provider === "claude" ||
+          provider === "cline" ||
+          (provider === "zed-hosted" && !isTrueLocalhost)
+        ) {
           forceManual = true;
         }
 
@@ -623,33 +635,50 @@ export default function OAuthModal({
   );
 
   useEffect(() => {
-    if (!deviceCodeExpiresAt) {
-      setDeviceCodeSecondsRemaining(null);
-      return;
-    }
-
-    const updateRemaining = () => {
-      setDeviceCodeSecondsRemaining(
-        Math.max(0, Math.ceil((deviceCodeExpiresAt - Date.now()) / 1000))
-      );
-    };
-    updateRemaining();
-    const timer = window.setInterval(updateRemaining, 1000);
+    if (!deviceCodeExpiresAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [deviceCodeExpiresAt]);
 
-  useEffect(() => {
-    invalidateDeviceFlow();
-    flowStartedRef.current = false;
+  // Derived countdown (replaces the old mirrored deviceCodeSecondsRemaining
+  // state): `now` is re-anchored when the device flow starts and ticked by the
+  // interval effect above.
+  const deviceCodeSecondsRemaining =
+    deviceCodeExpiresAt == null ? null : Math.max(0, Math.ceil((deviceCodeExpiresAt - now) / 1000));
+
+  // When the provider changes, reset the flow state during render (react.dev
+  // "You Might Not Need an Effect") and invalidate any in-flight device flow
+  // in a ref-only effect (refs must not be written during render).
+  const [prevProvider, setPrevProvider] = useState(provider);
+  if (provider !== prevProvider) {
+    setPrevProvider(provider);
+    setPolling(false);
+    setDeviceCodeExpiresAt(null);
     setGrokBrowserMode(false);
-  }, [provider, invalidateDeviceFlow]);
+  }
+
+  useEffect(() => {
+    deviceFlowRunRef.current += 1;
+    flowStartedRef.current = false;
+  }, [provider]);
+
+  // Same split when the modal closes: state reset during render, ref
+  // invalidation in a ref-only effect.
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (!isOpen) {
+      setPolling(false);
+      setDeviceCodeExpiresAt(null);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
-      invalidateDeviceFlow();
+      deviceFlowRunRef.current += 1;
       flowStartedRef.current = false;
     }
-  }, [isOpen, invalidateDeviceFlow]);
+  }, [isOpen]);
 
   useEffect(
     () => () => {
@@ -658,26 +687,43 @@ export default function OAuthModal({
     []
   );
 
-  // Reset state and start OAuth when modal opens
+  // Reset state and start OAuth when modal opens. The synchronous state resets
+  // moved from the old effect into this render-time adjustment (react.dev
+  // "You Might Not Need an Effect"); the flow itself starts in the effect below.
+  const [prevStartKey, setPrevStartKey] = useState<string | null>(null);
+  const startKey = isOpen && provider ? String(provider) : null;
+  if (startKey !== prevStartKey) {
+    setPrevStartKey(startKey);
+    if (startKey) {
+      setShowPasteToken(IMPORT_TOKEN_ONLY_PROVIDERS.has(provider));
+      setGrokBrowserMode(false);
+      setAuthData(null);
+      setCallbackUrl("");
+      setError(null);
+      setIsDeviceCode(false);
+      setDeviceData(null);
+      setPolling(false);
+      // #8688: show GitLab Duo OAuth app / env setup before authorize error.
+      if (provider === "gitlab-duo") {
+        setStep("gitlab-duo-setup");
+      }
+    }
+  }
+
   useEffect(() => {
     if (!isOpen || !provider || flowStartedRef.current) return;
-    flowStartedRef.current = true;
     const startsInPasteMode = IMPORT_TOKEN_ONLY_PROVIDERS.has(provider);
-    // #8688: show GitLab Duo OAuth app / env setup before authorize error.
     const startsInGitlabDuoSetup = provider === "gitlab-duo";
-    setShowPasteToken(startsInPasteMode);
-    setGrokBrowserMode(false);
-    setAuthData(null);
-    setCallbackUrl("");
-    setError(null);
-    setIsDeviceCode(false);
-    setDeviceData(null);
-    setPolling(false);
     if (startsInGitlabDuoSetup) {
-      setStep("gitlab-duo-setup");
+      // Auto-start is skipped — setStep("gitlab-duo-setup") already happened
+      // in the render-time adjustment above (#8688).
       return;
     }
-    if (!startsInPasteMode) startOAuthFlow();
+    flowStartedRef.current = true;
+    const run = async () => {
+      if (!startsInPasteMode) startOAuthFlow();
+    };
+    run();
   }, [isOpen, provider, startOAuthFlow]);
 
   // Listen for OAuth callback via multiple methods
@@ -880,6 +926,17 @@ export default function OAuthModal({
       }
 
       const input = callbackUrl.trim();
+
+      // zed-hosted: the native-app callback (http://127.0.0.1:<port>/?user_id=...&access_token=...)
+      // carries no ?code= param — the FULL pasted URL (or JSON/query blob) is the
+      // payload. zed-hosted's exchangeToken parses user_id/access_token out of it
+      // and RSA-decrypts the token with the private key held in codeVerifier, so
+      // skip the generic code/state extraction below.
+      if (provider === "zed-hosted") {
+        await exchangeTokens(input, authData?.state || null);
+        return;
+      }
+
       let code = null;
       let state = authData?.state || null;
       let errorParam = null;

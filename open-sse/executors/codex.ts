@@ -20,6 +20,7 @@ import {
 import { FETCH_BODY_TIMEOUT_MS, HTTP_STATUS, PROVIDERS } from "../config/constants.ts";
 import { readCodexPeekChunk, buildCodexTimeoutSafePassthroughBody } from "./codex/bodyTimeout.ts";
 import {
+  CODEX_CLI_RS_ORIGINATOR,
   getCodexClientVersion,
   getCodexUserAgent,
   normalizeCodexSessionId,
@@ -27,21 +28,23 @@ import {
 import {
   applyCodexClientIdentityHeaders,
   applyCodexClientMetadata,
-  createCodexClientIdentity,
+  applyCodexOriginalIdentityHeaders,
   type CodexClientIdentity,
+  withCodexFingerprintCredentials,
 } from "../config/codexIdentity.ts";
 import { getAccessToken } from "../services/tokenRefresh.ts";
 import { sanitizeResponsesInputItems } from "../services/responsesInputSanitizer.ts";
-import { applyResponsesInputPolicy } from "../services/responsesInputPolicy.ts";
+import { applyReasoningInputPolicy } from "../services/reasoningInputPolicy.ts";
 import { normalizeCodexVerbosity } from "../services/codexVerbosity.ts";
 import { getThinkingBudgetConfig, ThinkingMode } from "../services/thinkingBudget.ts";
 import { CORS_HEADERS } from "../utils/cors.ts";
+import { projectCodexPublicError } from "../utils/codexPublicError.ts";
 import { errorResponse } from "../utils/error.ts";
 import { normalizeCodexResponsesInput } from "../utils/responsesInputNormalization.ts";
 import * as prl from "../utils/providerRequestLogging.ts";
 import { createRequire } from "module";
-// Quota parsing/scheduling extracted to a pure leaf; re-exported for external
-// importers (handlers/chatCore/codexQuota.ts + tests).
+// Quota parsing/scheduling extracted to a pure leaf; re-exported for the
+// Codex account module and tests.
 export {
   type CodexQuotaSnapshot,
   parseCodexQuotaHeaders,
@@ -51,11 +54,13 @@ export {
 import { isCodexFreePlan, normalizeCodexTools } from "./codex/tools.ts";
 import {
   CODEX_EFFORT_ORDER as EFFORT_ORDER,
-  GPT_5_6_ULTRA_ALIAS_MODELS,
+  CODEX_ULTRA_ALIAS_MODELS,
   splitCodexReasoningSuffix,
   type CodexEffortLevel as EffortLevel,
 } from "./codex/reasoningSuffix.ts";
 import { repairMissingCodexToolCallOutputs } from "./codex/toolCallRepair.ts";
+import { resolveAppServerConfig } from "./codex/appServerConfig.ts";
+import { CodexAppServerExecutor } from "./codex-app-server.ts";
 // Re-exported for external importers (tests + provider services).
 export { isCodexFreePlan, normalizeCodexTools } from "./codex/tools.ts";
 
@@ -98,6 +103,12 @@ export function __setCodexWebSocketTransportForTesting(
   websocket: WebsocketFn | null | undefined
 ): void {
   _websocketOverride = websocket;
+}
+
+// Exposed for the app-server transport, which needs the same wreq-js websocket
+// factory (with the testing override honored) to open its JSON-RPC socket.
+export function getCodexAppServerWebsocketTransport(): WebsocketFn | null {
+  return getCodexWebSocketTransport();
 }
 
 function codexWebSocketUnavailableResponse(): Response {
@@ -156,13 +167,13 @@ function isCodexResponsesLiteRequest(
   );
 }
 
-// GPT-5.6 ultra-tier (sol/terra at "ultra") and luna at "max" coordinate delegation to
+// Astra/Sol/Terra at "ultra" and Luna at "max" coordinate delegation to
 // sub-agents via parallel tool calls (see the effort-clamp comment near clampEffort()).
 // Responses Lite must not strip parallel_tool_calls for those model/effort combos, or
 // delegation silently breaks while the request still returns HTTP 200 (issue #7821).
 function isCodexDelegationDependentModel(model: unknown): boolean {
   const { baseModel, effort } = splitCodexReasoningSuffix(model);
-  if (effort === "ultra" && GPT_5_6_ULTRA_ALIAS_MODELS.has(baseModel)) return true;
+  if (effort === "ultra" && CODEX_ULTRA_ALIAS_MODELS.has(baseModel)) return true;
   if (effort === "max" && baseModel === "gpt-5.6-luna") return true;
   return false;
 }
@@ -223,7 +234,6 @@ function convertSystemToDeveloperRole(body: Record<string, unknown>): void {
     }
   }
 }
-
 
 function stripOrphanedCodexFunctionCallOutputs(body: Record<string, unknown>): void {
   if (!Array.isArray(body.input)) return;
@@ -314,12 +324,9 @@ function normalizeServiceTierValue(value: unknown): string | undefined {
   return normalized;
 }
 
-/**
- * Maximum reasoning effort allowed per Codex model.
- * Models not listed here retain the legacy xhigh cap.
- * Update this table when Codex releases new models with different caps.
- */
+/** Maximum reasoning effort per Codex model; unlisted models keep the xhigh cap. */
 const MAX_EFFORT_BY_MODEL: Record<string, EffortLevel> = {
+  "gpt-6-astra": "ultra",
   "gpt-5.6-sol": "ultra",
   "gpt-5.6-terra": "ultra",
   "gpt-5.6-luna": "max",
@@ -394,6 +401,34 @@ function isCodexWsGloballyEnabled(): boolean {
   }
 }
 
+/**
+ * Global Codex app-server kill-switch (feature flag OMNIROUTE_CODEX_APP_SERVER_ENABLED,
+ * default ON). Fail-open, mirroring isCodexWsGloballyEnabled.
+ */
+function isCodexAppServerGloballyEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OMNIROUTE_CODEX_APP_SERVER_ENABLED");
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * True when the connection opted into the app-server transport
+ * (providerSpecificData.codexTransport === "app-server") AND the app-server is
+ * configured (URL + token resolvable) AND the global flag is on. Selected BEFORE
+ * the websocket check so it wins when configured.
+ */
+export function isCodexAppServerRequired(credentials: unknown): boolean {
+  if (!isCodexAppServerGloballyEnabled()) return false;
+  const providerSpecificData =
+    credentials && typeof credentials === "object"
+      ? (credentials as { providerSpecificData?: Record<string, unknown> }).providerSpecificData
+      : null;
+  if (providerSpecificData?.codexTransport !== "app-server") return false;
+  return !!resolveAppServerConfig(providerSpecificData);
+}
+
 export function isCodexResponsesWebSocketRequired(_model: string, credentials: unknown): boolean {
   // Global kill-switch (default ON). When disabled, Codex never uses the WS
   // transport — even per-connection codexTransport=websocket falls back to the
@@ -456,7 +491,6 @@ function toCodexResponseFailedEvent(parsed: Record<string, unknown>): Record<str
     typeof upstreamError.message === "string" && upstreamError.message.trim()
       ? upstreamError.message
       : "Codex upstream error";
-  const error: Record<string, unknown> = { code, message };
   const explicitStatus =
     toStatusCode(parsed.status_code) ??
     toStatusCode(parsed.status) ??
@@ -466,8 +500,10 @@ function toCodexResponseFailedEvent(parsed: Record<string, unknown>): Record<str
     toStatusCode(upstreamError.status);
   const statusCode =
     explicitStatus ?? (looksLikeQuotaOrRateLimit(code, type, message) ? 429 : null);
+  const error: Record<string, unknown> = {
+    ...projectCodexPublicError({ status: statusCode, code, type }),
+  };
 
-  if (type) error.type = type;
   if (statusCode !== null) error.status_code = statusCode;
 
   return {
@@ -480,15 +516,18 @@ function toCodexResponseFailedEvent(parsed: Record<string, unknown>): Record<str
   };
 }
 
-// Env-gated kill-switch: drop ALL non-standard `codex.*` SSE events (notably
-// `codex.rate_limits`) from the Responses stream. These events are NOT part of
-// the OpenAI Responses API — strict clients (e.g. the OpenAI SDK's
-// `responses.stream()`) choke on the unknown event type / empty data field and
-// tear the stream down, surfacing as "Invalid state: Controller is already
-// closed". Opt-in so the default still forwards them for clients that want them.
-function codexDropNonstandardEvents(): boolean {
+// Drop non-standard `codex.*` SSE events (notably `codex.rate_limits`) from
+// the Responses stream. These events are NOT part of the OpenAI Responses API
+// — strict clients (e.g. the OpenAI SDK's `responses.stream()`) choke on the
+// unknown event type / empty data field and tear the stream down, surfacing as
+// 502 "Unknown error" / "Invalid state: Controller is already closed".
+// Default ON (#11014). Opt out with 0/false/no/off if a client consumes them.
+export function codexDropNonstandardEvents(): boolean {
   const v = process.env.OMNIROUTE_CODEX_DROP_NONSTANDARD_EVENTS;
-  return v === "true" || v === "1" || v === "yes";
+  if (v === undefined || v.trim() === "") return true;
+  const n = v.trim().toLowerCase();
+  if (n === "0" || n === "false" || n === "no" || n === "off") return false;
+  return true;
 }
 
 // SSE block filter for the HTTP Responses path (super.execute). The HTTP
@@ -497,7 +536,11 @@ function codexDropNonstandardEvents(): boolean {
 // encodeResponseSseEvent never runs for it. When the kill-switch is on, strip
 // every `codex.*` event block from the byte stream before it reaches the client.
 // Exported for unit testing (#4715). Strips `codex.*` SSE event blocks from a
-// streaming Response when the OMNIROUTE_CODEX_DROP_NONSTANDARD_EVENTS kill-switch is on.
+// streaming Response when `codexDropNonstandardEvents()` is on (default, #11014).
+// Pre-compiled: the filter's transform() runs on every chunk, so these were
+// re-allocated per block/iteration before hoisting.
+const CODEX_SSE_EVENT_LINE_RE = /^event:\s*(.+)$/m;
+const CODEX_SSE_BLOCK_SEP_RE = /\r?\n\r?\n/;
 export function filterNonstandardCodexSse(response: Response): Response {
   const contentType = response.headers.get("content-type") || "";
   if (!response.body || !contentType.includes("text/event-stream")) {
@@ -507,16 +550,18 @@ export function filterNonstandardCodexSse(response: Response): Response {
   const encoder = new TextEncoder();
   let buffer = "";
   const dropBlock = (block: string): boolean => {
-    const match = /^event:\s*(.+)$/m.exec(block);
+    const match = CODEX_SSE_EVENT_LINE_RE.exec(block);
     return !!match && match[1].trim().startsWith("codex.");
   };
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
       buffer += decoder.decode(chunk, { stream: true });
-      let sep: number;
-      while ((sep = buffer.indexOf("\n\n")) !== -1) {
-        const block = buffer.slice(0, sep + 2);
-        buffer = buffer.slice(sep + 2);
+      while (true) {
+        const separator = CODEX_SSE_BLOCK_SEP_RE.exec(buffer);
+        if (!separator) break;
+        const blockEnd = separator.index + separator[0].length;
+        const block = buffer.slice(0, blockEnd);
+        buffer = buffer.slice(blockEnd);
         if (!dropBlock(block)) controller.enqueue(encoder.encode(block));
       }
     },
@@ -700,8 +745,8 @@ export function encodeResponseSseEvent(raw: string): { sse: string; terminal: bo
   // "Invalid state: Controller is already closed". The earlier empty-payload
   // check below never caught codex.rate_limits — over WS the frame carries a
   // non-empty JSON payload (`{"type":"codex.rate_limits", ...}`), so
-  // `!payload.trim()` is false. Match by event type instead. Opt-in via
-  // OMNIROUTE_CODEX_DROP_NONSTANDARD_EVENTS (the HTTP transport is handled
+  // `!payload.trim()` is false. Match by event type instead. Default ON via
+  // OMNIROUTE_CODEX_DROP_NONSTANDARD_EVENTS (#11014); the HTTP transport is handled
   // separately by filterNonstandardCodexSse, since super.execute forwards the
   // upstream stream verbatim and never runs this function).
   if (eventType.startsWith("codex.") && codexDropNonstandardEvents()) {
@@ -754,6 +799,8 @@ function normalizeCodexWsHeaders(headers: Record<string, string>): Record<string
  * IMPORTANT: Includes chatgpt-account-id header for workspace binding.
  */
 export class CodexExecutor extends BaseExecutor {
+  private appServer: CodexAppServerExecutor | null = null;
+
   constructor() {
     super("codex", PROVIDERS.codex);
   }
@@ -765,24 +812,21 @@ export class CodexExecutor extends BaseExecutor {
       input.model
     );
     const requestInput = requestBody === input.body ? input : { ...input, body: requestBody };
-    const sessionId = this.getPromptCacheSessionId(
+    const credentials = withCodexFingerprintCredentials(
       requestInput.credentials,
-      requestInput.body as Record<string, unknown> | null
+      requestInput.clientHeaders,
+      requestInput.body
     );
-    const identity = createCodexClientIdentity(
-      sessionId,
-      requestInput.credentials?.providerSpecificData ?? null
-    );
-    const credentials = identity
-      ? {
-          ...requestInput.credentials,
-          providerSpecificData: {
-            ...(requestInput.credentials?.providerSpecificData || {}),
-            codexClientIdentity: identity,
-          },
-        }
-      : requestInput.credentials;
     const nextInput = { ...requestInput, credentials };
+
+    if (isCodexAppServerRequired(nextInput.credentials)) {
+      if (!this.appServer) {
+        this.appServer = new CodexAppServerExecutor({
+          websocketFn: getCodexAppServerWebsocketTransport(),
+        });
+      }
+      return this.appServer.execute(nextInput);
+    }
 
     if (!isCodexResponsesWebSocketRequired(nextInput.model, nextInput.credentials)) {
       const httpResult = await super.execute(nextInput);
@@ -910,7 +954,7 @@ export class CodexExecutor extends BaseExecutor {
       }
     };
 
-    const failController = (code: string, message: string) => {
+    const failController = (code: string, _message: string) => {
       if (closed) return;
       const controller = streamController;
       const payload = JSON.stringify({
@@ -918,7 +962,7 @@ export class CodexExecutor extends BaseExecutor {
         response: {
           id: null,
           status: "failed",
-          error: { code, message },
+          error: projectCodexPublicError({ status: 502, code, type: "provider_error" }),
         },
       });
       try {
@@ -1054,10 +1098,13 @@ export class CodexExecutor extends BaseExecutor {
     }
     const clientIdentity = credentials?.providerSpecificData?.codexClientIdentity as
       CodexClientIdentity | null | undefined;
+    const originalIdentityHeaders = credentials?.providerSpecificData
+      ?.codexOriginalIdentityHeaders as Record<string, string> | null | undefined;
+    const turnStateEcho = credentials?.providerSpecificData?.codexTurnStateEcho;
 
     // Originator header — identifies the client type to the Codex backend.
     // Ref: openai/codex login/src/auth/default_client.rs DEFAULT_ORIGINATOR = "codex_cli_rs"
-    headers["originator"] = "codex_cli_rs";
+    headers["originator"] = CODEX_CLI_RS_ORIGINATOR;
 
     // session_id header — enables prompt cache affinity on the Codex backend.
     // The official Codex client sets this to conversation_id (a stable UUID per session).
@@ -1066,7 +1113,15 @@ export class CodexExecutor extends BaseExecutor {
     if (cacheSessionId) {
       headers["session_id"] = cacheSessionId;
     }
+    applyCodexOriginalIdentityHeaders(headers, originalIdentityHeaders);
     applyCodexClientIdentityHeaders(headers, clientIdentity);
+
+    // x-codex-turn-state: forward the client's echo when the provenance guard
+    // (in withCodexFingerprintCredentials) cleared it as same-account. The
+    // blob is account-bound; a stripped (absent) value must stay absent.
+    if (typeof turnStateEcho === "string" && turnStateEcho) {
+      headers["x-codex-turn-state"] = turnStateEcho;
+    }
 
     return headers;
   }
@@ -1389,10 +1444,11 @@ export class CodexExecutor extends BaseExecutor {
     delete body.session_id;
     delete body.conversation_id;
 
-    applyResponsesInputPolicy(
-      body,
-      credentials?.providerSpecificData?.preserveEncryptedReasoning === true
-    );
+    applyReasoningInputPolicy(body, "responses", {
+      provider: "codex",
+      preserveEncryptedReasoning:
+        credentials?.providerSpecificData?.preserveEncryptedReasoning === true,
+    });
 
     if (nativeCodexPassthrough) {
       return body;
@@ -1425,6 +1481,11 @@ export class CodexExecutor extends BaseExecutor {
       "client_metadata",
       // GPT-5 output verbosity ({ verbosity } — normalized above by normalizeCodexVerbosity).
       "text",
+      // Responses Lite (#7171/#7821/#11707): enforceCodexResponsesLiteParallelToolCalls()
+      // forces this field on the translated (non-_nativeCodexPassthrough) path too — it
+      // must survive this allowlist filter or upstream rejects with "X-OpenAI-Internal-
+      // Codex-Responses-Lite requires `parallel_tool_calls` to be false."
+      "parallel_tool_calls",
       // Internal markers used by OmniRoute pipeline
       "_omnirouteResponsesStore",
     ]);

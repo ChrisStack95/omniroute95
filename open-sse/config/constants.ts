@@ -55,6 +55,14 @@ export const SSE_HEARTBEAT_INTERVAL_MS = upstreamTimeouts.sseHeartbeatIntervalMs
 // Defaults to FETCH_TIMEOUT_MS. Override with FETCH_BODY_TIMEOUT_MS env var.
 export const FETCH_BODY_TIMEOUT_MS = upstreamTimeouts.fetchBodyTimeoutMs;
 
+// Hard byte cap on the HuggingChat NDJSON body accumulated by
+// open-sse/executors/huggingchat/jsonlStream.ts. Prevents a stalled/hostile upstream that
+// never emits a terminal `finalAnswer` / `status: finished` marker from buffering
+// indefinitely (#12577). Sized generously for legitimate long completions while staying
+// well below a heap-exhausting size — mirrors the readCappedBuffer/readBodyCapped pattern
+// already used by veoaifree-web.ts and context7-fetch.ts.
+export const HUGGINGCHAT_MAX_BODY_BYTES = 4 * 1024 * 1024;
+
 // Provider configurations
 // OAuth credentials read from env vars with hardcoded fallbacks for backward compatibility.
 // Use provider-credentials.json or env vars to override in production.
@@ -171,14 +179,34 @@ export const HTTP_STATUS = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   NOT_ACCEPTABLE: 406,
+  UNPROCESSABLE_ENTITY: 422,
   REQUEST_TIMEOUT: 408,
   GONE: 410,
   RATE_LIMITED: 429,
+  PLAN_LIMIT_EXCEEDED: 432,
   SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
   SERVICE_UNAVAILABLE: 503,
   GATEWAY_TIMEOUT: 504,
 };
+
+/**
+ * #10360 — stable error code for an INTERNAL violation of the executor
+ * `execute()` result contract (`normalizeExecutorResult` received something
+ * that is neither a Response nor `{ response: Response }`).
+ *
+ * This is our own bug, never a provider/account health signal, so every
+ * resilience layer must treat it as request-scoped and terminal: no connection
+ * cooldown, no provider circuit-breaker trip, no retry. It rides on the error's
+ * `.code` (read by `getUpstreamErrorIdentifier`) and therefore reaches
+ * `checkFallbackError` as `structuredError.code` and the chat/combo predicates
+ * as `result.errorCode`.
+ *
+ * Lives here (leaf config module) so both `open-sse/handlers/` and
+ * `open-sse/services/` can import it without creating a cycle.
+ */
+export const EXECUTOR_CONTRACT_VIOLATION_CODE = "executor_contract_violation";
+
 export {
   BACKOFF_CONFIG,
   COOLDOWN_MS,
@@ -245,11 +273,17 @@ export const PROVIDER_PROFILES = {
     circuitBreakerReset: envInt("OMNIROUTE_CIRCUIT_BREAKER_API_KEY_RESET_MS", 30000),
     // Provider-level circuit breaker (entire provider cooldown after repeated failures)
     providerFailureThreshold: envInt("OMNIROUTE_PROVIDER_BREAKER_API_KEY_FAILURE_THRESHOLD", 15), // Scaled for 500+ connections (was 5)
-    providerFailureWindowMs: envInt("OMNIROUTE_PROVIDER_BREAKER_API_KEY_FAILURE_WINDOW_MS", 1800000), // 30min window (was 20min)
+    providerFailureWindowMs: envInt(
+      "OMNIROUTE_PROVIDER_BREAKER_API_KEY_FAILURE_WINDOW_MS",
+      1800000
+    ), // 30min window (was 20min)
     providerCooldownMs: envInt("OMNIROUTE_PROVIDER_BREAKER_API_KEY_COOLDOWN_MS", 600000), // 10min cooldown when threshold reached
     degradationThreshold: envInt("OMNIROUTE_PROVIDER_BREAKER_API_KEY_DEGRADATION_THRESHOLD", 7),
     maxBackoffMultiplier: envInt("OMNIROUTE_PROVIDER_BREAKER_API_KEY_MAX_BACKOFF_MULTIPLIER", 4),
-    backoffEscalationCount: envInt("OMNIROUTE_PROVIDER_BREAKER_API_KEY_BACKOFF_ESCALATION_COUNT", 3),
+    backoffEscalationCount: envInt(
+      "OMNIROUTE_PROVIDER_BREAKER_API_KEY_BACKOFF_ESCALATION_COUNT",
+      3
+    ),
   },
   // Local providers (localhost inference backends like Ollama, LM Studio, oMLX).
   // Not yet wired into getProviderProfile() — will be used when local provider_nodes
@@ -330,6 +364,23 @@ export const STREAM_RECOVERY = {
   HOLDBACK_MS: 750,
   BUFFER_MAX_BYTES: 65536,
   EARLY_RETRY_MAX: 4,
+  /**
+   * Minimum character overlap `trimContinuationOverlap` must find between the
+   * already-emitted text and a mid-stream continuation for the continuation to be
+   * accepted as a real resume, rather than an unrelated restart the model produced after
+   * ignoring the assistant-prefill.
+   *
+   * This is a DOCUMENTED TRADE-OFF, not a solved distinction: a model that continues
+   * cleanly with fewer than this many echoed characters (a legitimate, even preferred,
+   * outcome — there was nothing to de-duplicate) is indistinguishable, from string data
+   * alone, from a model that silently restarted on an unrelated sentence. Both produce a
+   * low/zero overlap. Rejecting below this threshold trades some false-positive rejections
+   * of legitimate low-overlap continuations (bounded retry, then a clean close — no data
+   * loss beyond that retry) against not silently gluing two unrelated fragments into one
+   * corrupted, unrecoverable answer. It does not eliminate the residual false negative
+   * either (an accidental coincidence at or above this many characters is still accepted).
+   */
+  MIN_CONTINUATION_OVERLAP_CHARS: 8,
 } as const;
 
 /**

@@ -7,6 +7,15 @@ import {
 } from "../utils/reasoningPlaceholder.ts";
 import * as fs from "fs";
 import * as path from "path";
+
+// #10223: threshold for detecting corrupted request_id fields. Normal
+// request IDs are <100 chars. DeepSeek's SSE encoder bug produces 200+
+// char values with response-ID fragments. The 100-char gap between normal
+// (<100) and threshold (200) provides safety margin for providers that
+// use moderately longer IDs. The transformer never reads request_id, so
+// stripping it has no functional impact on the output.
+const CORRUPTED_REQUEST_ID_THRESHOLD = 200;
+
 /**
  * Responses API Transformer
  * Converts OpenAI Chat Completions SSE to Codex Responses API SSE format
@@ -231,6 +240,11 @@ export function createResponsesApiTransformStream(
   };
 
   const encoder = new TextEncoder();
+  // #10223: a stream:false TextDecoder recreated per transform() chunk has no
+  // cross-call state, so a multi-byte UTF-8 character (CJK/emoji) split across
+  // two TCP chunks got truncated to U+FFFD, corrupting the deltas. A single
+  // persistent decoder with { stream: true } carries pending bytes between chunks.
+  const decoder = new TextDecoder();
   const nextSeq = () => ++state.seq;
 
   // Normalize output_index to a non-negative integer (replaces fragile parseInt calls)
@@ -577,7 +591,7 @@ export function createResponsesApiTransformStream(
         (state.keepaliveTimer as { unref?: () => void })?.unref?.();
       },
       transform(chunk, controller) {
-        const text = new TextDecoder().decode(chunk);
+        const text = decoder.decode(chunk, { stream: true });
         logger?.logInput(text.trim());
         state.buffer += text;
 
@@ -598,6 +612,21 @@ export function createResponsesApiTransformStream(
             parsed = JSON.parse(dataStr);
           } catch {
             continue;
+          }
+
+          // #10223: strip request_id when it looks corrupted (suspiciously
+          // long — normal request IDs are <100 chars). Some providers
+          // (DeepSeek) have SSE encoder bugs that leak response-ID fragments
+          // into this field, producing 200+ char values. Well-behaved
+          // providers' request_id is preserved.
+          if (
+            typeof parsed.request_id === "string" &&
+            parsed.request_id.length >= CORRUPTED_REQUEST_ID_THRESHOLD
+          ) {
+            logger?.logInput(
+              `[ResponsesTransformer] stripped corrupted request_id (${parsed.request_id.length} chars)`
+            );
+            delete parsed.request_id;
           }
 
           if (parsed.usage) {
@@ -887,6 +916,11 @@ export function createResponsesApiTransformStream(
       },
 
       flush(controller) {
+        // #10223: stream-end flush — drain any bytes the persistent decoder is
+        // still holding. With { stream:true } complete multi-byte chars are
+        // emitted within transform(), so normally there is nothing left; this
+        // only releases a terminating truncated byte and frees the decoder.
+        state.buffer += decoder.decode();
         // Clear keepalive timer
         if (state.keepaliveTimer) {
           clearInterval(state.keepaliveTimer);

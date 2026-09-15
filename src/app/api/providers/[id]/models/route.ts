@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getProviderConnectionFamilyIds,
   isClaudeCodeCompatibleProvider,
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
@@ -10,11 +11,9 @@ import { getModelsByProviderId } from "@/shared/constants/models";
 import { resolveAlibabaProviderModelsUrl } from "@/shared/constants/alibabaProviderRegions";
 import { getStaticModelsForProvider } from "@/lib/providers/staticModels";
 import { providerUsesCuratedModelsOnly } from "@/lib/providers/modelListingCapability";
-import {
-  getCachedProviderConnectionById,
-  getModelIsHidden,
-  resolveProxyForProvider,
-} from "@/lib/localDb";
+import { mergeModelsWithCustomPrecedence } from "@/lib/providers/modelMetadataPrecedence";
+import { getCachedProviderConnectionById } from "@/lib/db/readCache";
+import { resolveProxyForProvider } from "@/lib/db/proxies";
 import {
   SAFE_OUTBOUND_FETCH_PRESETS,
   SafeOutboundFetchError,
@@ -25,7 +24,7 @@ import {
   getProviderOutboundGuard,
   getProviderValidationGuard,
 } from "@/shared/network/outboundUrlGuardPolicy";
-import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error";
+import { errorResponse, sanitizeErrorMessage } from "@omniroute/open-sse/utils/error";
 import { getStaticQoderModels } from "@omniroute/open-sse/services/qoderCli.ts";
 import { deriveConfigFromRegistryModelsUrl } from "./discoveryConfig";
 import { resolveZedModels } from "@omniroute/open-sse/shared/zedAuth.ts";
@@ -52,6 +51,10 @@ import {
   discoverNotionWebModels,
   NOTION_WEB_FALLBACK_MODELS,
 } from "@omniroute/open-sse/services/notionWebModels.ts";
+import {
+  discoverMaxaiModels,
+  MAXAI_REGISTRY_MODELS,
+} from "@omniroute/open-sse/services/maxaiModels.ts";
 import {
   AZURE_AI_DEFAULT_BASE_URL,
   buildAzureAiModelsUrl,
@@ -84,15 +87,13 @@ import {
 } from "@/lib/providerModels/modelDiscovery";
 import { buildProviderModelsUrl, getDiscoveryClientVersionOptions } from "./discoveryClientVersion";
 import { getAdobeModels } from "./adobeFireflyDiscovery";
-import {
-  parseGeminiModelsList,
-  type GeminiDiscoveryModel,
-} from "@/lib/providerModels/geminiModelsParser";
-import { getSyncedAvailableModels, getCustomModels } from "@/lib/db/models";
+import { parseGeminiModelsList } from "@/lib/providerModels/geminiModelsParser";
+import { getSyncedAvailableModels, getCustomModels, getModelIsHidden } from "@/lib/db/models";
+import { isConnectionUnavailableToAuxiliaryActivity } from "@/lib/exclusiveLeaseIsolation";
 import { fetchCursorAgentModels } from "@/lib/providerModels/cursorAgent";
+import { fetchCursorAvailableModels } from "@/lib/providerModels/cursorAvailableModels";
 import { ensureCursorAutoCatalogEntry } from "@/lib/providerModels/cursorAutoCatalog";
-import { fetchRaycastModels } from "@omniroute/open-sse/services/raycast.ts";
-import { runWithProxyContext } from "@omniroute/open-sse/utils/proxyFetch.ts";
+import { resolveCopilotDiscoveryToken } from "@/lib/providerModels/copilotDiscoveryToken";
 import {
   type JsonRecord,
   asRecord,
@@ -105,6 +106,7 @@ import {
   mergeSpecialtyCatalogIntoLiveModels,
   buildOptionalBearerHeaders,
   buildNamedOpenAiStyleHeaders,
+  enrichOllamaLocalModels,
 } from "./discovery/helpers";
 import {
   fetchAntigravityDiscoveryModelsCached,
@@ -117,6 +119,7 @@ import { isNamedOpenAIStyleProvider } from "./discovery/providerSets";
 import { buildStaleEncryptionKeyResponse } from "./staleEncryptionGuard";
 import {
   type ProviderModelsConfigEntry,
+  assembleProviderModelsHeaders,
   PROVIDER_MODELS_CONFIG,
 } from "./discovery/providerModelsConfig";
 import {
@@ -178,6 +181,9 @@ export async function GET(
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
+    if (await isConnectionUnavailableToAuxiliaryActivity(id))
+      return errorResponse(409, "Model discovery deferred for managed connection");
+
     // #6148 — short-circuit when a stored credential is encrypted but no longer
     // decrypts (STORAGE_ENCRYPTION_KEY changed/unset). Otherwise the null key is
     // coerced to "", an empty-Bearer probe is sent, and the operator sees a
@@ -194,20 +200,18 @@ export async function GET(
     // Resolve proxy for this provider (provider-level → global → direct)
     const proxy = await resolveProxyForProvider(provider);
 
-    // #6247 — user-added custom models live in key_value namespace `customModels`
-    // (getCustomModels). The live REST /api/v1/models merges them, but this
-    // per-connection route (used by MCP list_models_catalog + the dashboard
-    // import view) never did, so custom models were dropped on both the
-    // discovery-success and local_catalog paths. Read them once here and fold
-    // them into every user-facing models response via buildResponse below
-    // (dedup by id). Internal model-sync discovery opts out because these rows
-    // are a response projection, not provider-discovered models.
-    let customModelsForProvider: Array<{ id: string; name?: string }> = [];
+    // #6247 — user-added custom models live in key_value namespace
+    // `customModels`. Merge them with explicit custom metadata taking precedence
+    // over discovered metadata for the same id.
+    let customModelsForProvider: Array<Record<string, unknown> & { id: string; name?: string }> =
+      [];
     if (!excludeCustom && !usesCuratedModelsOnly) {
       try {
         const custom = await getCustomModels(provider);
         if (Array.isArray(custom)) {
-          customModelsForProvider = custom as Array<{ id: string; name?: string }>;
+          customModelsForProvider = custom.flatMap((model) =>
+            model && typeof model === "object" && typeof model.id === "string" ? [model] : []
+          );
         }
       } catch {
         // DB unavailable — proceed without custom models.
@@ -216,14 +220,16 @@ export async function GET(
 
     const mergeCustomModels = (models: any[]) => {
       if (customModelsForProvider.length === 0) return models;
-      const base = Array.isArray(models) ? models : [];
-      const existing = new Set(
-        base.map((m) => (m && typeof m.id === "string" ? m.id : null)).filter(Boolean)
-      );
-      const extra = customModelsForProvider
-        .filter((m) => m && typeof m.id === "string" && m.id.length > 0 && !existing.has(m.id))
-        .map((m) => ({ id: m.id, name: m.name || m.id, owned_by: provider }));
-      return extra.length > 0 ? [...base, ...extra] : base;
+      const base = (Array.isArray(models) ? models : []).flatMap((model) => {
+        if (!model || typeof model !== "object" || typeof model.id !== "string") return [];
+        return [model as Record<string, unknown> & { id: string }];
+      });
+      const customRows = customModelsForProvider.map((model) => ({
+        ...model,
+        name: model.name || model.id,
+        owned_by: provider,
+      }));
+      return mergeModelsWithCustomPrecedence(base, customRows);
     };
 
     const buildResponse = (payload: any, statusConfig?: ResponseInit) => {
@@ -596,6 +602,53 @@ export async function GET(
         });
       }
     }
+
+    // MaxAI: live catalog + per-model context windows from the signed
+    // /models/get_config (the call the web app makes on load). Falls back to the
+    // curated static registry catalog on any auth/transport/shape failure.
+    if (provider === "maxai") {
+      const cachedResponse = maybeReturnCachedDiscovery();
+      if (cachedResponse) return cachedResponse;
+
+      const autoFetchDisabledResponse = maybeReturnAutoFetchDisabled();
+      if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
+
+      try {
+        const discovery = await discoverMaxaiModels({
+          providerSpecificData: connection.providerSpecificData as
+            | Record<string, unknown>
+            | null
+            | undefined,
+          accessToken: apiKey || accessToken,
+          fetchImpl: (url, init) =>
+            safeOutboundFetch(url, {
+              ...SAFE_OUTBOUND_FETCH_PRESETS.modelsDiscovery,
+              guard: getProviderOutboundGuard(),
+              proxyConfig: proxy,
+              ...init,
+            }),
+        });
+        return buildApiDiscoveryResponse(discovery.models, discovery.warning);
+      } catch (error) {
+        console.log("Error fetching models from maxai", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        const fallback = buildDiscoveryFallbackResponse({
+          cacheWarning: "MaxAI models/get_config failed — using cached catalog",
+          localWarning: "MaxAI models/get_config failed — using curated catalog",
+        });
+        if (fallback) return fallback;
+        return buildResponse({
+          provider,
+          connectionId,
+          models: MAXAI_REGISTRY_MODELS,
+          source: "local_catalog",
+          intentional: true,
+          warning: "MaxAI catalog unavailable — using curated model list",
+        });
+      }
+    }
+
     const conolResponse = await maybeHandleConolModelDiscovery({
       provider,
       connectionId,
@@ -788,6 +841,8 @@ export async function GET(
             models = isNamedOpenAIStyleProvider(provider)
               ? normalizeOpenAiLikeModelsResponse(data, provider)
               : data.data || data.models || [];
+            if (provider === "ollama-local")
+              models = await enrichOllamaLocalModels(models, baseUrl, proxy, token);
             break; // Success!
           }
 
@@ -1284,66 +1339,6 @@ export async function GET(
       return buildApiDiscoveryResponse(normalizeSapModelsResponse(await response.json()));
     }
 
-    if (provider === "claude") {
-      return buildResponse({
-        provider,
-        connectionId,
-        models: getStaticModelsForProvider("claude") || [],
-      });
-    }
-
-    if (provider === "raycast") {
-      const cachedResponse = maybeReturnCachedDiscovery();
-      if (cachedResponse) return cachedResponse;
-
-      const autoFetchDisabledResponse = maybeReturnAutoFetchDisabled();
-      if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
-
-      const psd = asRecord(connection.providerSpecificData);
-      const deviceId = toNonEmptyString(psd.deviceId);
-      const aid = toNonEmptyString(psd.aid) || deviceId;
-      if (!accessToken || !deviceId) {
-        const fallback = buildDiscoveryFallbackResponse({
-          localWarning: "Raycast credentials incomplete — using local catalog",
-        });
-        if (fallback) return fallback;
-        return NextResponse.json({ error: "Raycast credentials incomplete" }, { status: 400 });
-      }
-
-      try {
-        const raycastModels = await runWithProxyContext(proxy, () =>
-          fetchRaycastModels({
-            accessToken,
-            providerSpecificData: {
-              deviceId,
-              aid: aid || deviceId,
-              sigSecret: toNonEmptyString(psd.sigSecret) || undefined,
-            },
-          })
-        );
-        const models = raycastModels.map((model) => ({
-          id: model.id,
-          name: model.name || model.id,
-          owned_by: model.provider || provider,
-          ...(model.requires_better_ai ? { premium: true } : {}),
-          ...(model.availability ? { availability: model.availability } : {}),
-        }));
-        return buildApiDiscoveryResponse(models);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.log("[models] raycast fetch failed:", message);
-        const fallback = buildDiscoveryFallbackResponse({
-          cacheWarning: `Raycast API unavailable (${message}) — using cached catalog`,
-          localWarning: `Raycast API unavailable (${message}) — using local catalog`,
-        });
-        if (fallback) return fallback;
-        return NextResponse.json(
-          { error: `Failed to fetch Raycast models: ${message}` },
-          { status: 502 }
-        );
-      }
-    }
-
     if (provider === "cursor") {
       const cachedResponse = maybeReturnCachedDiscovery();
       if (cachedResponse) return cachedResponse;
@@ -1351,19 +1346,45 @@ export async function GET(
       const autoFetchDisabledResponse = maybeReturnAutoFetchDisabled();
       if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
 
+      const warnings: string[] = [];
+      const token = (accessToken || apiKey || "").trim();
+      const machineId =
+        typeof connection?.providerSpecificData === "object" &&
+        connection.providerSpecificData &&
+        typeof (connection.providerSpecificData as { machineId?: unknown }).machineId === "string"
+          ? (connection.providerSpecificData as { machineId: string }).machineId
+          : null;
+
+      if (token) {
+        try {
+          const models = await fetchCursorAvailableModels({
+            accessToken: token,
+            machineId,
+          });
+          return buildApiDiscoveryResponse(models);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.log("[models] Cursor AvailableModels failed:", message);
+          warnings.push(`AvailableModels unavailable (${message})`);
+        }
+      } else {
+        warnings.push("no Cursor access token on connection");
+      }
+
       try {
         const models = ensureCursorAutoCatalogEntry(await fetchCursorAgentModels());
         return buildApiDiscoveryResponse(models);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.log("[models] cursor-agent fetch failed:", message);
+        const detail = [...warnings, `cursor-agent unavailable (${message})`].join("; ");
         const fallback = buildDiscoveryFallbackResponse({
-          cacheWarning: `cursor-agent unavailable (${message}) — using cached catalog`,
-          localWarning: `cursor-agent unavailable (${message}) — using local catalog`,
+          cacheWarning: `${detail} — using cached catalog`,
+          localWarning: `${detail} — using local catalog`,
         });
         if (fallback) return fallback;
         return NextResponse.json(
-          { error: `Failed to fetch Cursor models: ${message}` },
+          { error: `Failed to fetch Cursor models: ${detail}` },
           { status: 502 }
         );
       }
@@ -1613,10 +1634,21 @@ export async function GET(
       if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
 
       const psd = asRecord(connection.providerSpecificData);
-      // The /models endpoint requires the short-lived Copilot token (same as the
-      // chat executor), not the raw GitHub OAuth access token.
-      const copilotToken =
-        toNonEmptyString(psd.copilotToken) || toNonEmptyString(accessToken) || null;
+      // Catalog discovery must present the RAW GitHub OAuth token (gho_...), not
+      // the exchanged short-lived Copilot token. The full entitled model catalog
+      // (incl. grok-4.x and mai-code) is only unlocked when the
+      // `copilot-integration-id: copilot-developer-cli` header rides on a raw
+      // GitHub Bearer; the exchanged copilot_internal/v2/token bearer is minted
+      // WITHOUT the developer-cli identity and unlocks only the narrower default
+      // set, so grok/mai silently vanish. api.githubcopilot.com accepts the raw
+      // token directly as Bearer. (Chat/inference in the executor may still use
+      // the exchanged token; only DISCOVERY needs the raw token.) This mirrors the
+      // Copilot CLI + Hermes "de-gate model discovery" fix. Exchanged token stays
+      // as a fallback for connections that only captured that.
+      const copilotToken = resolveCopilotDiscoveryToken({
+        accessToken,
+        copilotToken: psd.copilotToken,
+      });
 
       const discovery = await fetchGitHubCopilotModels({
         token: copilotToken,
@@ -1662,8 +1694,10 @@ export async function GET(
       if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
 
       const psd = asRecord(connection.providerSpecificData);
-      const copilotToken =
-        toNonEmptyString(psd.copilotToken) || toNonEmptyString(accessToken) || null;
+      const copilotToken = resolveCopilotDiscoveryToken({
+        accessToken,
+        copilotToken: psd.copilotToken,
+      });
       // endpoints.api serves the real chat model catalog; endpoints.proxy only
       // has NES/autocomplete models. Prefer the api host, fall back to proxy for
       // legacy connections that predate copilotApiUrl capture.
@@ -1763,8 +1797,8 @@ export async function GET(
 
       // Vertex AI lists models from the Generative Language `v1beta/models` endpoint, which both
       // Express-mode API keys (via ?key=) and Service Account JSON (via a minted OAuth Bearer
-      // token) can reach. This surfaces the full live catalog — including image models
-      // (imagen-*, gemini-*-image) absent from the static registry list.
+      // token) can reach. This surfaces the live catalog, including gemini-*-image models
+      // absent from the static registry list.
       const credential = (apiKey || "").trim();
       let queryKey: string | null = null;
       let bearerToken: string | null = null;
@@ -1816,7 +1850,7 @@ export async function GET(
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (bearerToken) headers["Authorization"] = `Bearer ${bearerToken}`;
 
-      const allModels: GeminiDiscoveryModel[] = [];
+      const allModels: any[] = [];
       let pageUrl = queryKey ? `${baseUrl}&key=${encodeURIComponent(queryKey)}` : baseUrl;
       let pageCount = 0;
       const MAX_PAGES = 20;
@@ -1862,6 +1896,48 @@ export async function GET(
         throw error;
       }
 
+      // Anthropic partner models via Model Garden publisher endpoint (Bearer only).
+      //
+      // Model Garden's publisher-model LIST is served by the v1beta1 API — the v1
+      // API does not support list operations (every /v1/.../publishers/anthropic/models
+      // path 404s at the Google Front End). The list is also global: it returns the
+      // full Anthropic Claude catalog regardless of the connection's project or
+      // region, so no project/region scoping is applied here (execution region is
+      // handled separately by the vertex executor at request time).
+      if (bearerToken) {
+        const anthropicModelsUrl =
+          "https://aiplatform.googleapis.com/v1beta1/publishers/anthropic/models";
+
+        try {
+          const anthropicResponse = await safeOutboundFetch(anthropicModelsUrl, {
+            ...SAFE_OUTBOUND_FETCH_PRESETS.modelsDiscovery,
+            guard: getProviderOutboundGuard(),
+            proxyConfig: proxy,
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${bearerToken}`,
+            },
+          });
+          if (anthropicResponse.ok) {
+            const anthropicData = await anthropicResponse.json();
+            const { parseVertexAnthropicModels } =
+              await import("@/lib/providerModels/vertexAnthropicModelsParser");
+            allModels.push(...parseVertexAnthropicModels(anthropicData));
+          } else {
+            console.log("[models] Vertex Anthropic partner discovery failed", {
+              provider,
+              status: anthropicResponse.status,
+            });
+          }
+        } catch (err) {
+          console.log("[models] Vertex Anthropic partner discovery error", {
+            provider,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       if (allModels.length > 0) {
         return buildApiDiscoveryResponse(allModels);
       }
@@ -1877,18 +1953,21 @@ export async function GET(
     }
 
     if (isAnthropicCompatibleProvider(provider)) {
-      const cachedResponse = maybeReturnCachedDiscovery();
-      if (cachedResponse) return cachedResponse;
-
-      const autoFetchDisabledResponse = maybeReturnAutoFetchDisabled();
-      if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
-
+      // CC providers never support models listing — this check must precede
+      // the cached-discovery / auto-fetch fallbacks, which would otherwise
+      // return a misleading 200 "no models" for a CC node (#10828 ordering).
       if (isClaudeCodeCompatibleProvider(provider)) {
         return NextResponse.json(
           { error: `Provider ${provider} does not support models listing` },
           { status: 400 }
         );
       }
+
+      const cachedResponse = maybeReturnCachedDiscovery();
+      if (cachedResponse) return cachedResponse;
+
+      const autoFetchDisabledResponse = maybeReturnAutoFetchDisabled();
+      if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
 
       let baseUrl = getProviderBaseUrl(connection.providerSpecificData);
       if (!baseUrl) {
@@ -2077,10 +2156,13 @@ export async function GET(
       }
 
       if (githubCatalogModels && githubCatalogModels.length > 0) {
-        return buildApiDiscoveryResponse(
-          finalizeCodexCatalog(githubCatalogModels),
-          "Codex live catalog unavailable — using GitHub model catalog"
-        );
+        return buildResponse({
+          provider,
+          connectionId,
+          models: finalizeCodexCatalog(githubCatalogModels),
+          source: "github_catalog",
+          warning: "Codex live catalog unavailable — using GitHub model catalog",
+        });
       }
 
       if (cachedDiscoveryModels.length > 0) {
@@ -2212,12 +2294,8 @@ export async function GET(
     }
 
     // Build headers
-    const headers = config.buildHeaders
-      ? config.buildHeaders(token, connection)
-      : { ...config.headers };
-    if (!config.buildHeaders && config.authHeader && !config.authQuery) {
-      headers[config.authHeader] = (config.authPrefix || "") + token;
-    }
+    const headerContext = { ...connection, accessToken, apiKey };
+    const headers = assembleProviderModelsHeaders(config, token, headerContext);
 
     // Make request (with pagination for providers that use nextPageToken, e.g. Gemini)
     const fetchOptions: any = {
@@ -2266,7 +2344,7 @@ export async function GET(
 
       const data = await response.json();
       let pageModels = config.parseResponse(data);
-      if (provider === "alibaba" || provider === "alibaba-cn") {
+      if (getProviderConnectionFamilyIds("alibaba").includes(provider)) {
         const { parseAlibabaModelStudioModelsForConnection } =
           await import("./discovery/providerModelsConfig.ts");
         pageModels = parseAlibabaModelStudioModelsForConnection(
@@ -2295,7 +2373,7 @@ export async function GET(
       );
     }
 
-    if (provider === "alibaba" || provider === "alibaba-cn") {
+    if (getProviderConnectionFamilyIds("alibaba").includes(provider)) {
       const { shouldUseLiveAlibabaFreeModelDiscovery } =
         await import("@omniroute/open-sse/services/alibabaFreeTier.ts");
       const { scheduleAlibabaFreeTierProbeRefresh } =

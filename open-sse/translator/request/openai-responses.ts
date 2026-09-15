@@ -8,6 +8,7 @@ import { isOpenAIResponsesStoreEnabled } from "@/lib/providers/requestDefaults";
 import { FORMATS } from "../formats.ts";
 import { register } from "../registry.ts";
 import { normalizeResponsesInputForChat } from "../../utils/responsesInputNormalization.ts";
+import { extractReplayableResponsesReasoningText } from "../../services/reasoningInputPolicy.ts";
 import {
   getRegisteredProviders,
   requiresPlainStringContent,
@@ -71,14 +72,6 @@ function toolOutputContentToString(output: unknown): string {
     }
   }
   return parts.join("\n");
-}
-
-function getReasoningSummaryText(item: JsonRecord): string {
-  if (!Array.isArray(item.summary)) return "";
-  return item.summary
-    .map((part) => toString(toRecord(part).text))
-    .filter((text) => text.length > 0)
-    .join("\n\n");
 }
 
 function appendReasoningContent(current: unknown, next: string): string {
@@ -234,7 +227,7 @@ export function openaiResponsesToOpenAIRequest(
     const itemType = toString(item.type) || (item.role ? "message" : "");
 
     if (itemType === "message") {
-      const role = toString(item.role);
+      const role = toString(item.role) === "agent_message" ? "assistant" : toString(item.role);
 
       if (role !== "assistant") {
         if (currentAssistantMsg) {
@@ -456,10 +449,11 @@ export function openaiResponsesToOpenAIRequest(
     }
 
     if (itemType === "reasoning") {
-      // Responses reasoning summaries are normally display metadata. Preserve them only
-      // when the routed upstream explicitly requires prior reasoning to continue a turn.
+      // Only genuine plaintext reasoning can cross into Chat reasoning_content.
+      // Opaque encrypted state and its display summary have no Chat replay form,
+      // so opaque-only items are dropped while mixed items replay their plaintext.
       if (preserveReasoningContent) {
-        const reasoning = getReasoningSummaryText(item);
+        const reasoning = extractReplayableResponsesReasoningText(item);
         if (reasoning) {
           if (currentAssistantMsg) {
             currentAssistantMsg.reasoning_content = appendReasoningContent(
@@ -487,6 +481,13 @@ export function openaiResponsesToOpenAIRequest(
 
     if (itemType === "additional_tools") {
       // Already consumed by collectResponsesTools() before message conversion.
+      continue;
+    }
+
+    // Defense in depth for Responses/subagent fallback: agent_message is
+    // Responses-only. Normalization should already have rewritten or dropped it;
+    // never throw a 5xx-looking unsupported-feature error if a shape slips through.
+    if (itemType === "agent_message" || toString(item.role) === "agent_message") {
       continue;
     }
 
@@ -772,6 +773,18 @@ export function openaiResponsesToOpenAIRequest(
         `Unsupported Responses API feature: tool_choice type '${tcType}' is not supported by omniroute`
       );
     }
+  }
+
+  // #12141: When translated Chat tools is empty/absent, strip neutral tool_choice
+  // ("auto" / "none") so strict Chat endpoints (e.g. vLLM) do not reject with 400
+  // ("When using tool_choice, tools must be set"). Contradictory choices like "required"
+  // or forced functions are preserved so the upstream error remains visible.
+  const finalChatTools = Array.isArray(result.tools) ? result.tools : [];
+  if (
+    finalChatTools.length === 0 &&
+    (result.tool_choice === "auto" || result.tool_choice === "none")
+  ) {
+    delete result.tool_choice;
   }
 
   // Cleanup Responses API specific fields

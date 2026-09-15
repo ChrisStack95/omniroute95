@@ -10,7 +10,7 @@ test("batch setup creates missing providers, skips existing ones, and is retry-s
   const existing = [{ provider: "opencode", name: "My customized OpenCode" }];
   const created: Array<{ provider: string; name: string }> = [];
   const candidates = getEligibleFreeOnboardingProviders();
-  const requestedIds = ["opencode", "mimocode"];
+  const requestedIds = ["opencode", "chipotle"];
 
   const first = await setupFreeProviderConnections({
     requestedIds,
@@ -33,14 +33,14 @@ test("batch setup creates missing providers, skips existing ones, and is retry-s
 
   assert.deepEqual(first.results, [
     { providerId: "opencode", status: "skipped", reason: "already-configured" },
-    { providerId: "mimocode", status: "created", connectionId: "created-mimocode" },
+    { providerId: "chipotle", status: "created", connectionId: "created-chipotle" },
   ]);
   assert.deepEqual(second.results, [
     { providerId: "opencode", status: "skipped", reason: "already-configured" },
-    { providerId: "mimocode", status: "skipped", reason: "already-configured" },
+    { providerId: "chipotle", status: "skipped", reason: "already-configured" },
   ]);
   assert.deepEqual(existing, [{ provider: "opencode", name: "My customized OpenCode" }]);
-  assert.deepEqual(created, [{ provider: "mimocode", name: "MiMoCode (Free)" }]);
+  assert.deepEqual(created, [{ provider: "chipotle", name: "Chipotle Pepper AI (Free)" }]);
 });
 
 test("batch setup rejects unknown or ineligible IDs before creating anything", async () => {
@@ -63,13 +63,13 @@ test("batch setup rejects unknown or ineligible IDs before creating anything", a
 
 test("partial failures are reported per provider and can be retried", async () => {
   const created = new Set<string>();
-  let mimocodeAttempts = 0;
+  let chipotleAttempts = 0;
   const input = {
-    requestedIds: ["opencode", "mimocode"],
+    requestedIds: ["opencode", "chipotle"],
     candidates: getEligibleFreeOnboardingProviders(),
     listExisting: async () => [...created].map((provider) => ({ provider })),
     create: async ({ provider }: { provider: string }) => {
-      if (provider === "mimocode" && mimocodeAttempts++ === 0) throw new Error("upstream detail");
+      if (provider === "chipotle" && chipotleAttempts++ === 0) throw new Error("upstream detail");
       created.add(provider);
       return { id: `created-${provider}` };
     },
@@ -80,10 +80,10 @@ test("partial failures are reported per provider and can be retried", async () =
 
   assert.deepEqual(first.results, [
     { providerId: "opencode", status: "created", connectionId: "created-opencode" },
-    { providerId: "mimocode", status: "failed", reason: "Failed to create provider" },
+    { providerId: "chipotle", status: "failed", reason: "Failed to create provider" },
   ]);
   assert.deepEqual(retry.results, [
     { providerId: "opencode", status: "skipped", reason: "already-configured" },
-    { providerId: "mimocode", status: "created", connectionId: "created-mimocode" },
+    { providerId: "chipotle", status: "created", connectionId: "created-chipotle" },
   ]);
 });

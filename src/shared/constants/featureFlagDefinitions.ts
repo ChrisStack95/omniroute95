@@ -12,7 +12,7 @@ export interface FeatureFlagDefinition {
 }
 
 export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
-  // ──────────────── Security (9) ────────────────
+  // ──────────────── Security (10) ────────────────
   {
     key: "REQUIRE_API_KEY",
     label: "Require API Key",
@@ -105,6 +105,32 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     requiresRestart: false,
     warningLevel: "danger",
   },
+  {
+    key: "AUTH_LOG_INCLUDE_ACCOUNT_ID",
+    label: "Log Account IDs",
+    description:
+      'Include account prefix in AUTH log lines (e.g. "Using <provider> account: abc12345..."). ' +
+      "Disabled by default so account identifiers are redacted from shared/multi-tenant process logs. " +
+      "Independent from Debug Mode; flipping Debug Mode does not reveal this.",
+    descriptionI18nKey: "featureFlagAuthLogIncludeAccountIdDescription",
+    category: "security",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "OMNIROUTE_OIDC_DISABLE_PASSWORD_LOGIN",
+    label: "Disable Password Login With OIDC",
+    description:
+      "When OIDC is enabled, disable password login so users can only authenticate via OIDC Single Sign-On. When disabled (default), both password login and OIDC are available.",
+    descriptionI18nKey: "featureFlagOidcDisablePasswordLoginDescription",
+    category: "security",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
   // ──────────────── Network (7) ────────────────
   {
     key: "ENABLE_TLS_FINGERPRINT",
@@ -130,17 +156,6 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "danger",
   },
   {
-    key: "ONEPROXY_ENABLED",
-    label: "OneProxy Enabled",
-    description: "Enable 1proxy request proxying.",
-    descriptionI18nKey: "settings.featureFlags.oneproxyEnabled",
-    category: "network",
-    defaultValue: "true",
-    type: "boolean",
-    requiresRestart: false,
-    warningLevel: "info",
-  },
-  {
     key: "PROXY_AUTO_SELECT_ENABLED",
     label: "Proxy Auto-Selection Fallback",
     description:
@@ -163,6 +178,42 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     type: "boolean",
     requiresRestart: false,
     warningLevel: "danger",
+  },
+  {
+    key: "NETWORK_ROTATION_SHARED_EGRESS_GUARD",
+    label: "Network Rotation Shared-Egress Guard",
+    description:
+      "On a network exception (timeout, connection refused/reset) for a multi-account rotation executor, when the failing account has no dedicated proxy, apply a short cooldown and skip other proxy-less accounts for the rest of the request instead of retrying each one. On by default (safe: no egress IP change, only reduces latency/cooldown risk on shared-egress accounts). Disable to restore immediate propagation on the first proxy-less throw.",
+    descriptionI18nKey: "featureFlagNetworkRotationSharedEgressGuardDescription",
+    category: "network",
+    defaultValue: "true",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "PROXY_SKIP_RECENTLY_FAILED",
+    label: "Skip Recently Failed Proxies",
+    description:
+      "Proxy pools and the per-account rotation of opencode stop re-serving a proxy that just failed (refused TCP probe, or a 429 received through it) for a per-process period that doubles on each repeat, up to a cap. No proxy status is written; with every candidate set aside the choice is unchanged. Off by default: selection order is exactly the plain rotation.",
+    descriptionI18nKey: "featureFlagProxySkipRecentlyFailedDescription",
+    category: "network",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
+  },
+  {
+    key: "PROXY_POOL_EGRESS_OBSERVATION",
+    label: "Proxy Pool Egress Observation",
+    description:
+      "Show, under a proxy pool in the dashboard, how many observed egress IPs served its members over the last 24 h, how many connections used them and the most seen behind one IP. Read-only, computed from the proxy log, never used for routing. Off by default: the pool editor is unchanged and the observation route answers null.",
+    descriptionI18nKey: "featureFlagProxyPoolEgressObservationDescription",
+    category: "network",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
   },
   {
     key: "MITM_DISABLE_TLS_VERIFY",
@@ -210,7 +261,7 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
 
-  // ──────────────── Policies (4) ────────────────
+  // ──────────────── Policies (5) ────────────────
   {
     key: "TOOL_POLICY_MODE",
     label: "Tool Policy Mode",
@@ -235,15 +286,16 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
   {
-    key: "ALLOW_MULTI_CONNECTIONS_PER_COMPAT_NODE",
-    label: "Multi Connections per Compat Node",
-    description: "Allow multiple connections per compatibility node",
-    descriptionI18nKey: "featureFlagAllowMultiConnectionsPerCompatNodeDescription",
+    key: "DISABLE_CONTEXT_WINDOW_CHECKS",
+    label: "Disable Context Window Checks",
+    description:
+      "Skip OmniRoute's local context-window and max-input-token check for direct single-model requests. Upstream providers remain responsible for enforcing their actual limits. Off by default.",
+    descriptionI18nKey: "featureFlagDisableContextWindowChecksDescription",
     category: "policies",
     defaultValue: "false",
     type: "boolean",
-    requiresRestart: true,
-    warningLevel: "info",
+    requiresRestart: false,
+    warningLevel: "danger",
   },
   {
     key: "CAPABILITY_FILTER_ENABLED",
@@ -270,7 +322,19 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
 
-  // ──────────────── Runtime (16) ────────────────
+  // ──────────────── Runtime (17) ────────────────
+  {
+    key: "UNIVERSAL_CONTEXT_HANDOFF_ENABLED",
+    label: "Universal Context Handoff",
+    description:
+      "Generate and inject conversation summaries when combo routing switches models. Disable to treat model switches independently and prevent background handoff requests for all existing and future combos.",
+    descriptionI18nKey: "featureFlagUniversalContextHandoffEnabledDescription",
+    category: "runtime",
+    defaultValue: "true",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
   {
     key: "RESPONSES_PASSTHROUGH_DROP_COMMENTARY",
     label: "Drop Responses Commentary",
@@ -363,6 +427,18 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
   {
+    key: "OMNIROUTE_CODEX_APP_SERVER_ENABLED",
+    label: "Codex App-Server Transport",
+    description:
+      "Allow Codex to use the local app-server WebSocket JSON-RPC transport (codexTransport=app-server). When off, connections opted into app-server fall back to Codex's other transports.",
+    descriptionI18nKey: "featureFlagOmnirouteCodexAppServerEnabledDescription",
+    category: "runtime",
+    defaultValue: "true",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
     key: "OMNIROUTE_EMERGENCY_FALLBACK",
     label: "Emergency Fallback",
     description: "Route budget-exhausted requests to the emergency free fallback provider/model.",
@@ -396,6 +472,30 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     type: "boolean",
     requiresRestart: false,
     warningLevel: "danger",
+  },
+  {
+    key: "STREAM_RECOVERY_TOOLCALL_ORDER_FIX",
+    label: "Tool-Call-Safe Continuation",
+    description:
+      "Make mid-stream continuation tool-call safe: never resume a cut stream once a tool call was emitted (in flight or already finished with finish_reason tool_calls), and close after one empty continuation instead of spending the whole budget. Off: release behavior.",
+    descriptionI18nKey: "featureFlagStreamRecoveryToolcallOrderFixDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED",
+    label: "Early-EOF Sibling Failover",
+    description:
+      "Fail over once to a sibling connection when an SSE stream closes before emitting any useful frame and the bounded same-connection retry is spent; with no usable sibling the original STREAM_EARLY_EOF 502 is returned. Off by default: early-EOF stays terminal after the same-connection retry.",
+    descriptionI18nKey: "featureFlagStreamEarlyEofSiblingFailoverEnabledDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
   },
   {
     key: "MODEL_CATALOG_INCLUDE_NAMES",
@@ -446,6 +546,42 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     warningLevel: "info",
   },
   {
+    key: "NO_THINKING_ALIAS_ENABLED",
+    label: "No-Thinking Model Aliases",
+    description:
+      "Master switch for the no-think/<provider>/<model> gateway aliases. On (default): /v1/models advertises a no-thinking variant for every eligible thinking-capable Claude model, and a no-think/ id sent on a request resolves back to the real model with reasoning suppressed. Off: no variants are advertised and a no-think/ id is treated like any other unknown model id. The per-model ModelSpec.noThinkingAlias opt-in/opt-out still applies while this is on.",
+    descriptionI18nKey: "featureFlagNoThinkingAliasEnabledDescription",
+    category: "runtime",
+    defaultValue: "true",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS",
+    label: "Disable Thinking Level Variants",
+    description:
+      "Disable the generation of thinking level variants (e.g. -low, -medium, -high) in the /v1/models catalog.",
+    descriptionI18nKey: "featureFlagOmnirouteDisableThinkingLevelVariantsDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "OMNIROUTE_CHAT_VIRTUAL_LANES",
+    label: "Adaptive Virtual Admission Lanes",
+    description:
+      "Enable per-tenant adaptive virtual admission lanes for provider dispatch (#9654): one tenant's burst no longer 503s another. The OMNIROUTE_CHAT_VIRTUAL_LANES env var wins over this dashboard override; changes take effect at server restart.",
+    descriptionI18nKey: "featureFlagChatVirtualLanesEnabledDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: true,
+    warningLevel: "info",
+  },
+  {
     key: "EXPOSE_FUNCTIONAL_GATEWAY_MIRRORS",
     label: "Functional Gateway Mirrors",
     description:
@@ -469,6 +605,66 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     type: "boolean",
     requiresRestart: false,
     warningLevel: "info",
+  },
+  {
+    key: "SERVER_OWNED_TOOL_LOOP_ENABLED",
+    label: "Server-Owned Tool Loop",
+    description:
+      "Continue non-streaming server-owned tool calls until the model returns a client-usable response.",
+    descriptionI18nKey: "featureFlagServerOwnedToolLoopDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
+  },
+  {
+    key: "SEARCH_STATS_HIDE_DELETED_CONNECTIONS",
+    label: "Hide Deleted Search Connections",
+    description:
+      "Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
+    descriptionI18nKey: "featureFlagSearchStatsHideDeletedConnectionsDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "FREE_BADGE_REQUIRES_PROVIDER_FREE_TIER",
+    label: "Strict Free Badge",
+    description:
+      "Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule.",
+    descriptionI18nKey: "featureFlagFreeBadgeRequiresProviderFreeTierDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "info",
+  },
+  {
+    key: "RETRY_AFTER_PROVENANCE_ENABLED",
+    label: "Retry-After Provenance",
+    description:
+      "On aggregated 429/503 unavailable responses, omit Retry-After when no concrete future retry time is known (instead of a synthetic 1s), add error.retry_after_provenance (signal | none), and let combo drain paths read prose retry hints from JSON and plain-text upstream bodies.",
+    descriptionI18nKey: "featureFlagRetryAfterProvenanceEnabledDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
+  },
+  {
+    key: "PROTECTED_PRIORITY_INFRA_502_ENABLED",
+    label: "Protected-Priority Infra Stops as 502",
+    description:
+      "When a priority combo target marked fallback-only-on-quota-exhaustion stops the combo for a cause that is provably not quota (provider circuit breaker open, predictive latency skip), answer 502 instead of the quota-looking 503. Lockout, cooldown, unavailable, exhaustion and concurrency-cap stops keep 503.",
+    descriptionI18nKey: "featureFlagProtectedPriorityInfra502EnabledDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
   },
 
   // ──────────────── CLI (5) ────────────────
@@ -522,7 +718,7 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     key: "OMNIROUTE_AUTO_SYNC_CLAUDE_PROFILES",
     label: "Auto-Sync Claude Code Profiles",
     description:
-      "After a provider model sync, automatically (re)write ~/.claude/profiles/<name>/settings.json Claude Code profiles from the live catalog. Never changes the active/default Claude config. Off by default.",
+      "After a provider model sync, automatically (re)write ~/.claude/profiles/'<name>'/settings.json Claude Code profiles from the live catalog. Never changes the active/default Claude config. Off by default.",
     descriptionI18nKey: "featureFlagOmnirouteAutoSyncClaudeProfilesDescription",
     category: "cli",
     defaultValue: "false",

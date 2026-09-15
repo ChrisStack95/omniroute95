@@ -24,6 +24,11 @@ import {
 } from "@/models";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { isValidGheUrl } from "@/shared/validation/providerSpecificData";
+import { AWS_REGION_PATTERN } from "@/lib/oauth/constants/oauth";
+import {
+  antigravityDegradedProjectState,
+  antigravityPersistStatus,
+} from "@/lib/oauth/antigravityProjectGate";
 import { syncToCloud } from "@/lib/cloudSync";
 import { startLocalServer } from "@/lib/oauth/utils/server";
 import { runWithProxyContextOrDirect } from "@omniroute/open-sse/utils/proxyFetch.ts";
@@ -221,6 +226,16 @@ export async function GET(
             (requestDeviceCode as any)(provider, null, providerOverrideConfig)
           );
         } else if ((provider === "kiro" || provider === "amazon-q") && startUrl) {
+          // GHSA-7x63: `region` is interpolated into the AWS OIDC endpoint URLs
+          // below, which requestDeviceCode() then fetches. Validate it against the
+          // canonical AWS region shape before it can steer the outbound host to an
+          // attacker-chosen target (userinfo/fragment tricks → SSRF / metadata).
+          if (!AWS_REGION_PATTERN.test(region)) {
+            return NextResponse.json(
+              { error: "region must be a valid AWS region (e.g. us-east-1)" },
+              { status: 400 }
+            );
+          }
           const providerOverrideConfig = {
             ...providerData.config,
             startUrl,
@@ -509,6 +524,12 @@ export async function POST(
         exchangeTokens(provider, code, redirectUri, codeVerifier, normalizedState)
       );
 
+      // #11284: when Cloud Code projectId discovery failed at connect time,
+      // SAVE the connection but mark it degraded (maintainer direction on
+      // #11284) — the refresh token stays stored and request-time bootstrap
+      // self-heals the row once Google assigns a project.
+      const degradedProject = antigravityDegradedProjectState(provider, tokenData);
+
       // Normalize: if name is missing, use email or displayName as fallback so accounts
       // always show a real label (e.g. user@gmail.com) instead of "Account #abc123"
       if (!tokenData.name && (tokenData.email || tokenData.displayName)) {
@@ -531,14 +552,14 @@ export async function POST(
           connection = await updateProviderConnection(matchId, {
             ...tokenData,
             expiresAt,
-            testStatus: "active",
+            ...antigravityPersistStatus(degradedProject),
             isActive: true,
           });
         }
       }
       if (!connection) {
         connection = await createProviderConnection(
-          buildOAuthConnectionCreatePayload(provider, tokenData, expiresAt)
+          buildOAuthConnectionCreatePayload(provider, tokenData, expiresAt, degradedProject)
         );
       }
 
@@ -547,6 +568,7 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
+        ...(degradedProject ? { warning: degradedProject.warning } : {}),
         connection: {
           id: connection.id,
           provider: connection.provider,
@@ -728,6 +750,10 @@ export async function POST(
           exchangeTokens(provider, params.code, redirectUri, codeVerifier, params.state)
         );
 
+        // #11284: when Cloud Code projectId discovery failed at connect time,
+        // SAVE the connection but mark it degraded (maintainer direction).
+        const degradedProject = antigravityDegradedProjectState(provider, tokenData);
+
         // Normalize: if name is missing, use email as fallback display label
         if (!tokenData.name && (tokenData.email || tokenData.displayName)) {
           tokenData.name = tokenData.email || tokenData.displayName;
@@ -754,14 +780,14 @@ export async function POST(
             connection = await updateProviderConnection(matchId, {
               ...tokenData,
               expiresAt,
-              testStatus: "active",
+              ...antigravityPersistStatus(degradedProject),
               isActive: true,
             });
           }
         }
         if (!connection) {
           connection = await createProviderConnection(
-            buildOAuthConnectionCreatePayload(provider, tokenData, expiresAt)
+            buildOAuthConnectionCreatePayload(provider, tokenData, expiresAt, degradedProject)
           );
         }
 
@@ -769,6 +795,7 @@ export async function POST(
 
         return NextResponse.json({
           success: true,
+          ...(degradedProject ? { warning: degradedProject.warning } : {}),
           connection: {
             id: connection.id,
             provider: connection.provider,

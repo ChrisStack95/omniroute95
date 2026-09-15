@@ -8,7 +8,11 @@ import {
   collapseExcessiveNewlines,
   extractThinkingFromContent,
 } from "./responseSanitizer/reasoning.ts";
-import { applyCacheHitTokensToUsage, applyCacheHitTokensToResponsesUsage } from "./responseSanitizer/cacheHitTokens.ts";
+import {
+  applyCacheHitTokensToUsage,
+  applyCacheHitTokensToResponsesUsage,
+} from "./responseSanitizer/cacheHitTokens.ts";
+import { stripObfuscationZeroWidth } from "../utils/zeroWidth.ts";
 export {
   extractThinkingFromContent,
   shouldParseTextualReasoningTags,
@@ -31,7 +35,9 @@ const ALLOWED_USAGE_FIELDS = new Set([
   "total_tokens",
   "cached_tokens",
   "prompt_tokens_details",
-  "completion_tokens_details", "cache_read_input_tokens", "cache_creation_input_tokens",
+  "completion_tokens_details",
+  "cache_read_input_tokens",
+  "cache_creation_input_tokens",
   // Keep through sanitize → applyClientUsageBuffer so heuristic web usage is
   // not inflated by the default USAGE_TOKEN_BUFFER (2000).
   "estimated",
@@ -80,7 +86,7 @@ function deleteOpenAICompatibleReasoningFields(record: JsonRecord): void {
 }
 
 function stripZeroWidthText(value: string): string {
-  return value.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  return stripObfuscationZeroWidth(value);
 }
 
 function stripZeroWidthToolArgumentJson(value: unknown): string {
@@ -258,6 +264,14 @@ export interface SanitizeOpenAIResponseOptions {
 }
 
 export function sanitizeOpenAIResponse(
+  body: JsonRecord,
+  options?: SanitizeOpenAIResponseOptions
+): JsonRecord;
+export function sanitizeOpenAIResponse(
+  body: unknown,
+  options?: SanitizeOpenAIResponseOptions
+): unknown;
+export function sanitizeOpenAIResponse(
   body: unknown,
   options: SanitizeOpenAIResponseOptions = {}
 ): unknown {
@@ -310,6 +324,8 @@ export function sanitizeOpenAIResponse(
   return sanitized;
 }
 
+export function sanitizeResponsesApiResponse(body: JsonRecord): JsonRecord;
+export function sanitizeResponsesApiResponse(body: unknown): unknown;
 export function sanitizeResponsesApiResponse(body: unknown): unknown {
   const bodyRecord = toRecord(body);
   if (!bodyRecord) return body;
@@ -540,7 +556,7 @@ function sanitizeResponsesUsage(usage: unknown): unknown {
     !(toRecord(normalized.input_tokens_details) ?? {}).cached_tokens
   ) {
     normalized.input_tokens_details = {
-      ...(normalized.input_tokens_details as Record<string, unknown> || {}),
+      ...((normalized.input_tokens_details as Record<string, unknown>) || {}),
       cached_tokens: normalized.prompt_cache_hit_tokens,
     };
   }
@@ -552,7 +568,7 @@ function sanitizeResponsesUsage(usage: unknown): unknown {
     !(toRecord(normalized.input_tokens_details) ?? {}).cached_tokens
   ) {
     normalized.input_tokens_details = {
-      ...(normalized.input_tokens_details as Record<string, unknown> || {}),
+      ...((normalized.input_tokens_details as Record<string, unknown>) || {}),
       cached_tokens: normalized.cache_read_input_tokens,
     };
   }
@@ -853,6 +869,7 @@ function sanitizeResponsesOutputItem(item: unknown, index: number): JsonRecord |
       : [];
 
     return {
+      ...itemRecord,
       id: toString(itemRecord.id) || `rs_${index}`,
       type: "reasoning",
       summary,
@@ -1044,6 +1061,7 @@ function convertOpenAIResponseToResponses(openaiResponse: JsonRecord): JsonRecor
 /**
  * Sanitize a streaming SSE chunk for passthrough mode.
  * Lighter than full sanitization — only strips problematic extra fields.
+ * Fast-path: returns original when no mutations are needed.
  */
 export function sanitizeStreamingChunk(parsed: unknown): unknown {
   const parsedRecord = toRecord(parsed);
@@ -1061,14 +1079,29 @@ export function sanitizeStreamingChunk(parsed: unknown): unknown {
   if (eventType === "content_block_delta") {
     const deltaRecord = toRecord(parsedRecord.delta);
     if (deltaRecord) {
+      let mutated = false;
       if (typeof deltaRecord.text === "string") {
         deltaRecord.text = stripZeroWidthText(deltaRecord.text);
+        mutated = true;
       }
       if (typeof deltaRecord.thinking === "string") {
         deltaRecord.thinking = stripZeroWidthText(deltaRecord.thinking);
+        mutated = true;
       }
+      return mutated ? parsedRecord : parsed;
     }
-    return parsedRecord;
+    return parsed;
+  }
+
+  // Fast-path: check if any mutations would actually be needed
+  // Most passthrough chunks (content deltas) need no sanitization
+  const needsIdNormalization = parsedRecord.id !== undefined && parsedRecord.id !== null && typeof parsedRecord.id !== "string";
+  const hasChoices = Array.isArray(parsedRecord.choices) && parsedRecord.choices.length > 0;
+  const hasUsage = parsedRecord.usage !== undefined;
+  const hasSystemFingerprint = parsedRecord.system_fingerprint !== undefined;
+  if (!needsIdNormalization && !hasChoices && !hasUsage && !hasSystemFingerprint) {
+    // Nothing to sanitize — forward original
+    return parsed;
   }
 
   // Build sanitized chunk

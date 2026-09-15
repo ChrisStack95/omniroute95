@@ -5,7 +5,8 @@
  * @changes
  * - [2026-07-24] [Composer] - Skip execute-mode units at concurrency cap before dispatch
  */
-import { errorResponse } from "../../utils/error.ts";
+import { errorResponse, errorResponseWithComboDiagnostics } from "../../utils/error.ts";
+import type { ComboDiagnostics } from "../../utils/error.ts";
 import { recordComboRequest } from "../comboMetrics.ts";
 import { resolveDelayMs } from "./comboPredicates.ts";
 import { isRuntimeUnitAtConcurrencyCap } from "./runtimeUnitCapacity.ts";
@@ -78,6 +79,7 @@ async function executeModelUnit(args: {
   isModelAvailable?: IsModelAvailable;
   failoverBeforeRetry: unknown;
   effectiveComboStrategy: string;
+  fallbackAttempts: number;
 }): Promise<Response> {
   if (args.isModelAvailable) {
     const available = await args.isModelAvailable(args.unit.modelStr, args.unit);
@@ -87,6 +89,7 @@ async function executeModelUnit(args: {
     ...args.unit,
     effectiveComboStrategy: args.effectiveComboStrategy,
     failoverBeforeRetry: args.failoverBeforeRetry,
+    fallbackAttempts: args.fallbackAttempts,
   });
 }
 
@@ -141,6 +144,7 @@ async function executeRuntimeUnit(args: {
   nesting: ComboNestingContext;
   failoverBeforeRetry: unknown;
   effectiveComboStrategy: string;
+  fallbackAttempts: number;
 }): Promise<Response> {
   if (args.unit.kind === "model") {
     return executeModelUnit({
@@ -150,6 +154,7 @@ async function executeRuntimeUnit(args: {
       isModelAvailable: args.isModelAvailable,
       failoverBeforeRetry: args.failoverBeforeRetry,
       effectiveComboStrategy: args.effectiveComboStrategy,
+      fallbackAttempts: args.fallbackAttempts,
     });
   }
   return executeComboRefUnit({
@@ -216,6 +221,17 @@ export async function executeRuntimeUnitCombo(args: {
   };
   const finalFailure = (response: Response): Response =>
     withQuotaExhaustionClassification(response, observedFailure ? allObservedFailuresQuota : null);
+  // #11462: attempts already made this loop, tracked for the attempt-budget-exceeded
+  // diagnostics trace below (mirrors the poolSize/attemptOrder shape combo.ts already
+  // attaches for the priority/round-robin strategies).
+  const attemptedUnits: Array<{ provider: string; model: string }> = [];
+  const buildAttemptBudgetDiag = (): ComboDiagnostics => ({
+    poolSize: orderedUnits.length,
+    attempted: args.nesting.attemptBudget.count,
+    excluded: [],
+    attemptOrder: attemptedUnits,
+    terminalReason: "max_attempts_exceeded",
+  });
 
   for (const unit of orderedUnits) {
     const protectedPriorityUnit =
@@ -247,13 +263,21 @@ export async function executeRuntimeUnitCombo(args: {
       }
       args.nesting.attemptBudget.count += 1;
       if (args.nesting.attemptBudget.count > args.nesting.attemptBudget.limit) {
-        lastResponse = errorResponse(503, "Maximum combo retry limit reached");
+        lastResponse = errorResponseWithComboDiagnostics(
+          503,
+          "Maximum combo retry limit reached",
+          buildAttemptBudgetDiag()
+        );
         await observeFailure(lastResponse, unit);
         return { response: finalFailure(lastResponse), unit };
       }
       if (retry > 0) {
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
       }
+      attemptedUnits.push({
+        provider: unit.kind === "model" ? unit.provider : "combo-ref",
+        model: unitDisplayName(unit),
+      });
       args.log.info(
         "COMBO",
         `Trying ${unit.kind} ${unitDisplayName(unit)}${retry > 0 ? ` (retry ${retry})` : ""}`
@@ -269,6 +293,7 @@ export async function executeRuntimeUnitCombo(args: {
         nesting: args.nesting,
         failoverBeforeRetry: args.config.failoverBeforeRetry,
         effectiveComboStrategy: effectiveStrategy,
+        fallbackAttempts: fallbackCount,
       });
       lastResponse = response;
       if (response.ok) {

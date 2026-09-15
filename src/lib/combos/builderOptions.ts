@@ -1,12 +1,7 @@
-import {
-  getAllCustomModels,
-  getAllSyncedAvailableModels,
-  getCombos,
-  getModelIsHidden,
-  getProviderConnections,
-  getProviderNodes,
-  getSettings,
-} from "@/lib/localDb";
+import { getAllCustomModels, getAllSyncedAvailableModels, getModelIsHidden } from "@/lib/db/models";
+import { getCombos } from "@/lib/db/combos";
+import { getProviderConnections, getProviderNodes } from "@/lib/db/providers";
+import { getSettings } from "@/lib/db/settings";
 import { getAccountDisplayName, getProviderDisplayName } from "@/lib/display/names";
 import { getCompatibleFallbackModels } from "@/lib/providers/managedAvailableModels";
 import { getResolvedModelCapabilities } from "@/lib/modelCapabilities";
@@ -297,6 +292,7 @@ function addModelOption(
     contextLength?: number | null;
     outputTokenLimit?: number | null;
     supportsThinking?: boolean;
+    customPrecedence?: boolean;
   }
 ) {
   const modelId = toStringOrNull(input.id);
@@ -333,23 +329,36 @@ function addModelOption(
   if (nextSourcePriority < existingPriority) {
     existing.source = input.source;
   }
-  if (!existing.name || existing.name === existing.id) {
+  if (input.customPrecedence) {
     existing.name = toStringOrNull(input.name) || existing.name;
-  }
-  if (!existing.supportedEndpoints && input.supportedEndpoints?.length) {
-    existing.supportedEndpoints = input.supportedEndpoints;
-  }
-  if (!existing.apiFormat && toStringOrNull(input.apiFormat)) {
-    existing.apiFormat = input.apiFormat || undefined;
-  }
-  if (existing.contextLength == null && typeof input.contextLength === "number") {
-    existing.contextLength = input.contextLength;
-  }
-  if (existing.outputTokenLimit == null && typeof input.outputTokenLimit === "number") {
-    existing.outputTokenLimit = input.outputTokenLimit;
-  }
-  if (existing.supportsThinking == null && typeof input.supportsThinking === "boolean") {
-    existing.supportsThinking = input.supportsThinking;
+    if (input.supportedEndpoints?.length) existing.supportedEndpoints = input.supportedEndpoints;
+    if (toStringOrNull(input.apiFormat)) existing.apiFormat = input.apiFormat || undefined;
+    if (typeof input.contextLength === "number") existing.contextLength = input.contextLength;
+    if (typeof input.outputTokenLimit === "number") {
+      existing.outputTokenLimit = input.outputTokenLimit;
+    }
+    if (typeof input.supportsThinking === "boolean") {
+      existing.supportsThinking = input.supportsThinking;
+    }
+  } else {
+    if (!existing.name || existing.name === existing.id) {
+      existing.name = toStringOrNull(input.name) || existing.name;
+    }
+    if (!existing.supportedEndpoints && input.supportedEndpoints?.length) {
+      existing.supportedEndpoints = input.supportedEndpoints;
+    }
+    if (!existing.apiFormat && toStringOrNull(input.apiFormat)) {
+      existing.apiFormat = input.apiFormat || undefined;
+    }
+    if (existing.contextLength == null && typeof input.contextLength === "number") {
+      existing.contextLength = input.contextLength;
+    }
+    if (existing.outputTokenLimit == null && typeof input.outputTokenLimit === "number") {
+      existing.outputTokenLimit = input.outputTokenLimit;
+    }
+    if (existing.supportsThinking == null && typeof input.supportsThinking === "boolean") {
+      existing.supportsThinking = input.supportsThinking;
+    }
   }
   existing.sources = Array.from(mergedSources).sort(
     (left, right) => getSourcePriority(left) - getSourcePriority(right)
@@ -513,22 +522,17 @@ function buildModelOptions(
     )
       ? "imported"
       : ("custom" as BuilderModelSource);
-    const resolved = getResolvedModelCapabilities({
-      provider: providerId,
-      model: toStringOrNull(model.id),
-    });
     addModelOption(modelMap, providerId, {
       id: toStringOrNull(model.id),
       name: toStringOrNull(model.name),
       source,
       supportedEndpoints: toStringArray(model.supportedEndpoints),
       apiFormat: toStringOrNull(model.apiFormat),
-      contextLength: toNumberOrNull(model.inputTokenLimit) ?? resolved.contextWindow,
-      outputTokenLimit: toNumberOrNull(model.outputTokenLimit) ?? resolved.maxOutputTokens,
+      contextLength: toNumberOrNull(model.inputTokenLimit),
+      outputTokenLimit: toNumberOrNull(model.outputTokenLimit),
       supportsThinking:
-        typeof model.supportsThinking === "boolean"
-          ? model.supportsThinking
-          : (resolved.supportsThinking ?? undefined),
+        typeof model.supportsThinking === "boolean" ? model.supportsThinking : undefined,
+      customPrecedence: true,
     });
   }
 

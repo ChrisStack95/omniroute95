@@ -1,7 +1,9 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Badge, Input, Modal, Toggle, Select } from "@/shared/components";
+import { CHATGPT_WEB_CODEX_CONNECTOR_NAME } from "@/shared/constants/chatgptWebCodex";
 import {
   isOpenAICompatibleProvider,
   isAnthropicCompatibleProvider,
@@ -37,10 +39,9 @@ import {
   getWebSessionCredentialCheckLabel,
   getLocalProviderMetadata,
   normalizeAndValidateHttpBaseUrl,
-  CODEX_REASONING_STRENGTH_OPTIONS,
-  CODEX_ACCOUNT_SERVICE_TIER_VALUES,
-  getCodexServiceTierLabel,
+  getCodexFingerprintMode,
   getCodexRequestDefaults,
+  type CodexFingerprintModeValue,
   getClaudeCodeCompatibleRequestDefaults,
   providerText,
   ERROR_TYPE_LABELS,
@@ -49,7 +50,9 @@ import {
 import { getWebSessionCredentialRequirement } from "../../webSessionCredentials";
 import { useOpenRouterPresetControl } from "../OpenRouterPresetInput";
 import WebSessionCredentialGuide from "../WebSessionCredentialGuide";
+import HarImportButton from "../HarImportButton";
 import CcCompatibleRequestDefaultsFields from "./CcCompatibleRequestDefaultsFields";
+import { CodexConnectionFields } from "./CodexFingerprintFields";
 import { assignEditApiKeyProviderSpecificData } from "./connectionProviderSpecificData";
 import { isM365TierCapableProvider, normalizeM365TierValue, type M365TierValue } from "./m365Tier";
 import ProviderTierField from "./ProviderTierField";
@@ -57,6 +60,12 @@ import AgentrouterConsoleFields from "./AgentrouterConsoleFields";
 import QuotaScrapingFields, { EMPTY_QUOTA_SCRAPING_FIELDS } from "./QuotaScrapingFields";
 import GlmTeamQuotaFields, { EMPTY_GLM_TEAM_QUOTA_FIELDS } from "./GlmTeamQuotaFields";
 import ProviderRegionField, { getProviderRegionConfig } from "./AlibabaProviderRegionField";
+import PeakHourProtectionEditor, {
+  EMPTY_PEAK_HOUR_PROTECTION,
+  formatPeakHourSummary,
+  normalizePeakHourProtectionForSave,
+} from "../PeakHourProtectionEditor";
+import type { PeakHourProtectionConfig } from "@/lib/providers/peakHourProtection";
 export interface EditConnectionModalConnection {
   id?: string;
   name?: string;
@@ -103,16 +112,20 @@ export default function EditConnectionModal({
     priority: 1,
     maxConcurrent: "",
     rpm: "",
+    rpd: "",
     tpm: "",
     tpd: "",
     minTime: "",
+    maxWaitMs: "",
     rateLimitMaxConcurrent: "",
     apiKey: "",
-    healthCheckInterval: 60,
+    healthCheckInterval: "" as number | "",
     baseUrl: "",
     targetFormat: "",
     cx: "",
     region: "",
+    awsAccessKeyId: "",
+    awsSessionToken: "",
     apiRegion: "international",
     validationModelId: "",
     defaultModel: "",
@@ -123,6 +136,8 @@ export default function EditConnectionModal({
     accountId: "",
     codexReasoningEffort: "medium",
     codexServiceTier: "default" as CodexServiceTier,
+    codexFingerprintMode: "session" as CodexFingerprintModeValue,
+    codexOpenaiStoreEnabled: false,
     openaiResponsesStoreEnabled: false,
     preserveEncryptedReasoning: false,
     consoleApiKey: "",
@@ -145,8 +160,11 @@ export default function EditConnectionModal({
     importFreeModelsOnly: connectionProviderSpecificData?.importFreeModelsOnly === true,
     tunnelId: stringField(connectionProviderSpecificData?.tunnelId),
     runtimeKey: "",
-    connectorName: stringField(connectionProviderSpecificData?.connectorName) || "OmniRoute Codex",
+    connectorName:
+      stringField(connectionProviderSpecificData?.connectorName) ||
+      CHATGPT_WEB_CODEX_CONNECTOR_NAME,
     m365Tier: normalizeM365TierValue(connectionProviderSpecificData?.tier) as M365TierValue,
+    peakHourProtection: { ...EMPTY_PEAK_HOUR_PROTECTION, windows: [] } as PeakHourProtectionConfig,
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -205,12 +223,14 @@ export default function EditConnectionModal({
       (provider.startsWith("openai-compatible-responses-") ||
         connectionProviderSpecificData?.apiType === "responses" ||
         formData.targetFormat === "openai-responses"));
+  const isCustomResponsesConnection = isResponsesConnection && !isCodex && provider !== "openai";
   const isClaude = provider === "claude";
   const isAntigravityFamily = provider === "antigravity" || provider === "agy";
   const localProviderMetadata = getLocalProviderMetadata(provider);
   const isLocalSelfHostedProvider = !!localProviderMetadata;
   const isGooglePse = provider === "google-pse-search";
   const isChatGptWebCodex = provider === "chatgpt-web-codex";
+  const isAwsPolly = provider === "aws-polly";
   const isM365TierCapable = isM365TierCapableProvider(provider);
   const webSessionCredential = getWebSessionCredentialRequirement(provider);
   const isNoAuthWebSessionCredential = webSessionCredential?.kind === "none";
@@ -227,9 +247,11 @@ export default function EditConnectionModal({
     isOpenAICompatibleProvider(provider) || isAnthropicCompatibleProvider(provider);
   const apiCredentialLabel = webSessionCredential
     ? getWebSessionCredentialLabel(t, webSessionCredential, apiKeyOptional)
-    : apiKeyOptional
-      ? t("apiKeyOptionalLabel")
-      : t("apiKeyLabel");
+    : isAwsPolly
+      ? providerText(t, "awsPollySecretAccessKeyLabel", "AWS Secret Access Key")
+      : apiKeyOptional
+        ? t("apiKeyOptionalLabel")
+        : t("apiKeyLabel");
   const apiCredentialPlaceholder = isWebSessionCredential
     ? webSessionCredential.placeholder
     : isVertex
@@ -244,28 +266,30 @@ export default function EditConnectionModal({
       : apiKeyOptional
         ? t("apiKeyOptionalHint")
         : t("leaveBlankKeepCurrentApiKey");
-  const codexAccountServiceTierOptions = useMemo(
-    () =>
-      CODEX_ACCOUNT_SERVICE_TIER_VALUES.map((value) => ({
-        value,
-        label: getCodexServiceTierLabel(t, value),
-      })),
-    [t]
-  );
-  useEffect(() => {
-    if (isOpen && connection) {
+  // Modal-open form initialization from the loaded connection — applied as a
+  // render-phase adjustment guarded by the previously initialized connection
+  // (react.dev "adjusting state when a prop changes") instead of the former
+  // synchronous-setState effect. Remounting the 30+ field form per connection
+  // id stays out of scope (#11251 follow-up, #9985); closing clears the marker
+  // so the next open re-initializes again.
+  const [initializedFor, setInitializedFor] = useState<{
+    connection: EditConnectionModalConnection;
+    providerId: string;
+  } | null>(null);
+  if (isOpen && connection) {
+    if (initializedFor?.connection !== connection || initializedFor.providerId !== providerId) {
+      setInitializedFor({ connection, providerId });
       const effectiveProvider = connection.provider || providerId;
       const existingBaseUrl = stringField(connection.providerSpecificData?.baseUrl);
       const existingTargetFormat = stringField(connection.providerSpecificData?.targetFormat);
       const existingRegion = stringField(connection.providerSpecificData?.region);
+      const existingAwsAccessKeyId =
+        stringField(connection.providerSpecificData?.accessKeyId) ||
+        stringField(connection.providerSpecificData?.awsAccessKeyId);
       const existingCustomUserAgent = stringField(connection.providerSpecificData?.customUserAgent);
       const existingOpenRouterPreset = stringField(connection.providerSpecificData?.preset);
       const existingCx = stringField(connection.providerSpecificData?.cx);
       const existingAccountId = stringField(connection.providerSpecificData?.accountId);
-      const existingOpenCodeGoWorkspaceId =
-        stringField(connection.providerSpecificData?.opencodeGoWorkspaceId) ||
-        stringField(connection.providerSpecificData?.openCodeGoWorkspaceId) ||
-        stringField(connection.providerSpecificData?.workspaceId);
       const existingGlmOrganizationId =
         stringField(connection.providerSpecificData?.glmOrganizationId) ||
         stringField(connection.providerSpecificData?.bigmodelOrganization) ||
@@ -295,6 +319,10 @@ export default function EditConnectionModal({
           connection.rateLimitOverrides?.rpm != null
             ? String(connection.rateLimitOverrides.rpm)
             : "",
+        rpd:
+          connection.rateLimitOverrides?.rpd != null
+            ? String(connection.rateLimitOverrides.rpd)
+            : "",
         tpm:
           connection.rateLimitOverrides?.tpm != null
             ? String(connection.rateLimitOverrides.tpm)
@@ -307,16 +335,26 @@ export default function EditConnectionModal({
           connection.rateLimitOverrides?.minTime != null
             ? String(connection.rateLimitOverrides.minTime)
             : "",
+        maxWaitMs:
+          connection.rateLimitOverrides?.maxWaitMs != null
+            ? String(connection.rateLimitOverrides.maxWaitMs)
+            : "",
         rateLimitMaxConcurrent:
           connection.rateLimitOverrides?.maxConcurrent != null
             ? String(connection.rateLimitOverrides.maxConcurrent)
             : "",
         apiKey: "",
-        healthCheckInterval: connection.healthCheckInterval ?? 60,
+        // Unset per-connection override means "follow the global default" —
+        // surface that as an empty field (0 renders as an explicit opt-out).
+        healthCheckInterval: connection.healthCheckInterval ?? "",
         baseUrl: existingBaseUrl || defaultBaseUrl,
         targetFormat: existingTargetFormat || "",
         cx: existingCx,
-        region: existingRegion || (showsRegion ? defaultRegion : ""),
+        region:
+          existingRegion ||
+          (effectiveProvider === "aws-polly" ? "us-east-1" : showsRegion ? defaultRegion : ""),
+        awsAccessKeyId: existingAwsAccessKeyId,
+        awsSessionToken: "",
         apiRegion: (connection.providerSpecificData?.apiRegion as string) || "international",
         validationModelId: (connection.providerSpecificData?.validationModelId as string) || "",
         defaultModel: (connection.defaultModel as string) || "",
@@ -330,6 +368,8 @@ export default function EditConnectionModal({
         accountId: existingAccountId,
         codexReasoningEffort: codexRequestDefaults.reasoningEffort,
         codexServiceTier: codexRequestDefaults.serviceTier ?? "default",
+        codexFingerprintMode: getCodexFingerprintMode(connection.providerSpecificData),
+        codexOpenaiStoreEnabled: connection.providerSpecificData?.openaiStoreEnabled === true,
         openaiResponsesStoreEnabled: connection.providerSpecificData?.openaiStoreEnabled === true,
         preserveEncryptedReasoning:
           connection.providerSpecificData?.preserveEncryptedReasoning === true,
@@ -339,13 +379,13 @@ export default function EditConnectionModal({
         quotaPerUnit: existingQuotaPerUnit,
         glmOrganizationId: existingGlmOrganizationId,
         glmProjectId: existingGlmProjectId,
-        opencodeGoWorkspaceId: existingOpenCodeGoWorkspaceId,
-        opencodeGoAuthCookie: "",
+        // Console-session credentials stripped in responses; blank preserves stored values.
         ollamaCloudUsageCookie: "",
-        alibabaConsoleCookie: stringField(connection.providerSpecificData?.alibabaConsoleCookie),
-        alibabaConsoleSecToken: stringField(
-          connection.providerSpecificData?.alibabaConsoleSecToken
-        ),
+        alibabaConsoleCookie: "",
+        qwenCloudCookie: "",
+        qwenCloudSecToken: "",
+        alibabaConsoleSecToken: "",
+        volcConsoleCookie: "",
         ccCompatibleContext1m: ccRequestDefaults.context1m,
         ccCompatibleRedactThinking: ccRequestDefaults.redactThinking,
         ccCompatibleSummarizeThinking: ccRequestDefaults.summarizeThinking,
@@ -364,8 +404,25 @@ export default function EditConnectionModal({
         tunnelId: stringField(connection.providerSpecificData?.tunnelId),
         runtimeKey: "",
         connectorName:
-          stringField(connection.providerSpecificData?.connectorName) || "OmniRoute Codex",
+          stringField(connection.providerSpecificData?.connectorName) ||
+          CHATGPT_WEB_CODEX_CONNECTOR_NAME,
         m365Tier: normalizeM365TierValue(connection.providerSpecificData?.tier) as M365TierValue,
+        peakHourProtection: {
+          ...EMPTY_PEAK_HOUR_PROTECTION,
+          ...((connection.providerSpecificData?.peakHourProtection as PeakHourProtectionConfig) ||
+            {}),
+          windows: Array.isArray(
+            (
+              connection.providerSpecificData?.peakHourProtection as
+                PeakHourProtectionConfig | undefined
+            )?.windows
+          )
+            ? [
+                ...(connection.providerSpecificData?.peakHourProtection as PeakHourProtectionConfig)
+                  .windows,
+              ]
+            : [],
+        },
       });
       const existing = connection.providerSpecificData?.extraApiKeys;
       setExtraApiKeys(Array.isArray(existing) ? existing : []);
@@ -393,15 +450,9 @@ export default function EditConnectionModal({
       setValidatedProviderSpecificData(undefined);
       setSaveError(null);
     }
-  }, [
-    isOpen,
-    connection,
-    providerId,
-    defaultBaseUrl,
-    showsRegion,
-    defaultRegion,
-    setOpenRouterPreset,
-  ]);
+  } else if (initializedFor !== null) {
+    setInitializedFor(null);
+  }
   const handleTest = async () => {
     if (!provider) return;
     setTesting(true);
@@ -434,7 +485,8 @@ export default function EditConnectionModal({
     if (
       !provider ||
       isNoAuthWebSessionCredential ||
-      (!isCompatible && !apiKeyOptional && !formData.apiKey)
+      (!isCompatible && !apiKeyOptional && !formData.apiKey) ||
+      (isAwsPolly && !formData.awsAccessKeyId.trim())
     ) {
       return;
     }
@@ -450,7 +502,13 @@ export default function EditConnectionModal({
           validationModelId: formData.validationModelId || undefined,
           customUserAgent: formData.customUserAgent.trim() || undefined,
           baseUrl: formData.baseUrl.trim() || undefined,
-          region: showsRegion ? formData.region.trim() || defaultRegion : undefined,
+          region: isAwsPolly
+            ? formData.region.trim() || "us-east-1"
+            : showsRegion
+              ? formData.region.trim() || defaultRegion
+              : undefined,
+          accessKeyId: isAwsPolly ? formData.awsAccessKeyId.trim() || undefined : undefined,
+          sessionToken: isAwsPolly ? formData.awsSessionToken.trim() || undefined : undefined,
           cx: formData.cx.trim() || undefined,
           runtimeKey: isChatGptWebCodex ? formData.runtimeKey.trim() || undefined : undefined,
           tunnelId: isChatGptWebCodex ? formData.tunnelId.trim() || undefined : undefined,
@@ -501,13 +559,18 @@ export default function EditConnectionModal({
         name: formData.name,
         priority: formData.priority,
         maxConcurrent: parsedMaxConcurrent,
-        healthCheckInterval: formData.healthCheckInterval,
+        // Empty field = "follow the global default" → send undefined so the
+        // stored per-connection override is cleared; 0 = explicit opt-out.
+        healthCheckInterval:
+          formData.healthCheckInterval === "" ? undefined : formData.healthCheckInterval,
       };
       const overrides: Record<string, number> = {};
       if (formData.rpm.trim()) overrides.rpm = Number(formData.rpm);
+      if (formData.rpd.trim()) overrides.rpd = Number(formData.rpd);
       if (formData.tpm.trim()) overrides.tpm = Number(formData.tpm);
       if (formData.tpd.trim()) overrides.tpd = Number(formData.tpd);
       if (formData.minTime.trim()) overrides.minTime = Number(formData.minTime);
+      if (formData.maxWaitMs.trim()) overrides.maxWaitMs = Number(formData.maxWaitMs);
       if (formData.rateLimitMaxConcurrent.trim())
         overrides.maxConcurrent = Number(formData.rateLimitMaxConcurrent);
       updates.rateLimitOverrides = Object.keys(overrides).length > 0 ? overrides : null;
@@ -549,7 +612,13 @@ export default function EditConnectionModal({
                 validationModelId: formData.validationModelId || undefined,
                 customUserAgent: formData.customUserAgent.trim() || undefined,
                 baseUrl: formData.baseUrl.trim() || undefined,
-                region: showsRegion ? formData.region.trim() || defaultRegion : undefined,
+                region: isAwsPolly
+                  ? formData.region.trim() || "us-east-1"
+                  : showsRegion
+                    ? formData.region.trim() || defaultRegion
+                    : undefined,
+                accessKeyId: isAwsPolly ? formData.awsAccessKeyId.trim() || undefined : undefined,
+                sessionToken: isAwsPolly ? formData.awsSessionToken.trim() || undefined : undefined,
                 cx: formData.cx.trim() || undefined,
                 runtimeKey: isChatGptWebCodex ? formData.runtimeKey.trim() || undefined : undefined,
                 tunnelId: isChatGptWebCodex ? formData.tunnelId.trim() || undefined : undefined,
@@ -599,6 +668,7 @@ export default function EditConnectionModal({
         updates.providerSpecificData = {
           ...(connection.providerSpecificData || {}),
           ...(validationPsd || {}),
+          ...(isCodex ? { codexFingerprintMode: null, codex_fingerprint_mode: null } : {}),
         };
         assignEditApiKeyProviderSpecificData({
           provider,
@@ -634,6 +704,9 @@ export default function EditConnectionModal({
               ? { serviceTier: formData.codexServiceTier }
               : {}),
           };
+          updates.providerSpecificData.openaiStoreEnabled =
+            formData.codexOpenaiStoreEnabled === true;
+          updates.providerSpecificData.codexFingerprintMode = formData.codexFingerprintMode;
         }
         if (isAntigravityFamily) {
           updates.providerSpecificData.projectId = trimmedCloudCodeProjectId || null;
@@ -646,10 +719,19 @@ export default function EditConnectionModal({
           clientProfile: normalizeAntigravityClientProfileSetting(
             formData.antigravityClientProfile
           ),
+          // A manually-entered project id must not be overwritten by
+          // auto-discovery (loadCodeAssist) on later token refreshes. This
+          // merge is the single surviving write of providerSpecificData for
+          // antigravity (both OAuth and API-key branches rebuild the object
+          // above), so the flag has to land here to actually persist.
+          isProjectIdManual: !!trimmedCloudCodeProjectId,
         };
       }
       if (updates.providerSpecificData) {
         updates.providerSpecificData.disableCooling = formData.disableCooling ? true : undefined;
+        updates.providerSpecificData.peakHourProtection = normalizePeakHourProtectionForSave(
+          formData.peakHourProtection
+        );
         // Explicit `null`, not `undefined`: the PUT route merges
         // { ...existing, ...incoming }, so omitting the key would keep the previous
         // choice and switching back to the default would never take effect.
@@ -658,8 +740,12 @@ export default function EditConnectionModal({
         }
       }
       if (isResponsesConnection && updates.providerSpecificData) {
-        updates.providerSpecificData.preserveEncryptedReasoning =
-          formData.preserveEncryptedReasoning === true;
+        if (isCustomResponsesConnection) {
+          updates.providerSpecificData.preserveEncryptedReasoning =
+            formData.preserveEncryptedReasoning === true;
+        } else {
+          delete updates.providerSpecificData.preserveEncryptedReasoning;
+        }
         updates.providerSpecificData.openaiStoreEnabled =
           formData.openaiResponsesStoreEnabled === true;
       }
@@ -692,7 +778,7 @@ export default function EditConnectionModal({
     !testResult?.valid && testResult?.diagnosis?.type
       ? ERROR_TYPE_LABELS[testResult.diagnosis.type] || null
       : null;
-  const preserveEncryptedReasoningToggle = isResponsesConnection ? (
+  const preserveEncryptedReasoningToggle = isCustomResponsesConnection ? (
     <Toggle
       checked={formData.preserveEncryptedReasoning}
       onChange={(checked) => setFormData({ ...formData, preserveEncryptedReasoning: checked })}
@@ -707,9 +793,7 @@ export default function EditConnectionModal({
   const openaiResponsesStoreToggle = isResponsesConnection ? (
     <Toggle
       checked={formData.openaiResponsesStoreEnabled}
-      onChange={(checked) =>
-        setFormData({ ...formData, openaiResponsesStoreEnabled: checked })
-      }
+      onChange={(checked) => setFormData({ ...formData, openaiResponsesStoreEnabled: checked })}
       label={t("openaiResponsesStoreLabel")}
       description={t("openaiResponsesStoreDescription")}
     />
@@ -745,31 +829,15 @@ export default function EditConnectionModal({
           hint={t("excludedModelsHint")}
         />
         {isCodex && (
-          <div className="flex flex-col gap-4 rounded-lg border border-border/50 bg-surface/20 p-4">
-            <Select
-              label={t("defaultThinkingStrengthLabel")}
-              value={formData.codexReasoningEffort}
-              options={CODEX_REASONING_STRENGTH_OPTIONS}
-              onChange={(e) => setFormData({ ...formData, codexReasoningEffort: e.target.value })}
-              hint={t("defaultThinkingStrengthHint")}
-            />
-            <Select
-              label={providerText(t, "codexServiceTierLabel", "Codex service tier")}
-              value={formData.codexServiceTier}
-              options={codexAccountServiceTierOptions}
-              onChange={(event) =>
-                setFormData({
-                  ...formData,
-                  codexServiceTier: event.target.value as CodexServiceTier,
-                })
-              }
-              hint={providerText(
-                t,
-                "codexServiceTierDescription",
-                "Default uses the normal Codex tier. Priority shows as Fast; Flex uses the flex service tier when available."
-              )}
-            />
-          </div>
+          <CodexConnectionFields
+            t={t}
+            reasoningEffort={formData.codexReasoningEffort}
+            serviceTier={formData.codexServiceTier}
+            fingerprintMode={formData.codexFingerprintMode}
+            openaiStoreEnabled={formData.codexOpenaiStoreEnabled}
+            showFingerprintMode={isOAuth}
+            onChange={(patch) => setFormData({ ...formData, ...patch })}
+          />
         )}
         {isClaude && (
           <div className="flex flex-col gap-4 rounded-lg border border-border/50 bg-surface/20 p-4">
@@ -809,6 +877,16 @@ export default function EditConnectionModal({
             label={t("disableCoolingLabel")}
             description={t("disableCoolingDescription")}
           />
+          <PeakHourProtectionEditor
+            value={formData.peakHourProtection}
+            onChange={(peakHourProtection) => setFormData({ ...formData, peakHourProtection })}
+            t={t}
+          />
+          {formatPeakHourSummary(formData.peakHourProtection) && (
+            <p className="text-xs text-text-muted">
+              {formatPeakHourSummary(formData.peakHourProtection)}
+            </p>
+          )}
         </div>
         <QuotaScrapingFields
           provider={provider}
@@ -849,20 +927,19 @@ export default function EditConnectionModal({
             </p>
           </div>
         )}
-        {isOAuth && (
-          <Input
-            label={t("healthCheckMinutes")}
-            type="number"
-            value={formData.healthCheckInterval}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                healthCheckInterval: Math.max(0, Number.parseInt(e.target.value) || 0),
-              })
-            }
-            hint={t("healthCheckHint")}
-          />
-        )}
+        <Input
+          label={t("healthCheckMinutes")}
+          type="number"
+          min={0}
+          max={1440}
+          value={formData.healthCheckInterval}
+          onChange={(e) => {
+            const parsed = Number.parseInt(e.target.value, 10);
+            const next = Number.isNaN(parsed) ? 0 : Math.min(1440, Math.max(0, parsed));
+            setFormData({ ...formData, healthCheckInterval: next });
+          }}
+          hint={t("healthCheckHint")}
+        />
         <Input
           label={t("priorityLabel")}
           type="number"
@@ -913,6 +990,12 @@ export default function EditConnectionModal({
                 t={t}
               />
             )}
+            {provider && (
+              <HarImportButton
+                provider={provider}
+                onImport={(apiKey) => setFormData({ ...formData, apiKey })}
+              />
+            )}
             {!isNoAuthWebSessionCredential && (
               <div className="flex gap-2">
                 <Input
@@ -932,6 +1015,7 @@ export default function EditConnectionModal({
                     onClick={handleValidate}
                     disabled={
                       (!isCompatible && !apiKeyOptional && !formData.apiKey) ||
+                      (isAwsPolly && !formData.awsAccessKeyId.trim()) ||
                       (isGooglePse && !formData.cx.trim()) ||
                       validating ||
                       saving
@@ -970,6 +1054,7 @@ export default function EditConnectionModal({
                   onChange={(event) =>
                     setFormData({ ...formData, connectorName: event.target.value })
                   }
+                  placeholder={CHATGPT_WEB_CODEX_CONNECTOR_NAME}
                 />
                 <Button
                   variant="secondary"
@@ -1032,6 +1117,56 @@ export default function EditConnectionModal({
                 placeholder="012345678901234567890:abc123xyz"
                 hint={t("searchEngineIdHint")}
               />
+            )}
+            {isAwsPolly && (
+              <>
+                <Input
+                  label={providerText(t, "awsPollyAccessKeyIdLabel", "AWS Access Key ID")}
+                  value={formData.awsAccessKeyId}
+                  onChange={(e) => setFormData({ ...formData, awsAccessKeyId: e.target.value })}
+                  placeholder="AKIA..."
+                  hint={providerText(
+                    t,
+                    "awsPollyAccessKeyIdHint",
+                    "Used with the secret access key to sign Amazon Polly requests."
+                  )}
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                />
+                <Input
+                  label={providerText(t, "awsPollyRegionLabel", "AWS Region")}
+                  value={formData.region}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                  placeholder="us-east-1"
+                  hint={providerText(
+                    t,
+                    "awsPollyRegionHint",
+                    "Defaults to us-east-1 when left blank."
+                  )}
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                />
+                <Input
+                  label={providerText(
+                    t,
+                    "awsPollySessionTokenLabel",
+                    "AWS Session Token (optional)"
+                  )}
+                  type="password"
+                  value={formData.awsSessionToken}
+                  onChange={(e) => setFormData({ ...formData, awsSessionToken: e.target.value })}
+                  hint={providerText(
+                    t,
+                    "awsPollySessionTokenHint",
+                    "Required only for temporary AWS credentials."
+                  )}
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                />
+              </>
             )}
             {validationResult && (
               <Badge variant={validationResult === "success" ? "success" : "error"}>
@@ -1119,6 +1254,15 @@ export default function EditConnectionModal({
                       hint={t("rateLimitOverridesRpmHint")}
                     />
                     <Input
+                      label={t("rateLimitOverridesRpdLabel")}
+                      type="number"
+                      min={0}
+                      value={formData.rpd}
+                      onChange={(e) => setFormData({ ...formData, rpd: e.target.value })}
+                      placeholder={t("inherit")}
+                      hint={t("rateLimitOverridesRpdHint")}
+                    />
+                    <Input
                       label={t("rateLimitOverridesTpmLabel")}
                       type="number"
                       min={0}
@@ -1144,6 +1288,15 @@ export default function EditConnectionModal({
                       onChange={(e) => setFormData({ ...formData, minTime: e.target.value })}
                       placeholder={t("inherit")}
                       hint={t("rateLimitOverridesMinTimeHint")}
+                    />
+                    <Input
+                      label={t("rateLimitOverridesMaxWaitMsLabel")}
+                      type="number"
+                      min={0}
+                      value={formData.maxWaitMs}
+                      onChange={(e) => setFormData({ ...formData, maxWaitMs: e.target.value })}
+                      placeholder={t("inherit")}
+                      hint={t("rateLimitOverridesMaxWaitMsHint")}
                     />
                     <Input
                       label={t("rateLimitOverridesMaxConcurrentLabel")}

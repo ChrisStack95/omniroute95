@@ -11,6 +11,7 @@ import {
   normalizeCliCompatProviderId,
 } from "@/shared/constants/cliCompatProviders";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { CLAUDE_CODE_CLIENT_BUILD_REVISION } from "@/shared/constants/claudeCodeClient";
 import { compareTr } from "@/shared/utils/turkishText";
 import { HERMES } from "./systemTransformsHermesDefaults";
 
@@ -81,8 +82,6 @@ const DEFAULT_OBFUSCATE_WORDS = [
   "codecompanion",
   "openwebui",
   "open-webui",
-  "hermes-agent",
-  "hermes",
 ];
 
 // Mirror of DEFAULT_SYSTEM_TRANSFORMS_CONFIG from open-sse/services/systemTransforms.ts.
@@ -171,7 +170,7 @@ const DEFAULT_SYSTEM_TRANSFORMS_CLIENT = {
           entrypoint: "sdk-cli",
           versionFormat: "ex-machina",
           cchAlgo: "sha256-first-user",
-          buildRevision: "1f2",
+          buildRevision: CLAUDE_CODE_CLIENT_BUILD_REVISION,
         },
       ],
     },

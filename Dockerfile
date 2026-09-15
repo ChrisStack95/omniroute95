@@ -8,8 +8,8 @@ WORKDIR /app
 # that already have a fix published in trixie. CVEs without an upstream fix yet
 # (local-only TOCTOU, etc.) remain until the distro patches them and the image
 # is rebuilt; none are reachable from the proxy's request surface at runtime.
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-lists,target=/var/lib/apt/lists,sharing=locked \
   apt-get update \
   && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends libsecret-1-0 ca-certificates \
@@ -59,10 +59,16 @@ RUN set -eux; \
 # ── Builder ────────────────────────────────────────────────────────────────
 FROM base AS builder
 
+# No telemetry, anywhere. Disable Next.js's anonymous build-time telemetry
+# (it otherwise pings Vercel during `next build`). Set on the builder stage so
+# every image build is silent; the runtime never builds, so this covers the
+# only phase Next telemetry can fire.
+ENV NEXT_TELEMETRY_DISABLED=1
+
 # Build tools for native module compilation
 # apt-get update needed here because base's rm -rf clears the shared cache
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-lists,target=/var/lib/apt/lists,sharing=locked \
   apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
@@ -97,25 +103,12 @@ RUN test -f package-lock.json \
 # node-gyp comes from npm's own bundled copy (deterministic, already in the image)
 # instead of `npx --yes`, which would install an arbitrary registry version
 # on-demand and run its lifecycle scripts (Sonar docker:S6505).
-#
-# tls-client-node (chatgpt-web/claude-web/grok-web/lmarena/perplexity-web TLS
-# impersonation) hits the same --ignore-scripts wall: its own postinstall.js
-# fetches a platform .so/.dylib/.dll from the bogdanfinn/tls-client GitHub
-# Releases API and is never invoked when npm ci skips lifecycle scripts. Unlike
-# better-sqlite3 above, that script never throws on failure — it only
-# `console.warn`s and exits 0 — so a rate-limited or offline build would
-# otherwise succeed silently with an empty bin/ and only fail at first request
-# in production (TlsClientUnavailableError, #7802). Run it explicitly here so
-# a broken/rate-limited fetch fails the BUILD loudly instead of shipping a
-# broken image.
-RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-npm-cache,target=/root/.npm \
   npm ci --include=optional --no-audit --no-fund --legacy-peer-deps --ignore-scripts \
   && (cd node_modules/better-sqlite3 \
       && node /usr/local/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js rebuild) \
   && node -e "require('better-sqlite3')(':memory:').close()" \
-  && node node_modules/tls-client-node/scripts/postinstall.js \
-  && (test -n "$(find node_modules/tls-client-node/bin -mindepth 1 -print -quit 2>/dev/null)" \
-      || (echo "tls-client-node native binary missing after postinstall — GitHub API fetch likely rate-limited or failed (#7802)" >&2 && exit 1))
+  && node -e "const wreq=require('wreq-js'); if(typeof wreq.createTransport!=='function') process.exit(1)"
 
 # Build with Turbopack (stable in Next 16, the repo default). The v3.8.27-era
 # TurbopackInternalError panic ("entered unreachable code: there must be a path to a
@@ -140,6 +133,18 @@ ENV OMNIROUTE_USE_TURBOPACK="${OMNIROUTE_USE_TURBOPACK}"
 ARG OMNIROUTE_BASE_PATH=""
 ENV OMNIROUTE_BASE_PATH=$OMNIROUTE_BASE_PATH
 
+# #10273: the dashboard's `frame-ancestors` policy is compiled into the route
+# manifest by next.config.mjs (via scripts/build/dashboardEmbed.mjs), so it is
+# fixed when the image is built and cannot be flipped with `-e` on a running
+# container. Build with `--build-arg DASHBOARD_ALLOW_EMBED=vscode` to produce an
+# image whose HTML pages may be framed by the VS Code Simple Browser
+# (OmniCopilot's `dashboardOpen: "editor"`). Unset — the default — keeps every
+# route on `frame-ancestors 'none'` + X-Frame-Options: DENY. Builder-stage only:
+# the runner stage deliberately does not carry it, because a runtime value would
+# suggest an effect it cannot have.
+ARG DASHBOARD_ALLOW_EMBED=""
+ENV DASHBOARD_ALLOW_EMBED=$DASHBOARD_ALLOW_EMBED
+
 # Docker containers cannot run the MITM/Agent-Bridge stack (no host DNS/cert
 # access), so keep @/mitm/manager on the graceful stub (#3390). This flag is
 # Docker-only: npm/Electron/VPS builds must bundle the REAL manager (#6344).
@@ -154,14 +159,48 @@ ENV OMNIROUTE_MITM_STUB=1
 # child (build-next-isolated.mjs → resolveNextBuildEnv spreads process.env).
 # Build-only; the runtime heap is set separately on the runner stage
 # (OMNIROUTE_MEMORY_MB). Override: `--build-arg OMNIROUTE_BUILD_MEMORY_MB=6144`.
-ARG OMNIROUTE_BUILD_MEMORY_MB=4096
+# Default raised 4096 → 6144 (#10060): the Next 16 production pass on a codebase
+# this size intermittently OOMs a build worker at 4 GB on memory-tight hosts.
+ARG OMNIROUTE_BUILD_MEMORY_MB=6144
 ENV NODE_OPTIONS="--max-old-space-size=${OMNIROUTE_BUILD_MEMORY_MB}"
 
+# Cap Next.js build worker pools. Next 16 defaults to `os.cpus().length - 1`
+# workers for page-data collection (31 on a 32-core builder); on memory-tight
+# hosts 31 workers + webpack's multi-GB heap blow past RAM and a worker dies
+# with SIGSEGV at teardown ("worker exited with code: null and signal: SIGSEGV"),
+# silently leaving no standalone bundle. Next derives the worker count from
+# CIRCLE_NODE_TOTAL (workers = N-1). (#10060)
+#
+# Lowered 8 → 3 (7 workers → 2) in #11419, then 3 → 2 (2 workers → 1) in #7518.
+# Every page-data worker inherits NODE_OPTIONS above, so the ceiling is per
+# PROCESS, not per build: 7 workers on a 16 GB GitHub runner (ubuntu-24.04 /
+# ubuntu-24.04-arm, 4 vCPU) exhausted the host and buildkit failed the whole
+# step with `ResourceExhausted: ... cannot allocate memory`. The compile phase
+# always finished ("✓ Compiled successfully in 4.2min"); the kernel killed the
+# build right after "Collecting page data using N workers".
+#
+# #11419's first fix (8 → 3) modeled the per-worker peak as an INFERENCE
+# (2560 MB, guessed from "7 workers didn't fit") and assumed the parent
+# process's RSS tracked the V8 heap ceiling. Both assumptions were wrong: a
+# live VPS reproduction (issue #7518, dmesg OOM-killer report) measured the
+# real per-process RSS directly at ~4.5 GB, independent of the NODE_OPTIONS
+# heap flag (Turbopack itself is native/Rust, outside the V8 heap) — and it
+# applies to the parent process too, not just workers. 2 workers (3 processes
+# × 4.5 GB = 13.5 GB) still didn't fit the 12.288 GB (75%) budget on a 16 GB
+# runner, matching the still-live publish failures after #11419 merged. 1
+# worker (2 processes × 4.5 GB = 9 GB) fits with headroom to spare.
+# tests/unit/docker-build-memory-budget.test.ts does the arithmetic against
+# the measured figure and fails if either knob is raised past what a 16 GB
+# runner holds. Override for a big builder: `--build-arg
+# OMNIROUTE_BUILD_WORKERS=8`.
+ARG OMNIROUTE_BUILD_WORKERS=2
+ENV CIRCLE_NODE_TOTAL=${OMNIROUTE_BUILD_WORKERS}
+
 COPY . ./
-RUN --mount=type=cache,id=next-cache,target=/app/.build/next/cache \
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-next-cache,target=/app/.build/next/cache \
   mkdir -p /app/data \
   && npm run build \
-  && node --input-type=module -e "import { createRequire } from 'node:module'; import { pathToFileURL } from 'node:url'; const standaloneRoot = '/app/.build/next/standalone/node_modules/'; const require = createRequire('/app/.build/next/standalone/package.json'); for (const pkg of ['@atjsh/llmlingua-2', '@huggingface/transformers', '@tensorflow/tfjs', 'js-tiktoken']) { const resolved = require.resolve(pkg); if (!resolved.startsWith(standaloneRoot)) throw new Error(pkg + ' resolved outside standalone: ' + resolved); await import(pathToFileURL(resolved).href); } const onnxRuntime = require.resolve('onnxruntime-node'); if (!onnxRuntime.startsWith(standaloneRoot)) throw new Error('onnxruntime-node resolved outside standalone: ' + onnxRuntime); await import(pathToFileURL(onnxRuntime).href);"
+  && node --input-type=module -e "import { createRequire } from 'node:module'; import { pathToFileURL } from 'node:url'; const standaloneRoot = '/app/.build/next/standalone/node_modules/'; const require = createRequire('/app/.build/next/standalone/package.json'); for (const pkg of ['@atjsh/llmlingua-2', '@huggingface/transformers', 'js-tiktoken']) { const resolved = require.resolve(pkg); if (!resolved.startsWith(standaloneRoot)) throw new Error(pkg + ' resolved outside standalone: ' + resolved); await import(pathToFileURL(resolved).href); } const onnxRuntime = require.resolve('onnxruntime-node'); if (!onnxRuntime.startsWith(standaloneRoot)) throw new Error('onnxruntime-node resolved outside standalone: ' + onnxRuntime); await import(pathToFileURL(onnxRuntime).href);"
 
 # ── Runner base ────────────────────────────────────────────────────────────
 FROM base AS runner-base
@@ -262,8 +301,8 @@ COPY --from=builder /app/node_modules/playwright ./node_modules/playwright
 # browsers land under /home/node which persists across image layers and is
 # accessible to the non-root runtime user.
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-lists,target=/var/lib/apt/lists,sharing=locked \
   apt-get update \
   && node node_modules/playwright/cli.js install chromium --with-deps \
   && chown -R node:node /home/node/.cache \
@@ -284,15 +323,26 @@ COPY --from=builder /app/node_modules/playwright-core ./node_modules/playwright-
 COPY --from=builder /app/node_modules/playwright ./node_modules/playwright
 
 # Install system dependencies required by openclaw (git+ssh references).
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-lists,target=/var/lib/apt/lists,sharing=locked \
   apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates docker.io docker-compose \
   && rm -rf /var/lib/apt/lists/* \
   && git config --system url."https://github.com/".insteadOf "ssh://git@github.com/"
 
 # Install CLI tools globally. Separate layer from apt for better cache reuse.
-RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
-  npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
+# Pinned to exact versions per Diego's diagnosis in #12576 — floating
+# `@latest` causes two CI failures:
+#   1. `openclaw` ships a breaking major ~weekly; overnight builds silently
+#      advance to a version that no longer matches the tested combo stack.
+#   2. `codex` / `claude-code` dev pre-releases (`@next`, dist-tags) mutate
+#      API surface without notice; reproducible builds need a SHA-pinned dev
+#      build, not the floating `@latest`.
+RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-npm-cache,target=/root/.npm \
+  npm install -g --no-audit --no-fund \
+    @openai/codex@0.153.4 \
+    @anthropic-ai/claude-code@2.1.260 \
+    droid@0.212.0 \
+    openclaw@2026.9.1
 
 USER node
