@@ -1,4 +1,5 @@
 {
+  "_rebaseline_2026_09_13_13580_proxy_log_upstream_status": "PR #13580 own growth: open-sse/utils/proxyFetch.ts 1271->1275 (+4 = one import, one blank line, the applied-proxy sink getter and the const that wraps the existing fetch patch with withUpstreamStatusCapture). Irreducible plumbing at the single fetch install site: every return path of the patched fetch (dispatchers, direct sentinel, TLS layer, relay, native fallback, Bun) is covered by one wrapper instead of instrumenting each return. The capture logic lives in the new open-sse/utils/upstreamStatusCapture.ts (under cap). Covered by tests/unit/upstream-status-capture.test.ts and tests/unit/proxyfetch-upstream-status-capture.test.ts. Rework 2026-09-15: the migration is renumbered 177->179 (tip already ships 177/178), no size change.",
   "_rebaseline_2026_09_14_13547_noauth_model_lockout": "PR #13547 own growth: src/sse/services/auth.ts 3542->3556 (+14). The synthetic noauth connection short-circuited before the per-connection status pass, so a recorded model-only lockout was never enforced and the locked model was retried on every request. Irreducible at the early-return site. Covered by tests/unit/noauth-model-lockout.test.ts (carried from #13527).",
   "_rebaseline_2026_09_14_13404_healthcheck_backup_prune": "PR #13404 own growth: src/lib/db/core.ts 1745->1767 (+22). createManagedDbBackup (the health-check-repair snapshot path) never ran retention, so every restart of a healthy DB added a full-size copy to db_backups/; it now prunes with the same env-driven limits as backup.ts, importing backupRetention directly to avoid the backup.ts cycle. Covered by tests/unit/db-backup-healthcheck-prune-13308.test.ts.",
   "_rebaseline_2026_09_14_13349_virtualfactory_custom_models_guard": "PR #13349 own growth: open-sse/services/autoCombo/virtualFactory.ts 1219->1230 (+11). The customModels key_value blob is operator-writable raw JSON, so a null or non-object row null-derefed every read and no auto/* pool could materialize; the builder now filters rows the same way catalog.ts already does. Irreducible at the read site. Covered by tests/unit/combo-auto-pool-visible-only.test.ts.",
@@ -448,7 +449,7 @@
     "open-sse/services/combo/executeTargetAttempt.ts": 1212,
     "open-sse/translator/response/openai-responses.ts": 1466,
     "open-sse/utils/cursorAgentProtobuf.ts": 1547,
-    "open-sse/utils/proxyFetch.ts": 1271,
+    "open-sse/utils/proxyFetch.ts": 1275,
     "open-sse/utils/stream.ts": 3098,
     "open-sse/vendor/codex-chatgpt-web/adapters/chatgpt-web/browser-worker.ts": 4398,
     "open-sse/vendor/codex-chatgpt-web/bridge.ts": 1335,
