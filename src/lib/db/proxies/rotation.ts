@@ -82,6 +82,42 @@ export async function getScopeRotationStrategy(
   return normalizeRotationStrategy(row?.strategy);
 }
 
+/**
+ * Read a scope pool's per-request re-evaluation flag (#13575). Off by default:
+ * a missing rotation row — or a database from before migration 179 — keeps
+ * today's stable member per connection.
+ */
+export async function getScopePoolReevaluate(
+  scope: string,
+  scopeId?: string | null
+): Promise<boolean> {
+  try {
+    const normalizedScope = normalizeScope(scope);
+    const rotationScopeId = normalizeRotationScopeId(normalizedScope, scopeId);
+    const db = getDbInstance();
+    const row = db
+      .prepare(
+        "SELECT reevaluate_per_request FROM proxy_scope_rotation WHERE scope = ? AND scope_id IS ?"
+      )
+      .get(normalizedScope, rotationScopeId) as
+      { reevaluate_per_request?: number | null } | undefined;
+    return Number(row?.reevaluate_per_request) === 1;
+  } catch (error: unknown) {
+    // Pre-migration-179 databases lack the column: stay frozen (flag off).
+    // Any other DB error is real — don't swallow it.
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("no such table") || msg.includes("no such column")) return false;
+    throw error;
+  }
+}
+
+/** Pool pick options. `advanceCursor: false` peeks at the current member
+ * without consuming a rotation turn (background callers: token refresh,
+ * warmup — #13575). Defaults to true. */
+export interface PoolResolutionOptions {
+  advanceCursor?: boolean;
+}
+
 // Read the rotation row for a scope, creating a default one lazily so the
 // round-robin cursor has somewhere to live. Best-effort: any write failure leaves
 // the caller on the default strategy with an ephemeral cursor.
@@ -139,7 +175,8 @@ function pickFromCandidates<T>(
   db: ReturnType<typeof getDbInstance>,
   normalizedScope: string,
   rotationScopeId: string,
-  candidates: T[]
+  candidates: T[],
+  peek = false
 ): T {
   if (candidates.length === 1) return candidates[0];
 
@@ -159,9 +196,10 @@ function pickFromCandidates<T>(
     const windowMs = state.stickyWindowMinutes * 60_000;
     const lastRotated = state.rotatedAt ? Date.parse(state.rotatedAt) : NaN;
     const expired = !Number.isFinite(lastRotated) || Date.now() - lastRotated >= windowMs;
-    let cursor = state.cursor;
-    if (expired) {
-      cursor = state.cursor + 1;
+    // A peek computes the post-expiry member without persisting it, so
+    // background callers never steal the window rotation (#13575).
+    let cursor = expired ? state.cursor + 1 : state.cursor;
+    if (expired && !peek) {
       db.prepare(
         "UPDATE proxy_scope_rotation SET cursor = ?, rotated_at = ?, updated_at = ? WHERE scope = ? AND scope_id IS ?"
       ).run(
@@ -178,9 +216,11 @@ function pickFromCandidates<T>(
 
   // round-robin (default): pick at the current cursor, then advance it monotonically.
   const idx = ((state.cursor % candidates.length) + candidates.length) % candidates.length;
-  db.prepare(
-    "UPDATE proxy_scope_rotation SET cursor = ?, updated_at = ? WHERE scope = ? AND scope_id IS ?"
-  ).run(state.cursor + 1, new Date().toISOString(), normalizedScope, rotationScopeId);
+  if (!peek) {
+    db.prepare(
+      "UPDATE proxy_scope_rotation SET cursor = ?, updated_at = ? WHERE scope = ? AND scope_id IS ?"
+    ).run(state.cursor + 1, new Date().toISOString(), normalizedScope, rotationScopeId);
+  }
   return candidates[idx];
 }
 
@@ -224,7 +264,12 @@ function resolveScopePoolInternal(
   db: ReturnType<typeof getDbInstance>,
   scope: ProxyScope,
   levelId: string | null,
-  options: { rotationScopeId: string; matchAnyScopeId?: boolean; scopeIdFilter?: string | null }
+  options: {
+    rotationScopeId: string;
+    matchAnyScopeId?: boolean;
+    scopeIdFilter?: string | null;
+    pool?: PoolResolutionOptions;
+  }
 ): ReturnType<typeof toRegistryProxyResolution> | null {
   const rows = fetchAlivePoolRows(
     db,
@@ -233,7 +278,13 @@ function resolveScopePoolInternal(
     options.matchAnyScopeId === true
   );
   if (rows.length === 0) return null;
-  const picked = pickFromCandidates(db, scope, options.rotationScopeId, rows);
+  const picked = pickFromCandidates(
+    db,
+    scope,
+    options.rotationScopeId,
+    rows,
+    options.pool?.advanceCursor === false
+  );
   return toRegistryProxyResolution(picked, scope, levelId);
 }
 
@@ -273,7 +324,11 @@ export async function resolveProxyForConnectionFromRegistry(connectionId: string
   }
 }
 
-export async function resolveProxyForScopeFromRegistry(scope: string, scopeId?: string | null) {
+export async function resolveProxyForScopeFromRegistry(
+  scope: string,
+  scopeId?: string | null,
+  options?: PoolResolutionOptions
+) {
   try {
     const db = getDbInstance();
     const normalizedScope = normalizeScope(scope);
@@ -282,6 +337,7 @@ export async function resolveProxyForScopeFromRegistry(scope: string, scopeId?: 
       return resolveScopePoolInternal(db, "global", null, {
         rotationScopeId: normalizeRotationScopeId("global", null),
         matchAnyScopeId: true,
+        pool: options,
       });
     }
 
@@ -291,6 +347,7 @@ export async function resolveProxyForScopeFromRegistry(scope: string, scopeId?: 
     return resolveScopePoolInternal(db, normalizedScope, normalizedScopeId, {
       rotationScopeId: normalizeRotationScopeId(normalizedScope, normalizedScopeId),
       scopeIdFilter: normalizedScopeId,
+      pool: options,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

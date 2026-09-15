@@ -766,6 +766,23 @@ Use `random`
 evenly)
 ```
 
+### Per-request pool re-evaluation
+
+On the chat path each connection otherwise keeps the first pool member the
+strategy picked (stable egress — what OAuth accounts usually want). When a
+pool should be asked again on every request — so round-robin keeps cycling or
+an expired `sticky` window moves on — opt that scope in:
+
+```bash
+curl -X PATCH http://localhost:3000/api/settings/proxies/pool \
+  -H 'Content-Type: application/json' \
+  -d '{"scope":"provider","scopeId":"openai","strategy":"round-robin","reevaluatePerRequest":true}'
+```
+
+Off by default, per scope (provider, account, combo, or global). Background
+callers (token refresh, warmup) always keep the cached member so they never
+consume rotation turns.
+
 ## Automatic Failure Exclusion for Your Own Proxies
 
 The 1proxy marketplace pool already auto-degrades failed proxies on its own (see

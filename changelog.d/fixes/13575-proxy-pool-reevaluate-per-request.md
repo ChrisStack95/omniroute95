@@ -1,0 +1,1 @@
+- **fix(proxy):** scope pools can opt into per-request member re-evaluation on the chat path (`reevaluatePerRequest`, off by default), so an opted-in pool asks the rotation strategy again on every request instead of freezing the first pick per connection ([#13575](https://github.com/diegosouzapw/OmniRoute/issues/13575))
