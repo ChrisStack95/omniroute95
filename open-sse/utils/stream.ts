@@ -27,6 +27,7 @@ import {
   injectThinkingSignature,
 } from "./streamHelpers.ts";
 import { rejectEmptyChoicesStream, buildEmptyChoicesStreamError } from "./streamEmptyChoices.ts";
+import { shouldAbortEmptyClaudeStream } from "./streamClaudeEmptyBody.ts";
 import { calculateCost } from "@/lib/usage/costCalculator";
 import { buildOmniRouteSseMetadataComment } from "@/domain/omnirouteResponseMeta";
 import { sseCommentsEnabled } from "./sseHeartbeat.ts";
@@ -145,6 +146,9 @@ type StreamCompletePayload = {
   interrupted?: boolean;
 };
 
+/** Queue budget every provider used before `streamBufferBytes` existed. */
+const DEFAULT_STREAM_BUFFER_BYTES = 16384;
+
 type StreamOptions = {
   mode?: string;
   targetFormat?: string;
@@ -160,6 +164,14 @@ type StreamOptions = {
    */
   dropResponsesCommentary?: boolean;
   customToolNames?: ReadonlySet<string>;
+  /**
+   * Byte budget for the transform's readable and writable queues.
+   *
+   * Defaults to the 16 KB every provider used before this was configurable. A
+   * high-throughput provider can raise it so provider -> client pacing stays
+   * ahead of the model's emission rate; nothing else should need to.
+   */
+  streamBufferBytes?: number;
   provider?: string | null;
   reqLogger?: StreamLogger | null;
   toolNameMap?: unknown;
@@ -502,11 +514,6 @@ function shouldInjectClaudeEmptyResponseBeforeCurrentEvent(
   return type === "message_delta" || type === "message_stop";
 }
 
-function shouldInjectClaudeEmptyResponseOnFlush(lifecycle: ClaudeEmptyResponseLifecycle): boolean {
-  if (lifecycle.hasError || lifecycle.hasContentBlock) return false;
-  return hasClaudeAssistantLifecycle(lifecycle);
-}
-
 function shouldInjectClaudeMissingFinalizersOnFlush(
   lifecycle: ClaudeEmptyResponseLifecycle
 ): boolean {
@@ -655,6 +662,7 @@ export function createSSEStream(options: StreamOptions = {}) {
     dropResponsesCommentary,
     customToolNames = new Set<string>(),
     requestToolIdentityMap = null,
+    streamBufferBytes = DEFAULT_STREAM_BUFFER_BYTES,
   } = options;
   const signatureNamespace = connectionId;
   // Request-body-size metric (for monitoring payload size distribution & correlation with TTFT).
@@ -875,6 +883,10 @@ export function createSSEStream(options: StreamOptions = {}) {
   let idleTimer: ReturnType<typeof setInterval> | null = null;
   let streamTimedOut = false;
   const claudeEmptyResponseLifecycle = createClaudeEmptyResponseLifecycle();
+  // #12398: `timing.firstByteAt` doubles as "any upstream chunk ever arrived".
+  const shouldAbortClaudeStream = () =>
+    clientExpectsClaudeStream &&
+    shouldAbortEmptyClaudeStream(claudeEmptyResponseLifecycle, timing.firstByteAt !== null);
   // `event:` framing is only part of the SSE protocol for OpenAI Responses API
   // and Claude Messages API passthrough; a plain OpenAI Chat-Completions-format
   // client has no `event:` field at all, so it is dropped to stop upstream
@@ -1103,7 +1115,8 @@ export function createSSEStream(options: StreamOptions = {}) {
       cacheHit: false,
       latencyMs: Date.now() - streamStartedAt,
       usage: timing.withTps(finalUsage),
-      costUsd, ttftMs: timing.ttftMs(),
+      costUsd,
+      ttftMs: timing.ttftMs(),
     });
     if (!comment) return;
     reqLogger?.appendConvertedChunk?.(comment);
@@ -2069,7 +2082,9 @@ export function createSSEStream(options: StreamOptions = {}) {
                   // estimate is now emitted in flush(), only when the upstream stayed silent.
                   if (isFinishChunk && hasValidUsage(usage) && !passthroughForwardedUsage) {
                     const buffered = addBufferToUsage(usage);
-                    parsed.usage = timing.withTps(filterUsageForFormat(buffered, sourceFormat || FORMATS.OPENAI));
+                    parsed.usage = timing.withTps(
+                      filterUsageForFormat(buffered, sourceFormat || FORMATS.OPENAI)
+                    );
                     output = `data: ${JSON.stringify(parsed)}\n\n`;
                     passthroughForwardedUsage = true;
                     injectedUsage = true;
@@ -2487,7 +2502,7 @@ export function createSSEStream(options: StreamOptions = {}) {
               }
             }
 
-            if (shouldInjectClaudeEmptyResponseOnFlush(claudeEmptyResponseLifecycle)) {
+            if (shouldAbortClaudeStream()) {
               emitClaudeEmptyStreamErrorAndAbort(controller);
               return;
             } else if (shouldInjectClaudeMissingFinalizersOnFlush(claudeEmptyResponseLifecycle)) {
@@ -2840,7 +2855,7 @@ export function createSSEStream(options: StreamOptions = {}) {
           }
 
           if (sourceFormat === FORMATS.CLAUDE) {
-            if (shouldInjectClaudeEmptyResponseOnFlush(claudeEmptyResponseLifecycle)) {
+            if (shouldAbortClaudeStream()) {
               emitClaudeEmptyStreamErrorAndAbort(controller);
               return;
             } else if (shouldInjectClaudeMissingFinalizersOnFlush(claudeEmptyResponseLifecycle)) {
@@ -3020,8 +3035,8 @@ export function createSSEStream(options: StreamOptions = {}) {
         clearIdleTimer();
       },
     },
-    { highWaterMark: 16384 },
-    { highWaterMark: 16384 }
+    { highWaterMark: streamBufferBytes },
+    { highWaterMark: streamBufferBytes }
   );
 }
 
@@ -3043,7 +3058,8 @@ export function createSSETransformStreamWithLogger(
   copilotCompatibleReasoning = false,
   suppressThinkClose = false,
   customToolNames: ReadonlySet<string> = new Set(),
-  requestToolIdentityMap: Map<string, { namespace: string; name: string }> | null = null
+  requestToolIdentityMap: Map<string, { namespace: string; name: string }> | null = null,
+  streamBufferBytes: number = DEFAULT_STREAM_BUFFER_BYTES
 ) {
   return createSSEStream({
     mode: STREAM_MODE.TRANSLATE,
@@ -3062,6 +3078,7 @@ export function createSSETransformStreamWithLogger(
     suppressThinkClose,
     customToolNames,
     requestToolIdentityMap,
+    streamBufferBytes,
   });
 }
 
