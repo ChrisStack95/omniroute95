@@ -64,7 +64,11 @@ export interface ResolveAutoStrategyDeps {
   body: Record<string, unknown>;
   combo: ComboLike;
   settings: Record<string, unknown> | null | undefined;
-  config: { compatFilterFailOpen?: boolean };
+  // Index signature keeps this structurally assignable from the caller's much
+  // wider `resolveComboSetupConfig()` return type — without it, TS2559 ("no
+  // properties in common") fires now that `complexityAwareRouting` (the one
+  // property the two types used to share) is gone (#13386).
+  config: { compatFilterFailOpen?: boolean } & Record<string, unknown>;
   relayOptions?: {
     bypassProviderQuotaPolicy?: boolean;
     sessionId?: string | null;
