@@ -35,23 +35,26 @@ const FAMILY_MARKER = /\?family=(ipv4|ipv6)$/;
 const memory = new Map<string, RefusalState>();
 let refusalSeq = 0;
 
+const textField = (value: unknown): string => (typeof value === "string" ? value : "");
+
+// The port as proxyConfigToUrl() normalizes it: the scheme default when unset, null if invalid.
+function configPort(port: unknown, type: string): string | null {
+  if (!port) return DEFAULT_PORTS[type] ?? "";
+  const parsed = Number(port);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535 ? String(parsed) : null;
+}
+
 // A config object as the URL proxyConfigToUrl() would build from it; null when unusable.
 function configObjectToUrl(proxy: Record<string, unknown>): string | null {
-  const host = typeof proxy.host === "string" ? proxy.host : "";
-  if (!host) return null;
+  const host = textField(proxy.host);
   const type = String(proxy.type || "http").toLowerCase();
-  if (RELAY_TYPES.has(type)) return null;
+  const port = configPort(proxy.port, type);
+  if (!host || RELAY_TYPES.has(type) || port === null) return null;
   const bracketed = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-  const username = typeof proxy.username === "string" ? proxy.username : "";
-  const password = typeof proxy.password === "string" ? proxy.password : "";
+  const username = textField(proxy.username);
+  const password = textField(proxy.password);
   const auth =
     username || password ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@` : "";
-  let port = DEFAULT_PORTS[type] ?? "";
-  if (proxy.port) {
-    const parsed = Number(proxy.port);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return null;
-    port = String(parsed);
-  }
   return `${type}://${auth}${bracketed}:${port}`;
 }
 
