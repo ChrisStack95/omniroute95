@@ -169,8 +169,29 @@ server process.
 | `/api/settings/export-json`               | Exports the full settings blob (incl. secrets) |
 | `/api/settings/import-json`               | Replaces the full settings blob                |
 | `/api/providers/health-autopilot/actions` | Executes autopilot remediation actions         |
+| `/api/settings/obsidian`                  | Mints reusable WebDAV creds for any vault root |
 
 **Response on violation:** `401 Authentication required`
+
+`/api/settings/obsidian` covers its `/webdav` child: `POST` points the WebDAV file service —
+served by the custom Node layer before Next.js, outside this pipeline — at a caller-chosen root
+and echoes freshly minted Basic credentials, `DELETE` rotates them, and the parent `POST` stores
+the Obsidian REST API token. GHSA-62vw only masked the `GET` password reveal; the issuance was
+still on the fail-open tier (GHSA-7pq4-8pvv-rx7r). `enableObsidianVaultSync()` additionally
+refuses a vault that is, sits inside, or contains the data directory.
+
+### Fresh-install bootstrap is loopback-only — by real peer, not `Host`
+
+With no management password configured (and no `INITIAL_PASSWORD`), `isAuthRequired()` in
+`src/shared/utils/apiAuth.ts` keeps the anonymous bootstrap open **only for loopback peers**.
+Loopback is decided from the trusted peer signals, in order: the token-stamped real TCP peer
+(`PEER_IP_HEADER` + `VIA_PROXY_HEADER`, what the policy sees), the pipeline's own
+`AUTHZ_HEADER_PEER_LOCALITY` verdict (what route handlers see, trusted only while
+`OMNIROUTE_PEER_STAMP_TOKEN` is set), or a real socket peer for direct callers. `Host` /
+`nextUrl.hostname` are never consulted, and the first-password write
+(`POST /api/settings/require-login`) is under the same constraint rather than open to every
+network peer (GHSA-7pq4-8pvv-rx7r). `managementPolicy` passes its own `peerContext` verdict
+down explicitly, so the ORIGINAL (pre-strip) request's headers never decide it.
 
 ### Tier 3 — MANAGEMENT (default)
 

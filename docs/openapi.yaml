@@ -11316,6 +11316,7 @@ paths:
       tags:
         - Settings
       summary: "DELETE settings › obsidian"
+      x-always-protected: true
       responses:
         "200":
           description: OK
@@ -11323,6 +11324,7 @@ paths:
       tags:
         - Settings
       summary: "GET settings › obsidian"
+      x-always-protected: true
       responses:
         "200":
           description: OK
@@ -11330,6 +11332,7 @@ paths:
       tags:
         - Settings
       summary: "POST settings › obsidian"
+      x-always-protected: true
       responses:
         "200":
           description: OK
@@ -11338,6 +11341,7 @@ paths:
       tags:
         - Settings
       summary: "DELETE settings › obsidian › webdav"
+      x-always-protected: true
       responses:
         "200":
           description: OK
@@ -11345,6 +11349,7 @@ paths:
       tags:
         - Settings
       summary: "GET settings › obsidian › webdav"
+      x-always-protected: true
       responses:
         "200":
           description: OK
@@ -11352,6 +11357,7 @@ paths:
       tags:
         - Settings
       summary: "POST settings › obsidian › webdav"
+      x-always-protected: true
       responses:
         "200":
           description: OK
@@ -11537,6 +11543,73 @@ paths:
       responses:
         "200":
           description: OK
+  /api/settings/proxies/pool/egress-observation:
+    get:
+      tags:
+        - Settings
+      summary: "GET settings › proxies › pool › egress observation"
+      description: >-
+        Read-only observation of how many distinct egress IPs actually served the members of a
+        proxy pool over the last 24 h, read from the proxy log (numbers only, never used for
+        routing). Opt-in through the PROXY_POOL_EGRESS_OBSERVATION feature flag: while it is
+        off, or when the read fails, the body is JSON null. Results are cached for 30 seconds
+        per normalized scope (key is read as account, global as the stored global pool).
+      security:
+        - ManagementSessionAuth: []
+      parameters:
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - global
+              - provider
+              - account
+              - combo
+              - key
+        - name: scopeId
+          in: query
+          required: false
+          description: Required for every scope except global; ignored for global.
+          schema:
+            type: string
+            maxLength: 256
+      responses:
+        "200":
+          description: The observation, or null when the feature flag is off or the read failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                nullable: true
+                required:
+                  - connections
+                  - distinctExits
+                  - maxConnectionsOnOneExit
+                  - windowHours
+                properties:
+                  connections:
+                    type: integer
+                    minimum: 0
+                    description: Distinct OmniRoute connections logged through the pool members.
+                  distinctExits:
+                    type: integer
+                    minimum: 0
+                    description: Distinct egress IPs observed for those members.
+                  maxConnectionsOnOneExit:
+                    type: integer
+                    minimum: 0
+                    description: Most connections seen behind one egress IP over the window.
+                  windowHours:
+                    type: integer
+                    example: 24
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/ManagementAuthenticationRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/settings/proxy/cloudflare-deploy:
     post:
       tags:

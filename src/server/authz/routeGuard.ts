@@ -177,6 +177,17 @@ export const ALWAYS_PROTECTED_API_PATHS: ReadonlyArray<string> = [
   // as the {claude,codex}-auth/apply-local pattern below; a plain path because
   // it carries no dynamic segment.
   "/api/providers/agy-auth/apply-local",
+  // Obsidian integration. POST /webdav points the WebDAV file service — served by
+  // the custom Node layer BEFORE Next.js, outside this pipeline — at a
+  // caller-chosen root and echoes freshly minted, reusable Basic credentials;
+  // DELETE /webdav rotates/clears them; the parent POST stores the Obsidian REST
+  // API token. GHSA-62vw only masked the GET password reveal, leaving credential
+  // *issuance* on the fail-open tier: with requireLogin flipped off during the
+  // bootstrap window, an anonymous caller stood up a file server over DATA_DIR
+  // and read JWT_SECRET out of server.env (GHSA-7pq4-8pvv-rx7r). Prefix covers
+  // the /webdav child. ALWAYS_PROTECTED rather than LOCAL_ONLY so an operator
+  // driving the dashboard through a tunnel keeps the feature.
+  "/api/settings/obsidian",
 ];
 
 /**
