@@ -94,11 +94,6 @@
       "count": 3
     }
   },
-  "open-sse/executors/cursor.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    }
-  },
   "open-sse/executors/deepseek-web.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 12
@@ -729,11 +724,6 @@
   "open-sse/utils/bypassHandler.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
-    }
-  },
-  "open-sse/utils/cursorAgentProtobuf.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
     }
   },
   "open-sse/utils/earlyStreamKeepalive.ts": {
