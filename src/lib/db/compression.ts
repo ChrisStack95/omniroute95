@@ -743,9 +743,16 @@ export async function getCompressionSettings(): Promise<CompressionConfig> {
       case "ultraConfig":
         config.ultra = normalizeUltraConfig(parsed);
         break;
-      case "lite":
-        config.lite = { compressToolResults: toRecord(parsed).compressToolResults !== false };
+      case "lite": {
+        const liteRecord = toRecord(parsed);
+        config.lite = {
+          compressToolResults: liteRecord.compressToolResults !== false,
+          ...(typeof liteRecord.maxToolLength === "number"
+            ? { maxToolLength: boundedInt(liteRecord.maxToolLength, 2000, 256, 1_000_000) }
+            : {}),
+        };
         break;
+      }
       case "headroom":
       case "headroomConfig":
         config.headroom = normalizeHeadroomConfig(parsed);

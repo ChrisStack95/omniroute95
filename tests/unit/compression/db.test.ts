@@ -56,6 +56,7 @@ describe("getCompressionSettings", () => {
     assert.deepEqual(settings.liveZone, { enabled: false });
     assert.deepEqual(settings.comboOverrides, {});
     assert.equal(settings.lite?.compressToolResults, true);
+    assert.equal(settings.lite?.maxToolLength, undefined);
     assert.equal(settings.ultra?.enabled, false);
     assert.equal(settings.ultra?.compressionRate, 0.5);
     assert.equal(settings.ultra?.minScoreThreshold, 0.3);
@@ -79,6 +80,17 @@ describe("updateCompressionSettings", () => {
 
     const settings = await getCompressionSettings();
     assert.equal(settings.lite?.compressToolResults, false);
+  });
+
+  it("persists Lite maxToolLength across reload and keeps the truncation switch", async () => {
+    await updateCompressionSettings({
+      lite: { compressToolResults: true, maxToolLength: 8000 },
+    });
+    core.resetDbInstance();
+
+    const settings = await getCompressionSettings();
+    assert.equal(settings.lite?.compressToolResults, true);
+    assert.equal(settings.lite?.maxToolLength, 8000);
   });
 
   it("updates defaultMode", async () => {

@@ -229,6 +229,16 @@ const LITE_SCHEMA: EngineConfigField[] = [
       "Truncates tool results over 2,000 characters during Lite compression. Emergency overflow protection may still trim content when the context exceeds the model budget.",
     defaultValue: true,
   },
+  {
+    key: "maxToolLength",
+    type: "number",
+    label: "Maximum tool-result length",
+    description:
+      "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset.",
+    defaultValue: 2000,
+    min: 256,
+    max: 1_000_000,
+  },
 ];
 
 function validateLiteConfig(config: Record<string, unknown>): EngineValidationResult {
@@ -240,6 +250,7 @@ function validateLiteConfig(config: Record<string, unknown>): EngineValidationRe
     errors.push("preserveSystemPrompt must be a boolean");
   }
   validateBoolean(config, "compressToolResults", errors);
+  validateNumberRange(config, "maxToolLength", 256, 1_000_000, errors);
   return { valid: errors.length === 0, errors };
 }
 
@@ -267,6 +278,8 @@ export const liteEngine: CompressionEngine = {
     // to global config.lite, then the default (keeps the type `boolean`, and a malformed
     // step value can no longer leak through the `??` chain as `{}`).
     const stepCompressToolResults = options?.stepConfig?.compressToolResults;
+    const stepMaxToolLength = options?.stepConfig?.maxToolLength;
+    const configMaxToolLength = options?.config?.lite?.maxToolLength;
     const result = applyLiteCompression(adapter.body, {
       ...options,
       preserveSystemPrompt: options?.config?.preserveSystemPrompt !== false,
@@ -277,6 +290,12 @@ export const liteEngine: CompressionEngine = {
         typeof stepCompressToolResults === "boolean"
           ? stepCompressToolResults
           : (options?.config?.lite?.compressToolResults ?? true),
+      maxToolLength:
+        typeof stepMaxToolLength === "number"
+          ? stepMaxToolLength
+          : typeof configMaxToolLength === "number"
+            ? configMaxToolLength
+            : undefined,
     });
     return adapter.adapted ? { ...result, body: adapter.restore(result.body) } : result;
   },

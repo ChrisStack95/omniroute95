@@ -178,6 +178,12 @@ export function EngineConfigPage({ engineId }: { engineId: string }) {
         for (const field of foundEngine?.configSchema ?? []) {
           defaults[field.key] = field.defaultValue;
         }
+        // Do not seed lite.maxToolLength from the schema default. Persisting 2000
+        // would freeze the cap in settings and hide OMNIROUTE_LITE_MAX_TOOL_LENGTH.
+        // The form still shows 2000 via field.defaultValue until the operator edits it.
+        if (engineId === "lite" && currentConfig.maxToolLength === undefined) {
+          delete defaults.maxToolLength;
+        }
         setConfigState({ ...defaults, ...currentConfig });
         setLoading(false);
       }
@@ -204,9 +210,21 @@ export function EngineConfigPage({ engineId }: { engineId: string }) {
     // Strip the `enabled` key — engine on/off is the panel's responsibility.
     const { enabled: _ignored, ...formDetail } = configState;
     void _ignored;
+    const liteMaxToolLength =
+      typeof formDetail.maxToolLength === "number" &&
+      Number.isFinite(formDetail.maxToolLength)
+        ? Math.floor(formDetail.maxToolLength)
+        : undefined;
     const detail =
       engineId === "lite"
-        ? { compressToolResults: formDetail.compressToolResults !== false }
+        ? {
+            compressToolResults: formDetail.compressToolResults !== false,
+            ...(liteMaxToolLength !== undefined &&
+            liteMaxToolLength >= 256 &&
+            liteMaxToolLength <= 1_000_000
+              ? { maxToolLength: liteMaxToolLength }
+              : {}),
+          }
         : formDetail;
     setSaving(true);
     setSaveError(null);
