@@ -2729,6 +2729,7 @@ export async function handleChatCore({
     translatedBody = wireAdaptiveEffort(translatedBody, {
       rawBody: body,
       headerEffort: adaptiveEffortHeader,
+      targetFormat,
     });
   }
 
