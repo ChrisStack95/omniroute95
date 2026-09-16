@@ -945,7 +945,6 @@ export function stripTrailingAssistantOrphanToolUse(
  */
 const PROVIDERS_REQUIRING_USER_LAST_MESSAGE = new Set(["mistral", "claude"]);
 
-
 /**
  * Strip a trailing `assistant` message that contains ONLY plain text (no
  * `tool_use` / `tool_calls`) for providers that mandate user-last format.
