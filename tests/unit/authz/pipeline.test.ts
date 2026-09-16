@@ -30,7 +30,7 @@ const ORIGINAL_OMNIROUTE_PEER_STAMP_TOKEN = process.env.OMNIROUTE_PEER_STAMP_TOK
 function resetEnvironment() {
   core.resetDbInstance();
   apiKeysDb.resetApiKeyState();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
   process.env.JWT_SECRET = "pipeline-jwt-secret";
   process.env.INITIAL_PASSWORD = "pipeline-initial-password";
@@ -67,7 +67,7 @@ test.beforeEach(() => {
 
 test.after(() => {
   core.resetDbInstance();
-  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   if (ORIGINAL_JWT === undefined) delete process.env.JWT_SECRET;
   else process.env.JWT_SECRET = ORIGINAL_JWT;
   if (ORIGINAL_INITIAL === undefined) delete process.env.INITIAL_PASSWORD;
@@ -200,7 +200,7 @@ test("runAuthzPipeline allows onboarding when login is required but no password 
   assert.equal(response.headers.get("x-omniroute-route-class"), "PUBLIC");
 });
 
-test("runAuthzPipeline allows first password writes when login is required but no password exists", async () => {
+test("runAuthzPipeline allows first password writes when login is required but no password exists — from the stamped loopback peer only (GHSA-7pq4-8pvv-rx7r)", async () => {
   delete process.env.INITIAL_PASSWORD;
   await settingsDb.updateSettings({
     requireLogin: true,
@@ -208,13 +208,47 @@ test("runAuthzPipeline allows first password writes when login is required but n
     password: "",
   });
 
-  const response = await pipeline.runAuthzPipeline(
+  // The local operator (real TCP peer 127.0.0.1, stamped by the custom server)
+  // keeps the first-password flow, whatever hostname they typed.
+  process.env.OMNIROUTE_PEER_STAMP_TOKEN = "pipeline-test-peer-stamp-token";
+  const local = await pipeline.runAuthzPipeline(
+    request("https://example.com/api/settings/require-login", {
+      method: "POST",
+      headers: {
+        "x-omniroute-peer-ip": "pipeline-test-peer-stamp-token|127.0.0.1",
+        "x-omniroute-via-proxy": "pipeline-test-peer-stamp-token|0",
+      },
+    }),
+    { enforce: true }
+  );
+  assert.equal(local.status, 200);
+  assert.equal(local.headers.get("x-omniroute-route-class"), "MANAGEMENT");
+
+  // A remote peer — even one spelling the URL as localhost and forging the
+  // pipeline's own locality verdict header — must not reach the anonymous write
+  // that flips requireLogin=false (the first link of the JWT_SECRET chain).
+  const spoofed = await pipeline.runAuthzPipeline(
+    request("http://localhost/api/settings/require-login", {
+      method: "POST",
+      headers: {
+        host: "localhost",
+        "x-omniroute-peer-locality": "loopback",
+        "x-omniroute-peer-ip": "pipeline-test-peer-stamp-token|203.0.113.9",
+        "x-omniroute-via-proxy": "pipeline-test-peer-stamp-token|0",
+      },
+    }),
+    { enforce: true }
+  );
+  assert.equal(spoofed.status, 401);
+  assert.equal((await spoofed.json()).error.code, "AUTH_001");
+
+  // No stamp at all (nothing trustworthy about the peer) → fail closed.
+  delete process.env.OMNIROUTE_PEER_STAMP_TOKEN;
+  const unstamped = await pipeline.runAuthzPipeline(
     request("https://example.com/api/settings/require-login", { method: "POST" }),
     { enforce: true }
   );
-
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("x-omniroute-route-class"), "MANAGEMENT");
+  assert.equal(unstamped.status, 401);
 });
 
 test("runAuthzPipeline keeps management API rejections as JSON", async () => {
@@ -306,6 +340,7 @@ test("runAuthzPipeline rejects new API requests during shutdown drain", async ()
 
   assert.equal(response.status, 503);
   assert.equal(body.error.code, "SERVICE_UNAVAILABLE");
+  assert.equal(response.headers.get("retry-after"), "5");
 });
 
 test("runAuthzPipeline rejects rewritten API aliases during shutdown drain", async () => {
@@ -319,6 +354,7 @@ test("runAuthzPipeline rejects rewritten API aliases during shutdown drain", asy
   assert.equal(response.status, 503);
   assert.equal(response.headers.get("x-omniroute-route-class"), "CLIENT_API");
   assert.equal(body.error.code, "SERVICE_UNAVAILABLE");
+  assert.equal(response.headers.get("retry-after"), "5");
 });
 
 test("runAuthzPipeline allows dashboard sessions to read model catalog aliases", async () => {

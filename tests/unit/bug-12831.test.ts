@@ -4,7 +4,7 @@ import { openaiToOpenAIResponsesResponse } from "../../open-sse/translator/respo
 
 test("Issue #12831: fixes double-escaped tabs in Codex JSON tool call arguments", () => {
   const events = [];
-  const emit = (name, payload) => events.push(payload);
+  const emit = (_name, payload) => events.push(payload);
   const state = {
     responseId: "res_123",
     funcCallIds: {},

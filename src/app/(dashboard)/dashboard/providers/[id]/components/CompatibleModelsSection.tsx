@@ -22,7 +22,8 @@ import {
   type CompatModelRow,
 } from "../providerPageHelpers";
 import { ModelVisibilityToolbar } from "./ModelRow";
-import { sortModelsFreeFirst, isFreeModel } from "@/shared/utils/freeModels";
+import { sortModelsFreeFirst, isModelFreeBadge } from "@/shared/utils/freeModels";
+import { useStrictFreeBadge } from "./useStrictFreeBadge";
 import PassthroughModelRow, { type PassthroughModelRowProps } from "./PassthroughModelRow";
 
 // ---------------------------------------------------------------------------
@@ -67,7 +68,7 @@ export interface CompatibleModelsSectionProps {
   bulkTogglePending?: boolean;
   togglingModelId?: string | null;
   onTestModel?: (modelId: string, fullModel: string) => Promise<void>;
-  modelTestStatus?: Record<string, "ok" | "error" | null>;
+  modelTestStatus?: Record<string, "ok" | "error" | "quota" | null>;
   testingModelId?: string | null;
   onTestAll?: (targets: Array<{ modelId: string; fullModel: string }>) => Promise<void>;
   testingAll?: boolean;
@@ -127,6 +128,7 @@ export default function CompatibleModelsSection({
   const [freeFilter, setFreeFilter] = useState<"all" | "free" | "paid">("all");
   const [sortFreeFirst, setSortFreeFirst] = useState(false);
   const notify = useNotificationStore();
+  const strictFreeBadge = useStrictFreeBadge();
   const customModelMap = useMemo(() => buildCompatMap(customModels), [customModels]);
 
   const providerAliases = useMemo(
@@ -164,11 +166,16 @@ export default function CompatibleModelsSection({
         alias: aliasByModelId.get(model.id) || null,
         displayName: model.name || model.id,
         source,
-        isFree:
-          Boolean((model as any).free) ||
-          model.id.endsWith(":free") ||
-          /\bgr[aá]tis\b|\bfree\b/i.test(model.name || "") ||
-          isFreeModel(providerStorageAlias, { id: model.id }),
+        isFree: isModelFreeBadge(
+          providerStorageAlias,
+          {
+            id: model.id,
+            name: model.name,
+            free: (model as { free?: unknown }).free,
+            isFree: model.isFree,
+          },
+          { strict: strictFreeBadge }
+        ),
         isHidden: isModelHidden(model.id),
       });
       seenModelIds.add(model.id);
@@ -201,11 +208,16 @@ export default function CompatibleModelsSection({
         alias: displayAlias,
         displayName: displayAlias,
         source: customModel ? customModel.source || "custom" : "alias",
-        isFree:
-          modelId.endsWith(":free") ||
-          Boolean((customModel as any)?.free) ||
-          /\bgr[aá]tis\b|\bfree\b/i.test(customModel?.name || alias || "") ||
-          isFreeModel(providerStorageAlias, { id: modelId }),
+        isFree: isModelFreeBadge(
+          providerStorageAlias,
+          {
+            id: modelId,
+            name: customModel?.name || (alias as string) || "",
+            free: (customModel as { free?: unknown } | undefined)?.free,
+            isFree: customModel?.isFree,
+          },
+          { strict: strictFreeBadge }
+        ),
         isHidden: isModelHidden(modelId),
       });
       seenModelIds.add(modelId);
@@ -220,6 +232,7 @@ export default function CompatibleModelsSection({
     isModelHidden,
     providerAliases,
     providerStorageAlias,
+    strictFreeBadge,
   ]);
 
   const filteredModels = allModels.filter((model) => {
@@ -429,7 +442,7 @@ export default function CompatibleModelsSection({
             onAutoHideFailedChange={onAutoHideFailedChange}
           />
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {displayModels.map(({ modelId, alias, isHidden, source, isFree }) => {
+            {displayModels.map(({ modelId, alias, displayName, isHidden, source, isFree }) => {
               const fullModel = `${providerDisplayAlias}/${modelId}`;
               return (
                 <PassthroughModelRow
@@ -437,6 +450,7 @@ export default function CompatibleModelsSection({
                   modelId={modelId}
                   fullModel={fullModel}
                   alias={alias}
+                  displayName={displayName}
                   source={source}
                   isFree={isFree}
                   isHidden={isHidden}

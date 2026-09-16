@@ -2,7 +2,12 @@ import http from "http";
 import type { IncomingMessage, ServerResponse } from "http";
 import net from "net";
 import { getRuntimePorts } from "@/lib/runtime/ports";
+import { warnIfNonLoopbackWithoutApiKey } from "@/lib/startup/nonLoopbackApiKeyGuard";
 import { getApiBridgeTimeoutConfig } from "@/shared/utils/runtimeTimeouts";
+import {
+  attachRequestStreamGuards,
+  installProcessCrashGuard,
+} from "@/shared/utils/httpClientAbortGuard.mjs";
 
 const API_BRIDGE_TIMEOUTS = getApiBridgeTimeoutConfig(process.env, (message) => {
   console.warn(`[API Bridge] ${message}`);
@@ -169,14 +174,24 @@ declare global {
 }
 
 export function initApiBridgeServer(): void {
+  // Safety net: a client aborting a connection can emit `Error: aborted`/
+  // ECONNRESET on the request stream; without this the single missed listener
+  // becomes an uncaughtException that kills the server. Benign aborts are
+  // swallowed; genuine errors still crash loudly (#fix-dev-server-aborted).
+  installProcessCrashGuard();
   if (globalThis.__omnirouteApiBridgeStarted) return;
 
   const { apiPort, dashboardPort } = getRuntimePorts();
   if (apiPort === dashboardPort) return;
 
   const host = process.env.API_HOST || "127.0.0.1";
+  warnIfNonLoopbackWithoutApiKey("API bridge", host);
 
   const server = http.createServer((req, res) => {
+    // Absorb client-abort errors (browser closes the socket during navigation/
+    // HMR/bfcache) on the request/response streams so they never surface as an
+    // uncaughtException that kills the server (#fix-dev-server-aborted).
+    attachRequestStreamGuards(req, res);
     const rawUrl = req.url || "/";
     const pathname = rawUrl.split("?")[0] || "/";
 

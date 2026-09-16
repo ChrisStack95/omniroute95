@@ -72,6 +72,22 @@ export function isCcCompatibleProviderEnabled(): boolean {
   return isFeatureFlagEnabled("ENABLE_CC_COMPATIBLE_PROVIDER");
 }
 
+/**
+ * Context-window checks are fail-safe: an unavailable flag store must never
+ * silently disable local request bounds.
+ */
+export function areContextWindowChecksDisabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("DISABLE_CONTEXT_WINDOW_CHECKS");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve DISABLE_CONTEXT_WINDOW_CHECKS, keeping checks enabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
 export function isApiKeyRevealEnabledFlag(): boolean {
   try {
     return isFeatureFlagEnabled("ALLOW_API_KEY_REVEAL");
@@ -96,6 +112,39 @@ export function getModelsCatalogPrefixMode(): ModelsCatalogPrefixMode {
   return "dual";
 }
 
+/**
+ * No-thinking gateway alias master switch (`no-think/<provider>/<model>`).
+ *
+ * Fail-safe on: an unreadable flag store must not silently strip catalog
+ * variants a client already has configured, nor stop suppressing reasoning for
+ * a `no-think/…` id that was selected precisely to disable thinking. Matches the
+ * definition default (`"true"`), so the only way the feature turns off is an
+ * explicit operator override.
+ */
+export function isNoThinkingAliasEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("NO_THINKING_ALIAS_ENABLED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve NO_THINKING_ALIAS_ENABLED, defaulting to enabled:",
+      error instanceof Error ? error.message : error
+    );
+    return true;
+  }
+}
+
+export function isDisableThinkingLevelVariantsEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OMNIROUTE_DISABLE_THINKING_LEVEL_VARIANTS, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
 export function isArenaEloSyncEnabled(): boolean {
   return isFeatureFlagEnabled("ARENA_ELO_SYNC_ENABLED");
 }
@@ -106,6 +155,165 @@ export function isControlPlaneProxyDirectFallbackEnabled(): boolean {
   } catch (error) {
     console.error(
       "[featureFlags] Failed to resolve OMNIROUTE_CONTROL_PLANE_PROXY_DIRECT_FALLBACK, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+export function isNetworkRotationSharedEgressGuardEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("NETWORK_ROTATION_SHARED_EGRESS_GUARD");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve NETWORK_ROTATION_SHARED_EGRESS_GUARD, defaulting to enabled:",
+      error instanceof Error ? error.message : error
+    );
+    return true;
+  }
+}
+
+/**
+ * Proxy refusal memory (#13578): pools and account rotation skip a proxy that just failed.
+ * Opt-in; an unreadable flag store keeps the plain selection.
+ */
+export function isProxySkipRecentlyFailedEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("PROXY_SKIP_RECENTLY_FAILED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve PROXY_SKIP_RECENTLY_FAILED, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * Pool egress observation panel (#13581): read-only dashboard line under a proxy pool.
+ * Opt-in; an unreadable flag store keeps it hidden.
+ */
+export function isPoolEgressObservationEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("PROXY_POOL_EGRESS_OBSERVATION");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve PROXY_POOL_EGRESS_OBSERVATION, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * Proxy health sweep (#13608): a target-refused probe resets the consecutive-failure streak.
+ * Opt-in; an unreadable flag store keeps the neutral policy (#10654).
+ */
+export function isProxyHealthBlockedResetsStreakEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("PROXY_HEALTH_BLOCKED_RESETS_STREAK");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve PROXY_HEALTH_BLOCKED_RESETS_STREAK, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * OpenCode Responses first-byte stall rotation (#13484). Opt-in: when off, the stream
+ * readiness timeout stays the only bound on a stalled Responses stream.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeResponsesStallRotationEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_RESPONSES_STALL_ROTATION");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_RESPONSES_STALL_ROTATION, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * OpenCode user_blocked 403/451 bounded rotation (#13498). Opt-in: when off, the refusal is
+ * returned unchanged exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeUserBlockedRotationEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_USER_BLOCKED_ROTATION");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_USER_BLOCKED_ROTATION, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * OpenCode transient-failure failover pause (#13615). Opt-in: when off, failover to the next
+ * account stays immediate exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeTransientFailoverBackoffEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_TRANSIENT_FAILOVER_BACKOFF");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_TRANSIENT_FAILOVER_BACKOFF, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * Mistral bare-401 bounded soft lockout (#13609). Opt-in: when off, a bare Mistral 401 parks
+ * the connection as expired exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isMistralAmbiguous401SoftLockoutEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * OpenCode classified-429 early stop (#13657). Opt-in: when off, every 429 rotates to the
+ * next account exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeRateLimited429EarlyStopEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_RATE_LIMITED_429_EARLY_STOP");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_RATE_LIMITED_429_EARLY_STOP, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+export function isServerOwnedToolLoopEnabled(
+  reader: (key: string) => boolean = isFeatureFlagEnabled
+): boolean {
+  try {
+    return reader("SERVER_OWNED_TOOL_LOOP_ENABLED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve SERVER_OWNED_TOOL_LOOP_ENABLED, defaulting to disabled:",
       error instanceof Error ? error.message : error
     );
     return false;

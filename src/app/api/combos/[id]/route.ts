@@ -1,24 +1,20 @@
 import { NextResponse } from "next/server";
-import {
-  getComboById,
-  updateCombo,
-  deleteCombo,
-  getComboByName,
-  getCombos,
-  isCloudEnabled,
-} from "@/lib/localDb";
+import { getComboById, updateCombo, deleteCombo, getComboByName, getCombos } from "@/lib/db/combos";
+import { isCloudEnabled } from "@/lib/db/settings";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { syncToCloud } from "@/lib/cloudSync";
 import { validateCompositeTiersConfig } from "@/lib/combos/compositeTiers";
 import { normalizeComboModels } from "@/lib/combos/steps";
 import { validateComboDAG, clampComboDepth } from "@omniroute/open-sse/services/combo.ts";
 import { updateComboSchema } from "@/shared/validation/schemas";
+import { requiresQuotaOnlyComboRefExecute } from "@/shared/validation/schemas/combo";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { QUOTA_MODEL_PREFIX } from "@/lib/quota/quotaModelNaming";
 import { comboErrorResponse } from "@/lib/api/comboErrorResponse";
 import { ComboInvariantError } from "@/lib/combos/invariants";
 import { buildComboNameCollisionWarning } from "@/lib/combos/modelNameCollision";
+import { stripDeadComboConfigKeys } from "@/lib/combos/deadConfigKeys";
 
 // Minimal shape for the fields we read off a combo row in this route.
 // `getComboById` returns a structurally `JsonRecord`-typed object, so we
@@ -36,47 +32,6 @@ type ComboRowShape = {
   context_cache_protection?: boolean;
   context_length?: number | null;
 };
-
-/**
- * Keys that were present in older combo configs (≤ v3.8.31) but have since been
- * removed from comboRuntimeConfigSchema. The dashboard modal sanitises the three
- * UI-level keys (timeoutMs, healthCheckEnabled, healthCheckTimeoutMs) before PUT,
- * but v3.8.31-era stored configs also carry these 12 keys which were spread back
- * into the body on edit+save. We strip them server-side so removed keys don't
- * accumulate in `combos.data` and so the next read produces a clean config.
- *
- * Idempotent — running twice is a no-op.
- */
-const LEGACY_REMOVED_COMBO_CONFIG_KEYS = Object.freeze([
-  "queueDepth",
-  "fallbackDelayMs",
-  "handoffProviders",
-  "maxComboDepth",
-  "manifestRouting",
-  "complexityAwareRouting",
-  "pipeline_enabled",
-  "pipelineConcurrency",
-  "shadowRouting",
-  "evalRouting",
-  "resetAwareEnabled",
-  "resetAwareWindow",
-]);
-
-function stripLegacyComboConfigKeys(rawConfig) {
-  if (!rawConfig || typeof rawConfig !== "object" || Array.isArray(rawConfig)) {
-    return rawConfig;
-  }
-  let mutated = false;
-  const next = {};
-  for (const [key, value] of Object.entries(rawConfig)) {
-    if (LEGACY_REMOVED_COMBO_CONFIG_KEYS.includes(key)) {
-      mutated = true;
-      continue;
-    }
-    next[key] = value;
-  }
-  return mutated ? next : rawConfig;
-}
 
 // GET /api/combos/[id] - Get combo by ID
 export async function GET(request, { params }) {
@@ -151,22 +106,22 @@ export async function PUT(request, { params }) {
     const normalizedUpdate = { ...validation.data };
     if (normalizedUpdate.compressionOverride !== undefined) {
       const legacyCompressionOverride = normalizedUpdate.compressionOverride;
-    const nextConfig: Record<string, unknown> =
-      currentCombo.config &&
-      typeof currentCombo.config === "object" &&
-      !Array.isArray(currentCombo.config)
-        ? { ...(currentCombo.config as Record<string, unknown>) }
-        : {};
-    if (legacyCompressionOverride) {
-      nextConfig.compressionMode = legacyCompressionOverride;
-    } else {
-      delete nextConfig.compressionMode;
-    }
+      const nextConfig: Record<string, unknown> =
+        currentCombo.config &&
+        typeof currentCombo.config === "object" &&
+        !Array.isArray(currentCombo.config)
+          ? { ...(currentCombo.config as Record<string, unknown>) }
+          : {};
+      if (legacyCompressionOverride) {
+        nextConfig.compressionMode = legacyCompressionOverride;
+      } else {
+        delete nextConfig.compressionMode;
+      }
       normalizedUpdate.config = nextConfig;
       delete normalizedUpdate.compressionOverride;
     }
     if (normalizedUpdate.config && typeof normalizedUpdate.config === "object") {
-      normalizedUpdate.config = stripLegacyComboConfigKeys(normalizedUpdate.config);
+      normalizedUpdate.config = stripDeadComboConfigKeys(normalizedUpdate.config);
     }
 
     const body = normalizedUpdate.models
@@ -187,6 +142,17 @@ export async function PUT(request, { params }) {
       ...body,
       name: comboName,
     };
+    if (requiresQuotaOnlyComboRefExecute(nextComboState as never)) {
+      return comboErrorResponse(
+        "COMBO_002",
+        400,
+        {
+          firstField: "config.nestedComboMode",
+          firstMessage: "Quota-only combo references require nestedComboMode execute",
+        },
+        request
+      );
+    }
     const compositeValidation = validateCompositeTiersConfig(nextComboState);
     if (compositeValidation.success === false) {
       const failure = compositeValidation as {
@@ -235,12 +201,7 @@ export async function PUT(request, { params }) {
               : dagError instanceof Error && /depth/i.test(dagError.message)
                 ? "max-depth-exceeded"
                 : "invalid-graph";
-          return comboErrorResponse(
-            "COMBO_005",
-            400,
-            { comboName, reason },
-            request
-          );
+          return comboErrorResponse("COMBO_005", 400, { comboName, reason }, request);
         }
       }
     }
@@ -253,9 +214,7 @@ export async function PUT(request, { params }) {
     // #8530: a combo renamed to a real model id is a supported pattern
     // (#6940 — bare-model-id provider fallback), so it is never rejected.
     // Surface it as a non-blocking warning instead of silently shadowing it.
-    const warning = comboName
-      ? buildComboNameCollisionWarning(String(comboName))
-      : null;
+    const warning = comboName ? buildComboNameCollisionWarning(String(comboName)) : null;
     return NextResponse.json(warning ? { ...combo, warning } : combo);
   } catch (error) {
     if (error instanceof ComboInvariantError) {
@@ -264,6 +223,12 @@ export async function PUT(request, { params }) {
     console.log("Error updating combo:", error);
     return comboErrorResponse("INTERNAL_001", 500, undefined, request);
   }
+}
+
+// PATCH /api/combos/[id] - partial update. PUT merges the body onto the stored
+// combo, so both verbs share one handler (same shape as /api/providers/[id]).
+export async function PATCH(request, ctx) {
+  return PUT(request, ctx);
 }
 
 // DELETE /api/combos/[id] - Delete combo
