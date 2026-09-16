@@ -13,7 +13,7 @@ describe("ComboTimeoutFields", () => {
     cleanup();
   });
 
-  it("renders both timeout inputs and writes comboTimeoutMs in seconds", () => {
+  it("renders both timeout inputs and stores comboTimeoutMs in milliseconds", () => {
     const captured: Record<string, unknown>[] = [];
     const { getByTestId } = render(
       <ComboTimeoutFields
