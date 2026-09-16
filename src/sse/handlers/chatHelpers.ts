@@ -49,6 +49,7 @@ import { resolveUseUpstream429BreakerHints } from "../../shared/utils/providerHi
 import { isFeatureFlagEnabled } from "../../shared/utils/featureFlags";
 
 import { logProxyEvent } from "../../lib/proxyLogger";
+import { noteProxyOutcome } from "./proxyOutcomeMemory";
 import { logTranslationEvent } from "../../lib/translatorEvents";
 import { getRuntimeProviderProfile } from "@omniroute/open-sse/services/accountFallback.ts";
 
@@ -824,6 +825,23 @@ export function handleNoCredentials(
       status === "credits_exhausted" ? HTTP_STATUS.PAYMENT_REQUIRED : HTTP_STATUS.UNAUTHORIZED;
     return errorResponse(httpStatus, message);
   }
+  if (credentials?.blockedByKeyPolicy) {
+    // #13832: the provider HAS active connections — they were filtered out by the
+    // gateway API key's connection allowlist (`allowed_connections`) or its quota
+    // scope, so the pool arrived empty and the generic "No active credentials"
+    // below was indistinguishable from "this provider was never configured". That
+    // cost the reporter a full investigation: their key passed `/test` and synced
+    // 82 models (both address the connection by id and never consult the key's
+    // scope), while chat kept failing. The classic shape is a key minted before
+    // the provider existed, which is why older providers keep working on it.
+    // 403, not 401: the credential is fine, this principal is not allowed to use it.
+    const count = credentials.blockedCount || 1;
+    const message =
+      `[${provider}] ${count} connection(s) exist but are excluded by this API key's ` +
+      `connection allowlist / quota scope — add them to the key in the dashboard, or use a key without that scope`;
+    log.warn("AUTH", message);
+    return errorResponse(HTTP_STATUS.FORBIDDEN, message);
+  }
   if (!excludeConnectionId) {
     // Ported from upstream decolua/9router#336 (Ibrahim Ryan): surface as 404
     // NOT_FOUND instead of 400 BAD_REQUEST so combo routing can fall through to
@@ -1006,6 +1024,27 @@ export function applyExecutorProxyToInfo(
   };
 }
 
+/**
+ * Carry the HTTP status the provider actually returned (captured on the applied-proxy
+ * sink around the patched fetch) into proxyInfo. Nothing received -> info unchanged.
+ * Pure + unit-testable.
+ */
+export function withUpstreamStatus<T extends object>(
+  info: T | null | undefined,
+  sink: { upstreamStatus?: number }
+) {
+  if (typeof sink.upstreamStatus !== "number") return info;
+  return { ...(info || {}), upstreamStatus: sink.upstreamStatus };
+}
+
+/** Merge both things the applied-proxy sink captured: the executor proxy, then the status. */
+export function mergeAppliedProxySink(
+  proxyInfo: { proxy?: unknown; level?: string; levelId?: string | null } | null | undefined,
+  sink: { proxy: unknown; upstreamStatus?: number }
+) {
+  return withUpstreamStatus(applyExecutorProxyToInfo(proxyInfo, sink.proxy), sink);
+}
+
 // Async because the egress-IP lookup lazy-imports proxyEgress; callers treat
 // this as fire-and-forget logging (the internal try/catch swallows everything).
 export async function safeLogEvents({
@@ -1021,6 +1060,17 @@ export async function safeLogEvents({
   clientRawRequest,
   tlsFingerprintUsed = false,
 }) {
+  // Feed the provider's real answer back to proxy selection (never result.status: some 429s
+  // are generated locally; proxyInfo carries the status captured around fetch). Must stay
+  // BEFORE the first await: callers fire-and-forget this function, and only the code ahead
+  // of that await runs synchronously at the call site, so a request picking from the same
+  // pool right after already sees a refused member set aside (#13602).
+  try {
+    noteProxyOutcome(provider, proxyInfo);
+  } catch {
+    // proxy selection feedback is best-effort; never break the request path
+  }
+
   try {
     const rawIp =
       clientRawRequest?.headers?.["x-forwarded-for"] ||
@@ -1063,6 +1113,7 @@ export async function safeLogEvents({
       comboId: comboName || null,
       account: credentials.connectionId?.slice(0, 8) || null,
       tlsFingerprint: tlsFingerprintUsed,
+      upstreamStatus: proxyInfo?.upstreamStatus ?? null,
     });
   } catch {}
 

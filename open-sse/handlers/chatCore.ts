@@ -170,6 +170,7 @@ import {
 import { shouldUseMidConversationSystem } from "../executors/claudeIdentity.ts";
 import { normalizeClaudeHaikuConstraints } from "../services/claudeHaikuConstraints.ts";
 import { applyDefaultReasoningEffort } from "../services/defaultReasoningEffort.ts";
+import { wireAdaptiveEffort } from "./chatCore/adaptiveEffortWiring.ts";
 import { echoModelInObject } from "../services/responseModelEcho.ts";
 import {
   stripGpt5SamplingWhenReasoning,
@@ -2718,6 +2719,11 @@ export async function handleChatCore({
         (modelInfo as { defaultThinkingEffort?: string })?.defaultThinkingEffort
       );
     }
+    translatedBody = wireAdaptiveEffort(translatedBody, {
+      rawBody: body,
+      clientRawRequest,
+      targetFormat,
+    });
   }
 
   // Xiaomi MiMo controls reasoning ONLY via `thinking:{type:"enabled"|"disabled"}` and
