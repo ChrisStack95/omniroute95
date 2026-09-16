@@ -567,7 +567,9 @@ async function prepare(body: JsonRecord) {
   );
   const transformed = (await executor.transformRequest(
     model,
-    responseBodyWithMemory,
+    // This route already accepts native Responses input. Match HTTP passthrough
+    // so the executor preserves custom tools and native tool-result history.
+    { ...responseBodyWithMemory, _nativeCodexPassthrough: true },
     true,
     credentialsWithFingerprint
   )) as JsonRecord;
