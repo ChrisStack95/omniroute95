@@ -6,9 +6,9 @@ import {
   closingKeywordInBody,
 } from "../../scripts/quality/release-acceptance/closeOracle.mjs";
 
-test("nightly has no tracker closes; legacy fixture still has two", () => {
+test("nightly still auto-closes the tracker via two steps (deliberate, #12085)", () => {
   const text = readFileSync(".github/workflows/nightly-release-green.yml", "utf8");
-  assert.equal(findTrackerCloses(text).length, 0);
+  assert.equal(findTrackerCloses(text).length, 2);
   const legacy = readFileSync(
     new URL("../fixtures/release-acceptance/legacy-close-steps.yml", import.meta.url),
     "utf8"
