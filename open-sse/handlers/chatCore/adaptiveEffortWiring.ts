@@ -12,12 +12,15 @@ import {
   isAdaptiveEffort,
   type ChatMessageLike,
 } from "../../services/adaptiveEffort.ts";
+import { getHeaderValueCaseInsensitive } from "./headers.ts";
 
 export interface AdaptiveEffortContext {
   /** Raw (pre-translation) request body, for turn-scoped request-shape signals. */
   rawBody: { messages?: ChatMessageLike[] | undefined } | undefined;
-  /** Value of the x-omniroute-effort request header, if present. */
-  headerEffort: string | null | undefined;
+  /** Incoming client request, used to read the x-omniroute-effort header. */
+  clientRawRequest?: { headers?: unknown } | undefined;
+  /** Explicit header value, if already extracted by the caller. */
+  headerEffort?: string | null | undefined;
 }
 
 /**
@@ -35,12 +38,19 @@ export function wireAdaptiveEffort<T extends Record<string, unknown>>(
   // would otherwise short-circuit the guard below and ship "auto" upstream).
   const modelDefaultAuto = isAdaptiveEffort(body.reasoning_effort);
   if (!modelDefaultAuto && hasExplicitReasoningField(body)) return body;
-  if (!modelDefaultAuto && !isAdaptiveEffort(ctx.headerEffort)) return body;
+  const headerEffort =
+    ctx.headerEffort !== undefined
+      ? ctx.headerEffort
+      : getHeaderValueCaseInsensitive(
+          ctx.clientRawRequest?.headers as Record<string, unknown> | Headers | null | undefined,
+          "x-omniroute-effort"
+        );
+  if (!modelDefaultAuto && !isAdaptiveEffort(headerEffort)) return body;
   const stripped = modelDefaultAuto ? { ...body } : body;
   if (modelDefaultAuto) delete (stripped as Record<string, unknown>).reasoning_effort;
   return applyAdaptiveEffort(stripped, {
     messages: ctx.rawBody?.messages,
-    headerEffort: ctx.headerEffort ?? null,
+    headerEffort: headerEffort ?? null,
     modelDefaultEffort: modelDefaultAuto ? "auto" : null,
   }) as T;
 }
