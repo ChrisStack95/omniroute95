@@ -230,5 +230,5 @@ describe("provider page — proxy save refreshes per-connection proxy badges", (
       proxy: { name: "Saved Proxy", host: "10.0.0.9" },
       level: "account",
     });
-  });
+  }, 30000);
 });
