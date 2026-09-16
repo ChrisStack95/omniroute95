@@ -145,6 +145,44 @@ function retryAfterMsFrom(attempt: ChatCoreExecutorResult): number | null {
   return parsed * 1000;
 }
 
+/**
+ * Feed the runtime rate limiter from a non-2xx upstream attempt.
+ *
+ * Order matters and mirrors the chatCore error path: headers FIRST (a 429 evicts
+ * the cached limiter so the body can materialize a fresh one), body SECOND (the
+ * body-embedded retry-after drains that fresh reservoir). Inverting them throws
+ * the drain away.
+ *
+ * The body is read through `response.clone()` — never the original stream. This
+ * is a shared streaming path, so consuming `attempt.response` here would silently
+ * break passthrough and SSE; `toOutcome` below drains the same way.
+ *
+ * Both hooks are best-effort: rate-limit learning must never fail the request.
+ */
+async function recordUpstreamRateLimit(
+  state: PipelineStateHooks,
+  provider: string,
+  connectionId: string,
+  model: string,
+  attempt: ChatCoreExecutorResult
+): Promise<void> {
+  if (!connectionId) return;
+  const status = attempt.response.status;
+  try {
+    state.recordRateLimitHeaders(provider, connectionId, attempt.response.headers, status, model);
+  } catch {
+    // best-effort
+  }
+  try {
+    const text = await attempt.response.clone().text();
+    // parseRetryAfterFromBody JSON.parses a string and falls back to "unknown"
+    // on non-JSON, so the raw text is the safest thing to hand over.
+    if (text) state.recordRateLimitBody(provider, connectionId, text, status, model);
+  } catch {
+    // Body already consumed/unreadable — the header signal above still applied.
+  }
+}
+
 function leaseMismatch(model: string, connectionId: string): ProviderExecutionOutcome {
   const result = createErrorResult(
     LEASE_MISMATCH_STATUS,
@@ -169,6 +207,18 @@ function leaseMismatch(model: string, connectionId: string): ProviderExecutionOu
   };
 }
 
+interface UpstreamErrorFields {
+  message?: string;
+  code?: string;
+  type?: string;
+}
+
+function readUpstreamErrorFields(body: unknown): UpstreamErrorFields {
+  const err = (body as { error?: Record<string, unknown> } | null)?.error;
+  const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
+  return { message: text(err?.message), code: text(err?.code), type: text(err?.type) };
+}
+
 async function toOutcome(
   attempt: ChatCoreExecutorResult,
   model: string,
@@ -190,14 +240,25 @@ async function toOutcome(
   }
   let message = attempt.response.statusText || "upstream error";
   let body: unknown = attempt.transformedBody;
+  let fields: UpstreamErrorFields = {};
   try {
     // clone() is the drain. sendProviderAttempt must not cancel() a streaming
     // non-2xx body before we get here (BYOP 422 / Codex 429 Retry-After).
-    body = JSON.parse(await attempt.response.clone().text());
-    const err = (body as { error?: { message?: unknown } } | null)?.error;
-    if (err && typeof err.message === "string" && err.message) message = err.message;
+    const text = await attempt.response.clone().text();
+    try {
+      body = JSON.parse(text);
+      fields = readUpstreamErrorFields(body);
+      if (fields.message) message = fields.message;
+    } catch {
+      // Non-JSON upstream body (plain-text 429, HTML error page). parseUpstreamError
+      // — the pre-pipeline path this replaced — surfaces the raw text as the message;
+      // collapsing it to statusText ("upstream error") hides what the provider said.
+      // buildErrorBody()/sanitizeErrorMessage() still sanitize and truncate it before
+      // it reaches any response body (Hard Rule #12).
+      if (text.trim()) message = text;
+    }
   } catch {
-    // keep statusText
+    // Body unreadable (already consumed) — keep statusText.
   }
   const restatement = applyStatusRestatement({
     provider,
@@ -206,7 +267,13 @@ async function toOutcome(
     body,
     retryAfterMs: null,
   });
-  const result = createErrorResult(restatement.status, message, restatement.retryAfterMs);
+  const result = createErrorResult(
+    restatement.status,
+    message,
+    restatement.retryAfterMs,
+    fields.code,
+    fields.type
+  );
   return {
     kind: "error",
     result: {
@@ -216,6 +283,9 @@ async function toOutcome(
       error: result.error,
       errorCode: result.errorCode,
       errorType: result.errorType,
+      rawMessage: message,
+      upstreamErrorBody: body,
+      upstreamHeaders: attempt.response.headers,
     },
     providerUsage: null,
     upstreamDiagnostic: attempt.upstreamDiagnostic,
@@ -287,6 +357,19 @@ export async function runProviderExecutionPipeline(
         target.provider
       );
     }
+
+    // Teach the runtime limiter BEFORE any recovery branch rotates or retries:
+    // the 429 belongs to the connection that just took it. chatCore's own
+    // updateFromHeaders/updateFromResponseBody pair only runs on the streaming
+    // leg — the non-streaming leg returns this pipeline's error outcome straight
+    // to the caller, so without this the reservoir was never drained (#12945).
+    await recordUpstreamRateLimit(
+      state,
+      target.provider,
+      currentConnectionId(connection),
+      wire.currentModel,
+      attempt
+    );
 
     const isolateProbe = await state.isolateProbeFailures();
     const canRotateAccount = policy.allowAccountRotation && !isolateProbe;

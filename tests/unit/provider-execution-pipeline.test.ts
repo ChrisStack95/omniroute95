@@ -837,3 +837,40 @@ test("after signature recovery the diagnostic still describes the returned respo
   assert.ok(diagnostic, "a terminal upstream failure must keep its diagnostic");
   assert.equal(diagnostic.marker, returned.marker);
 });
+
+test("upstream error code/type survive into the error outcome", async () => {
+  const { runProviderExecutionPipeline } =
+    await import("../../open-sse/handlers/chatCore/providerExecutionPipeline.ts");
+  const input = makeInput({
+    policy: {
+      allowAccountRotation: false,
+      allowModelFallback: false,
+      expectedConnectionId: "agy-a",
+    },
+    provider: "antigravity",
+    connectionId: "agy-a",
+    send: async () =>
+      makeAttempt(
+        {
+          error: {
+            message: "Missing Google projectId for Antigravity account.",
+            type: "oauth_missing_project_id",
+            code: "missing_project_id",
+          },
+        },
+        422
+      ),
+  });
+
+  const outcome = await runProviderExecutionPipeline(input);
+  assert.equal(outcome.kind, "error");
+  if (outcome.kind === "error") {
+    // #12867 dropped this pair when the leg moved into the pipeline, so
+    // downstream gates that key on BOTH fields (e.g.
+    // isAntigravityMissingProjectError) silently stopped firing and a
+    // config-class 422 degraded into a generic account cooldown.
+    assert.equal(outcome.result.errorCode, "missing_project_id");
+    assert.equal(outcome.result.errorType, "oauth_missing_project_id");
+    assert.equal(outcome.result.status, 422);
+  }
+});
