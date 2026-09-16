@@ -16,6 +16,32 @@ const { tryOpenSync } = await import("../../../src/lib/db/adapters/driverFactory
 const { importSqliteIntoPostgres } = await import("../../../src/lib/db/postgresImport.ts");
 type Adapter = ReturnType<typeof createPostgresAdapter>;
 
+function spawnTsx(
+  scriptPath: string,
+  env: NodeJS.ProcessEnv = {}
+): Promise<{ code: number | null; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, ["--import", "tsx/esm", scriptPath], {
+      stdio: ["ignore", "ignore", "pipe"],
+      env: { ...process.env, ...env },
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => (stderr += String(chunk)));
+    child.on("close", (code) => resolve({ code, stderr }));
+  });
+}
+
+async function dropSchema(schema: string): Promise<void> {
+  const { Client } = await import("pg");
+  const admin = new Client({ connectionString: TEST_URL });
+  await admin.connect();
+  try {
+    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+  } finally {
+    await admin.end();
+  }
+}
+
 function openAdapter(schema: string): Adapter {
   const config = resolvePostgresConfig({
     OMNIROUTE_DATABASE_URL: TEST_URL,
@@ -175,14 +201,7 @@ describe("postgresAdapter", { skip }, () => {
 
   test("ConcurrentOpen_OnFreshSchema_AllProcessesBootstrap", async () => {
     const schema = "omniroute_adapter_race";
-    const { Client } = await import("pg");
-    const admin = new Client({ connectionString: TEST_URL });
-    await admin.connect();
-    try {
-      await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    } finally {
-      await admin.end();
-    }
+    await dropSchema(schema);
     const script = [
       `const { createPostgresAdapter } = await import(${JSON.stringify(
         new URL("../../../src/lib/db/adapters/postgresAdapter.ts", import.meta.url).href
@@ -199,19 +218,7 @@ describe("postgresAdapter", { skip }, () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-pg-race-"));
     const scriptPath = path.join(dir, "race-child.mts");
     fs.writeFileSync(scriptPath, script);
-    const runs = await Promise.all(
-      [1, 2, 3].map(
-        () =>
-          new Promise<{ code: number | null; stderr: string }>((resolve) => {
-            const child = spawn(process.execPath, ["--import", "tsx/esm", scriptPath], {
-              stdio: ["ignore", "ignore", "pipe"],
-            });
-            let stderr = "";
-            child.stderr.on("data", (chunk) => (stderr += String(chunk)));
-            child.on("close", (code) => resolve({ code, stderr }));
-          })
-      )
-    );
+    const runs = await Promise.all([1, 2, 3].map(() => spawnTsx(scriptPath)));
     fs.rmSync(dir, { recursive: true, force: true });
     for (const run of runs) assert.equal(run.code, 0, run.stderr);
     const probeConfig = resolvePostgresConfig({
@@ -272,5 +279,46 @@ describe("postgresAdapter", { skip }, () => {
     const again = importSqliteIntoPostgres(db, sqliteFile, { log: () => {} });
     assert.equal(again.tables.find((t) => t.table === "items")?.importedRows, 0);
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("Reboot_WithPendingMigrationOnExistingSchema_NeedsNoSqliteSnapshot", async () => {
+    const schema = "omniroute_adapter_reboot";
+    await dropSchema(schema);
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-pg-reboot-"));
+    const coreUrl = JSON.stringify(new URL("../../../src/lib/db/core.ts", import.meta.url).href);
+    const firstBoot = path.join(dataDir, "first-boot.mts");
+    fs.writeFileSync(
+      firstBoot,
+      [
+        `const core = await import(${coreUrl});`,
+        "const db = core.getDbInstance();",
+        "db.prepare('DELETE FROM _omniroute_migrations WHERE version = ?').run('003');",
+        "core.closeDbInstance();",
+      ].join("\n")
+    );
+    const secondBoot = path.join(dataDir, "second-boot.mts");
+    fs.writeFileSync(
+      secondBoot,
+      [
+        `const core = await import(${coreUrl});`,
+        "const db = core.getDbInstance();",
+        "const row = db.prepare('SELECT version FROM _omniroute_migrations WHERE version = ?').get('003');",
+        "core.closeDbInstance();",
+        "if (!row) throw new Error('migration 003 was not re-applied on the second boot');",
+      ].join("\n")
+    );
+    const env = {
+      DATA_DIR: dataDir,
+      OMNIROUTE_DATABASE_URL: TEST_URL,
+      OMNIROUTE_DATABASE_SCHEMA: schema,
+    };
+    try {
+      const first = await spawnTsx(firstBoot, env);
+      assert.equal(first.code, 0, first.stderr);
+      const second = await spawnTsx(secondBoot, env);
+      assert.equal(second.code, 0, second.stderr);
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
   });
 });

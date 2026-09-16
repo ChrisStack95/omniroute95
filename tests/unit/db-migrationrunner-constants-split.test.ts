@@ -61,9 +61,9 @@ describe("migrationRunner/constants — exact small-table snapshots", () => {
     assert.deepEqual(INITIAL_SCHEMA_SENTINELS, ["provider_connections", "combos", "call_logs"]);
   });
 
-  it("OPTIONAL_FTS5_MIGRATION_VERSIONS is exactly {022, 023}", () => {
+  it("OPTIONAL_FTS5_MIGRATION_VERSIONS is exactly {022, 023, 178, 180}", () => {
     assert.ok(OPTIONAL_FTS5_MIGRATION_VERSIONS instanceof Set);
-    assert.deepEqual([...OPTIONAL_FTS5_MIGRATION_VERSIONS].sort(), ["022", "023", "180"]);
+    assert.deepEqual([...OPTIONAL_FTS5_MIGRATION_VERSIONS].sort(), ["022", "023", "178", "180"]);
   });
 });
 

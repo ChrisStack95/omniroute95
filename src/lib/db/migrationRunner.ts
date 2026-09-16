@@ -774,6 +774,8 @@ export function runMigrations(
   // that skeleton can already contain provider credentials and other operator state.
   const databaseExistedBeforeInitialization =
     options?.databaseExistedBeforeInitialization ?? !isNewDb;
+  const snapshotEligible =
+    db.name !== ":memory:" && db.driver !== "postgres" && databaseExistedBeforeInitialization;
   ensureMigrationsTable(db);
 
   const files = filterSupersededDuplicateMigrations(getMigrationFiles());
@@ -826,12 +828,7 @@ export function runMigrations(
     db.driver === "sql.js" &&
     (preliminaryActionable.length > 0 || preliminaryHasRepairCandidates)
   ) {
-    const needsSnapshot =
-      (preliminaryActionable.length > 0 || preliminaryHasRepairCandidates) &&
-      db.name !== ":memory:" &&
-      databaseExistedBeforeInitialization;
-
-    if (needsSnapshot) {
+    if (snapshotEligible) {
       preMigrationBackup = createPreMigrationBackup(db);
       if (!preMigrationBackup) {
         throw new Error(
@@ -861,11 +858,7 @@ export function runMigrations(
       );
       const mayWriteExistingDatabase =
         preliminaryActionable.length > 0 || hasLedgerRepairCandidates(db, files);
-      const needsSnapshot =
-        mayWriteExistingDatabase &&
-        db.name !== ":memory:" &&
-        db.driver !== "postgres" &&
-        databaseExistedBeforeInitialization;
+      const needsSnapshot = mayWriteExistingDatabase && snapshotEligible;
 
       if (needsSnapshot && !preMigrationBackup) {
         if (db.driver === "sql.js") {
@@ -904,10 +897,7 @@ export function runMigrations(
         applied.has("001") &&
         inferPhysicalSchemaBaseline(db) === null &&
         hasTable(db, "provider_connections");
-      const requiresDurableBackup =
-        actionablePending.length > 0 &&
-        db.name !== ":memory:" &&
-        databaseExistedBeforeInitialization;
+      const requiresDurableBackup = actionablePending.length > 0 && snapshotEligible;
 
       // Recompute under the same writer transaction as repairs and fail before any
       // ledger mutation can commit if the durable-snapshot requirement is not met.
