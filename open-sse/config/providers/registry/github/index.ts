@@ -42,9 +42,6 @@ export const githubProvider: RegistryEntry = {
       targetFormat: "claude",
       contextLength: 1000000,
       maxOutputTokens: 64000,
-      supportsReasoning: true,
-      supportedThinkingEfforts: ["low", "medium", "high", "xhigh", "max"],
-      supportsXHighEffort: true,
     },
     {
       id: "claude-opus-5",
@@ -52,9 +49,6 @@ export const githubProvider: RegistryEntry = {
       targetFormat: "claude",
       contextLength: 1000000,
       maxOutputTokens: 64000,
-      supportsReasoning: true,
-      supportedThinkingEfforts: ["low", "medium", "high", "xhigh", "max"],
-      supportsXHighEffort: true,
       unsupportedParams: ["temperature", "top_p", "top_k"],
     },
     {

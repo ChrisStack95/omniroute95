@@ -96,7 +96,10 @@ test("grok-cli preserves explicit store and de-duplicates encrypted reasoning in
 
   assert.equal(out.store, true);
   assert.deepEqual(out.include, ["reasoning.encrypted_content"]);
-  assert.deepEqual(out.reasoning, { effort: "high" });
+  // An explicit (but unsupported) effort like "xhigh" is still an EXPLICIT effort key —
+  // it gets stripped, not defaulted. Only the true absence of an "effort" key falls back
+  // to the model default. This is the off-switch #7358 relied on and #13628 regressed.
+  assert.equal("reasoning" in out, false);
 });
 
 test("grok-cli preserves an explicit Responses reasoning summary", () => {
@@ -125,7 +128,7 @@ test("grok-4.6 applies default high when client omits effort", async () => {
     "grok-4.6",
     body,
     false,
-    {} as Record<string, unknown>,
+    {} as Record<string, unknown>
   ) as Record<string, unknown>;
 
   assert.deepEqual(transformed.reasoning, { effort: "high" });
@@ -143,13 +146,13 @@ test("grok-4.6 preserves an explicit supported effort", async () => {
     "grok-4.6",
     body,
     false,
-    {} as Record<string, unknown>,
+    {} as Record<string, unknown>
   ) as Record<string, unknown>;
 
   assert.deepEqual(transformed.reasoning, { effort: "medium", summary: "auto" });
 });
 
-test("grok-4.6 strips unsupported xhigh then restores default high", async () => {
+test("grok-4.6 strips an explicit but unsupported xhigh (no default restore — an explicit effort key is an explicit choice)", async () => {
   const executor = new GrokCliExecutor();
   const body = {
     model: "grok-4.6",
@@ -162,9 +165,45 @@ test("grok-4.6 strips unsupported xhigh then restores default high", async () =>
     "grok-4.6",
     body,
     false,
-    {} as Record<string, unknown>,
+    {} as Record<string, unknown>
   ) as Record<string, unknown>;
 
   assert.equal("reasoning_effort" in transformed, false);
-  assert.deepEqual(transformed.reasoning, { effort: "high" });
+  assert.equal("reasoning" in transformed, false);
+});
+
+test("grok-4.6 keeps an explicit none/off as a real off-switch (no default restore)", async () => {
+  const executor = new GrokCliExecutor();
+  const body = {
+    model: "grok-4.6",
+    input: [{ role: "user", content: [{ type: "input_text", text: "hi" }] }],
+    reasoning: { effort: "none" },
+  };
+
+  const transformed = executor.transformRequest(
+    "grok-4.6",
+    body,
+    false,
+    {} as Record<string, unknown>
+  ) as Record<string, unknown>;
+
+  assert.equal("reasoning" in transformed, false);
+});
+
+test("grok-4.5 keeps an explicit none/off as a real off-switch (no default restore)", async () => {
+  const executor = new GrokCliExecutor();
+  const body = {
+    model: "grok-4.5",
+    input: [{ role: "user", content: [{ type: "input_text", text: "hi" }] }],
+    reasoning: { effort: "off" },
+  };
+
+  const transformed = executor.transformRequest(
+    "grok-4.5",
+    body,
+    false,
+    {} as Record<string, unknown>
+  ) as Record<string, unknown>;
+
+  assert.equal("reasoning" in transformed, false);
 });
