@@ -77,6 +77,21 @@ export const opencode_zenProvider: RegistryEntry = {
       supportsReasoning: true,
       targetFormat: "openai-responses",
     },
+    // 1.3 variants: same Responses-only constraint as 1.2 (upstream Zen
+    // 500s these on /chat/completions). Without this overlay the executor
+    // falls through to chat and the route can never verify.
+    {
+      id: "muse-spark-1.3",
+      name: "Muse Spark 1.3",
+      supportsReasoning: true,
+      targetFormat: "openai-responses",
+    },
+    {
+      id: "muse-spark-1.3-contributor-free",
+      name: "Muse Spark 1.3 Contributor Free",
+      supportsReasoning: true,
+      targetFormat: "openai-responses",
+    },
 
     // ── DeepSeek ────────────────────────────────────────────────
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },

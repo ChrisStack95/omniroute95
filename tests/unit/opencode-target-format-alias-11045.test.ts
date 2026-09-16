@@ -24,6 +24,21 @@ test("resolveOpencodeTargetFormat resolves the registry entry via the provider a
   assert.equal(resolveOpencodeTargetFormat("opencode", "muse-spark-1.2"), "openai-responses");
 });
 
+test("resolveOpencodeTargetFormat routes zen muse-spark-1.3 variants to Responses (same constraint as 1.2)", () => {
+  assert.equal(
+    resolveOpencodeTargetFormat("opencode-zen", "muse-spark-1.3-contributor-free"),
+    "openai-responses"
+  );
+  assert.equal(
+    resolveOpencodeTargetFormat("opencode-zen", "opencode-zen/muse-spark-1.3"),
+    "openai-responses"
+  );
+  assert.equal(
+    resolveOpencodeTargetFormat("opencode-zen", "muse-spark-1.2-contributor-free"),
+    "openai-responses"
+  );
+});
+
 test("resolveOpencodeTargetFormat falls back to 'openai' for a model with no registry targetFormat", () => {
   assert.equal(resolveOpencodeTargetFormat("opencode", "hy3-free"), "openai");
 });
