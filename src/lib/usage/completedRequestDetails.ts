@@ -186,6 +186,10 @@ export function storeCompletedDetail(detail: PendingRequestDetail) {
 }
 
 export function scheduleCompletedDetailCleanup(id: string) {
+  // If byte/count trimming rejected or already evicted this entry, do not leave
+  // behind a timer for an object the cache no longer owns.
+  if (!completedDetails.has(id)) return;
+
   const existingTimer = completedDetailTimers.get(id);
   if (existingTimer) clearTimeout(existingTimer);
   const timer = setTimeout(() => {
@@ -209,6 +213,14 @@ function isUnset(value: unknown): boolean {
 }
 
 export function maybeEnrichCompletedDetail(updated: PendingRequestDetail, connectionId: string) {
+  // Operate on the already-truncated/materialized cached copy, not the original
+  // completion object. Besides avoiding work for an entry evicted by the byte
+  // budget, this prevents the async enrichment closure from prolonging the
+  // lifetime of a large sliced-string backing store after finalize returns.
+  const cached = completedDetails.get(updated.id);
+  if (!cached) return;
+  updated = cached;
+
   void (async () => {
     try {
       if (!isUnset(updated.providerResponse) && !isUnset(updated.clientResponse)) return;
