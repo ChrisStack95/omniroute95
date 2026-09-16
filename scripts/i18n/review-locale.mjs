@@ -7,12 +7,39 @@
  *
  * Usage: node scripts/i18n/review-locale.mjs --locale=pt-BR --since=<ref> [--dry-run] [--batch-size=30]
  */
-import { promises as fs } from "node:fs";
+import { existsSync, readFileSync, promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { backendConfig, callChat } from "./lib/translate-backend.mjs";
+
+// ----- .env loader (same contract as sync-ui-keys.mjs: repo-root .env, already-set vars win)
+(function loadDotEnv() {
+  const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", ".env");
+  if (!existsSync(envPath)) return;
+  try {
+    const raw = readFileSync(envPath, "utf8");
+    for (const rawLine of raw.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq <= 0) continue;
+      const key = line.slice(0, eq).trim();
+      if (!key || process.env[key] !== undefined) continue;
+      let value = line.slice(eq + 1);
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  } catch {
+    // unreadable .env — the backend config will report the missing variables
+  }
+})();
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(SCRIPT_DIR, "..", "..");
