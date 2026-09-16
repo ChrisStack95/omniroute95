@@ -1,14 +1,139 @@
+import { Buffer } from "node:buffer";
 import { getDbInstance } from "../db/core";
 import type { PendingRequestDetail } from "./usageHistory";
+import { MAX_PREVIEW_STRING, truncatePendingPreview } from "./usageHistory/helpers";
 
 const COMPLETED_DETAIL_TTL_MS = 120_000;
 const MAX_COMPLETED_DETAILS = 256;
+const DEFAULT_MAX_COMPLETED_DETAILS_BYTES = 4 * 1024 * 1024;
+const MIN_MAX_COMPLETED_DETAILS_BYTES = 64 * 1024;
+const MAX_COMPLETED_STREAM_CHUNKS_PER_STAGE = 64;
+const OVERSIZED_DETAIL_MARKER = "[omitted: completed detail exceeded cache byte budget]";
 
 const completedDetails = new Map<string, PendingRequestDetail>();
 const completedDetailTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const completedDetailBytes = new Map<string, number>();
+let totalCompletedDetailBytes = 0;
+
+export function getMaxCompletedDetailsBytes(
+  rawValue: string | undefined = process.env.MAX_COMPLETED_DETAILS_BYTES
+): number {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_COMPLETED_DETAILS_BYTES;
+  return Math.max(MIN_MAX_COMPLETED_DETAILS_BYTES, parsed);
+}
+
+/**
+ * Force a diagnostic string onto its own backing store before it enters the
+ * completed-request cache. V8 can otherwise keep a multi-megabyte parent string
+ * alive for a tiny `slice()` preview. A UTF-8 round-trip is intentionally used
+ * here because the cached values are already bounded diagnostics, not request
+ * payloads on the hot provider path.
+ */
+function materializeString(value: string): string {
+  return Buffer.from(value, "utf8").toString("utf8");
+}
+
+function materializeNullableString(value: string | null | undefined): string | null | undefined {
+  return typeof value === "string" ? materializeString(value) : value;
+}
+
+function materializePreview(value: unknown): unknown {
+  if (typeof value === "string") return materializeString(value);
+  if (Array.isArray(value)) return value.map((entry) => materializePreview(entry));
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
+      materializeString(key),
+      materializePreview(entryValue),
+    ])
+  );
+}
+
+function preparePayloadPreview(value: unknown): unknown {
+  return materializePreview(truncatePendingPreview(value));
+}
+
+function prepareStreamChunk(value: string): string {
+  const preview =
+    value.length > MAX_PREVIEW_STRING ? `${value.slice(0, MAX_PREVIEW_STRING)}...` : value;
+  return materializeString(preview);
+}
+
+function prepareStreamChunkList(values?: string[]): string[] | undefined {
+  if (!values) return undefined;
+  const kept = values
+    .slice(0, MAX_COMPLETED_STREAM_CHUNKS_PER_STAGE)
+    .map((value) => prepareStreamChunk(value));
+  if (values.length > MAX_COMPLETED_STREAM_CHUNKS_PER_STAGE) {
+    kept.push(`[TRUNCATED_STREAM_CHUNKS: ${values.length - MAX_COMPLETED_STREAM_CHUNKS_PER_STAGE}]`);
+  }
+  return kept;
+}
+
+function prepareCompletedDetail(detail: PendingRequestDetail): PendingRequestDetail {
+  return {
+    ...detail,
+    id: materializeString(detail.id),
+    model: materializeString(detail.model),
+    provider: materializeString(detail.provider),
+    connectionId: materializeNullableString(detail.connectionId) ?? null,
+    clientEndpoint: materializeNullableString(detail.clientEndpoint),
+    providerUrl: materializeNullableString(detail.providerUrl),
+    error: materializeNullableString(detail.error),
+    errorCode: materializeNullableString(detail.errorCode),
+    stage: materializeNullableString(detail.stage),
+    correlationId: materializeNullableString(detail.correlationId),
+    sessionTag: materializeNullableString(detail.sessionTag),
+    clientRequest:
+      detail.clientRequest === undefined ? undefined : preparePayloadPreview(detail.clientRequest),
+    providerRequest:
+      detail.providerRequest === undefined ? undefined : preparePayloadPreview(detail.providerRequest),
+    providerResponse:
+      detail.providerResponse === undefined ? undefined : preparePayloadPreview(detail.providerResponse),
+    clientResponse:
+      detail.clientResponse === undefined ? undefined : preparePayloadPreview(detail.clientResponse),
+    streamChunks: detail.streamChunks
+      ? {
+          provider: prepareStreamChunkList(detail.streamChunks.provider),
+          openai: prepareStreamChunkList(detail.streamChunks.openai),
+          client: prepareStreamChunkList(detail.streamChunks.client),
+        }
+      : detail.streamChunks,
+  };
+}
+
+function estimateCompletedDetailBytes(detail: PendingRequestDetail): number {
+  try {
+    const serialized = JSON.stringify(detail);
+    return Buffer.byteLength(serialized ?? "", "utf8");
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+function compactOversizedDetail(detail: PendingRequestDetail): PendingRequestDetail {
+  return {
+    ...detail,
+    clientRequest: detail.clientRequest === undefined ? undefined : OVERSIZED_DETAIL_MARKER,
+    providerRequest: detail.providerRequest === undefined ? undefined : OVERSIZED_DETAIL_MARKER,
+    providerResponse: detail.providerResponse === undefined ? undefined : OVERSIZED_DETAIL_MARKER,
+    clientResponse: detail.clientResponse === undefined ? undefined : OVERSIZED_DETAIL_MARKER,
+    streamChunks: null,
+  };
+}
+
+function removeCompletedDetailEntry(id: string) {
+  if (!completedDetails.has(id)) return;
+  completedDetails.delete(id);
+  const bytes = completedDetailBytes.get(id) ?? 0;
+  completedDetailBytes.delete(id);
+  totalCompletedDetailBytes = Math.max(0, totalCompletedDetailBytes - bytes);
+}
 
 function deleteCompletedDetail(id: string) {
-  completedDetails.delete(id);
+  removeCompletedDetailEntry(id);
   const existingTimer = completedDetailTimers.get(id);
   if (existingTimer) {
     clearTimeout(existingTimer);
@@ -17,7 +142,8 @@ function deleteCompletedDetail(id: string) {
 }
 
 function trimCompletedDetails() {
-  while (completedDetails.size > MAX_COMPLETED_DETAILS) {
+  const maxBytes = getMaxCompletedDetailsBytes();
+  while (completedDetails.size > MAX_COMPLETED_DETAILS || totalCompletedDetailBytes > maxBytes) {
     const oldestId = completedDetails.keys().next().value;
     if (!oldestId) break;
     deleteCompletedDetail(oldestId);
@@ -28,8 +154,33 @@ export function getCompletedDetails(): Map<string, PendingRequestDetail> {
   return completedDetails;
 }
 
+export function getCompletedDetailCacheStats() {
+  return {
+    entries: completedDetails.size,
+    bytes: totalCompletedDetailBytes,
+    maxEntries: MAX_COMPLETED_DETAILS,
+    maxBytes: getMaxCompletedDetailsBytes(),
+  };
+}
+
 export function storeCompletedDetail(detail: PendingRequestDetail) {
-  completedDetails.set(detail.id, detail);
+  let stored = prepareCompletedDetail(detail);
+  const maxBytes = getMaxCompletedDetailsBytes();
+  let bytes = estimateCompletedDetailBytes(stored);
+
+  // A pathological diagnostic object must not defeat the global byte cap by
+  // being larger than the cache all by itself. Preserve metadata needed for
+  // correlation and replace only payload-heavy fields.
+  if (bytes > maxBytes) {
+    stored = compactOversizedDetail(stored);
+    bytes = estimateCompletedDetailBytes(stored);
+  }
+
+  const previousBytes = completedDetailBytes.get(stored.id) ?? 0;
+  totalCompletedDetailBytes = Math.max(0, totalCompletedDetailBytes - previousBytes);
+  completedDetails.set(stored.id, stored);
+  completedDetailBytes.set(stored.id, bytes);
+  totalCompletedDetailBytes += bytes;
   trimCompletedDetails();
 }
 
@@ -37,8 +188,8 @@ export function scheduleCompletedDetailCleanup(id: string) {
   const existingTimer = completedDetailTimers.get(id);
   if (existingTimer) clearTimeout(existingTimer);
   const timer = setTimeout(() => {
-    completedDetails.delete(id);
     completedDetailTimers.delete(id);
+    removeCompletedDetailEntry(id);
   }, COMPLETED_DETAIL_TTL_MS);
   timer.unref?.();
   completedDetailTimers.set(id, timer);
@@ -48,6 +199,8 @@ export function clearCompletedDetails() {
   for (const timer of completedDetailTimers.values()) clearTimeout(timer);
   completedDetailTimers.clear();
   completedDetails.clear();
+  completedDetailBytes.clear();
+  totalCompletedDetailBytes = 0;
 }
 
 function isUnset(value: unknown): boolean {
