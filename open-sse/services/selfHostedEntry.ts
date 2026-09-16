@@ -68,13 +68,25 @@ let cachedRuntime: SelfHostedRuntime | null = null;
 let cachedRuntimeSignature = "";
 let failedConfigLoad: string | null = null;
 
-/**
- * Resolve provider config + strategy from env/file; caches by content signature.
- * Returns `null` when no provider config is present at all.
- */
-async function loadSelfHostedRuntime(
+interface SelfHostedSources {
+  providersFile?: string;
+  providersSource: string;
+  strategySource: string;
+}
+
+/** Inline YAML text wins; otherwise read the file (if any); otherwise empty. */
+async function resolveTextSource(
+  inline: string | undefined,
+  filePath: string | undefined
+): Promise<string> {
+  if (inline) return inline;
+  return filePath ? await readFile(filePath, "utf8") : "";
+}
+
+/** Resolve the raw providers/strategy YAML text from env/file. `null` = unconfigured. */
+async function resolveSelfHostedSources(
   options: SelfHostedOptions
-): Promise<SelfHostedRuntime | null> {
+): Promise<SelfHostedSources | null> {
   const providersYaml = options.providers ?? process.env[CONFIG_ENV] ?? undefined;
   const providersFile = options.providersFile ?? process.env[CONFIG_FILE_ENV] ?? undefined;
   const strategyInline = options.strategy ?? process.env[STRATEGY_ENV] ?? undefined;
@@ -82,40 +94,54 @@ async function loadSelfHostedRuntime(
 
   if (!providersYaml && !providersFile) return null;
 
-  let providersSource: string;
-  if (providersYaml) {
-    providersSource = providersYaml;
-  } else {
-    providersSource = providersFile ? await readFile(providersFile, "utf8") : "";
-  }
+  const providersSource = await resolveTextSource(providersYaml, providersFile);
+  const strategySource = await resolveTextSource(strategyInline, strategyFile);
 
-  let strategySource = strategyInline ?? "";
-  if (!strategySource && strategyFile) {
-    strategySource = await readFile(strategyFile, "utf8");
-  }
+  return { providersFile, providersSource, strategySource };
+}
 
-  const signature = [
-    providersFile ?? "",
-    providersSource.length,
-    providersSource.slice(0, 64),
-    strategySource.length,
-    strategySource.slice(0, 64),
+/** Content signature used to skip re-parsing when nothing has changed. */
+function signatureFor(sources: SelfHostedSources): string {
+  return [
+    sources.providersFile ?? "",
+    sources.providersSource.length,
+    sources.providersSource.slice(0, 64),
+    sources.strategySource.length,
+    sources.strategySource.slice(0, 64),
   ].join(":");
+}
+
+/** Parse providers + strategy and build the router/engine pair. May throw. */
+function buildSelfHostedRuntime(sources: SelfHostedSources): SelfHostedRuntime {
+  const parsed = parseSelfHostedRoutingConfig(sources.providersSource);
+  // An explicit strategy env/file overrides the inline `strategy:` block per-key.
+  let strategy: StrategyConfig = parsed.strategy;
+  if (sources.strategySource.trim()) {
+    strategy = { ...strategy, ...parseStrategyConfig(yaml.load(sources.strategySource)) };
+  }
+  return {
+    router: new ProviderRouter({ providers: parsed.providers }),
+    engine: new DeterministicRoutingEngine(parsed.providers, strategy),
+  };
+}
+
+/**
+ * Resolve provider config + strategy from env/file; caches by content signature.
+ * Returns `null` when no provider config is present at all.
+ */
+async function loadSelfHostedRuntime(
+  options: SelfHostedOptions
+): Promise<SelfHostedRuntime | null> {
+  const sources = await resolveSelfHostedSources(options);
+  if (!sources) return null;
+
+  const signature = signatureFor(sources);
   if (cachedRuntime && cachedRuntimeSignature === signature) {
     return cachedRuntime;
   }
 
   try {
-    const parsed = parseSelfHostedRoutingConfig(providersSource);
-    // An explicit strategy env/file overrides the inline `strategy:` block per-key.
-    let strategy: StrategyConfig = parsed.strategy;
-    if (strategySource.trim()) {
-      strategy = { ...strategy, ...parseStrategyConfig(yaml.load(strategySource)) };
-    }
-    cachedRuntime = {
-      router: new ProviderRouter({ providers: parsed.providers }),
-      engine: new DeterministicRoutingEngine(parsed.providers, strategy),
-    };
+    cachedRuntime = buildSelfHostedRuntime(sources);
     cachedRuntimeSignature = signature;
     failedConfigLoad = null;
     return cachedRuntime;

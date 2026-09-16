@@ -203,26 +203,12 @@ export class DeterministicRoutingEngine {
    *     latency (ascending recent average) when their flags are enabled.
    */
   candidates(pinnedId?: string, now = Date.now()): CandidatesResult {
-    if (pinnedId && !this.providers.has(pinnedId)) {
-      return {
-        candidates: [],
-        excluded: [],
-        pinBlocked: { providerId: pinnedId, reason: `unknown provider: ${pinnedId}` },
-      };
-    }
-
     const scored = this.scoreAll(now);
 
     if (pinnedId) {
-      const pinned = scored.find((s) => s.provider.id === pinnedId);
-      if (pinned && pinned.status !== "eligible") {
-        return {
-          candidates: [],
-          excluded: scored
-            .filter((s) => s.status !== "eligible")
-            .map((s) => ({ providerId: s.provider.id, reason: s.status })),
-          pinBlocked: { providerId: pinnedId, reason: pinned.status },
-        };
+      const blocked = this.resolvePinBlocked(pinnedId, scored);
+      if (blocked) {
+        return { candidates: [], excluded: blocked.excluded, pinBlocked: blocked.pinBlocked };
       }
     }
 
@@ -231,21 +217,54 @@ export class DeterministicRoutingEngine {
       .map((s) => ({ providerId: s.provider.id, reason: s.status }));
     const allowed = scored.filter((s) => s.status === "eligible");
     const ordered = this.orderAllowed(allowed);
-    const candidates: RouteCandidate[] = [];
 
-    if (pinnedId) {
-      const pinnedEntry = ordered.find((e) => e.provider.id === pinnedId);
-      if (pinnedEntry) {
-        candidates.push({ provider: pinnedEntry.provider, explain: `pinned: ${pinnedId}` });
-      }
-      for (const entry of ordered) {
-        if (entry.provider.id !== pinnedId) candidates.push(entry);
-      }
-    } else {
-      for (const entry of ordered) candidates.push(entry);
+    return { candidates: this.buildCandidateList(ordered, pinnedId), excluded };
+  }
+
+  /**
+   * Resolve whether a pinned provider is unknown or was rejected by a hard
+   * filter. Returns `null` when the pin is unset or survived the filters.
+   */
+  private resolvePinBlocked(
+    pinnedId: string,
+    scored: ScoredCandidate[]
+  ): {
+    pinBlocked: { providerId: string; reason: string };
+    excluded: Array<{ providerId: string; reason: string }>;
+  } | null {
+    if (!this.providers.has(pinnedId)) {
+      return {
+        pinBlocked: { providerId: pinnedId, reason: `unknown provider: ${pinnedId}` },
+        excluded: [],
+      };
     }
+    const pinned = scored.find((s) => s.provider.id === pinnedId);
+    if (pinned && pinned.status !== "eligible") {
+      return {
+        pinBlocked: { providerId: pinnedId, reason: pinned.status },
+        excluded: scored
+          .filter((s) => s.status !== "eligible")
+          .map((s) => ({ providerId: s.provider.id, reason: s.status })),
+      };
+    }
+    return null;
+  }
 
-    return { candidates, excluded };
+  /** Move the pinned provider (if present) to the front of the ordered list. */
+  private buildCandidateList(
+    ordered: ScoredCandidate[],
+    pinnedId?: string
+  ): RouteCandidate[] {
+    if (!pinnedId) return ordered.map((entry) => entry);
+    const pinnedEntry = ordered.find((e) => e.provider.id === pinnedId);
+    const candidates: RouteCandidate[] = [];
+    if (pinnedEntry) {
+      candidates.push({ provider: pinnedEntry.provider, explain: `pinned: ${pinnedId}` });
+    }
+    for (const entry of ordered) {
+      if (entry.provider.id !== pinnedId) candidates.push(entry);
+    }
+    return candidates;
   }
 
   /**
@@ -306,59 +325,70 @@ export class DeterministicRoutingEngine {
   private orderAllowed(allowed: ScoredCandidate[]): ScoredCandidate[] {
     const chain = this.config.fallbackChain ?? [];
     if (chain.length > 0) {
-      const byChain = new Map(allowed.map((e) => [e.provider.id, e]));
-      const ordered: ScoredCandidate[] = [];
-      const used = new Set<string>();
-      for (const id of chain) {
-        const entry = byChain.get(id);
-        if (entry && !used.has(id)) {
-          ordered.push({ ...entry, explain: `fallback chain: ${id}` });
-          used.add(id);
-        }
-      }
-      // Providers not in the chain keep declaration order, appended at the end.
-      for (const entry of allowed) {
-        if (!used.has(entry.provider.id)) {
-          ordered.push({ ...entry, explain: `${entry.provider.id} eligible` });
-          used.add(entry.provider.id);
-        }
-      }
-      return ordered;
+      return this.orderByFallbackChain(allowed, chain);
     }
 
     let ordered = allowed.map((e) => ({ ...e, explain: `${e.provider.id} eligible` }));
+    ordered = this.applyCostPriority(ordered);
+    ordered = this.applyLatencyAware(ordered);
+    return ordered;
+  }
 
-    if (this.config.costPriority) {
-      ordered = [...ordered].sort(
-        (a, b) => this.costScore(a.provider) - this.costScore(b.provider)
-      );
-      ordered = ordered.map((entry, index) => ({
-        ...entry,
-        explain: `cost-priority: ${entry.provider.id} #${index + 1}`,
-      }));
-    }
-
-    if (this.config.latencyAware?.enabled) {
-      const scored = ordered.map((entry) => ({
-        entry,
-        latency: this.averageLatencyMs(entry.provider.id),
-      }));
-      const hasAnySample = scored.some((s) => s.latency !== null);
-      if (hasAnySample) {
-        const sorted = scored.sort(
-          (a, b) => this.latencyScore(a.latency) - this.latencyScore(b.latency)
-        );
-        ordered = sorted.map((s) => ({
-          ...s.entry,
-          explain:
-            s.latency !== null
-              ? `latency: ${s.entry.provider.id} avg ${Math.round(s.latency)}ms`
-              : `${s.entry.provider.id} unsampled`,
-        }));
+  /** Explicit `fallbackChain` order; providers outside the chain are appended. */
+  private orderByFallbackChain(
+    allowed: ScoredCandidate[],
+    chain: string[]
+  ): ScoredCandidate[] {
+    const byChain = new Map(allowed.map((e) => [e.provider.id, e]));
+    const ordered: ScoredCandidate[] = [];
+    const used = new Set<string>();
+    for (const id of chain) {
+      const entry = byChain.get(id);
+      if (entry && !used.has(id)) {
+        ordered.push({ ...entry, explain: `fallback chain: ${id}` });
+        used.add(id);
       }
     }
-
+    // Providers not in the chain keep declaration order, appended at the end.
+    for (const entry of allowed) {
+      if (!used.has(entry.provider.id)) {
+        ordered.push({ ...entry, explain: `${entry.provider.id} eligible` });
+        used.add(entry.provider.id);
+      }
+    }
     return ordered;
+  }
+
+  /** Sort by ascending `costPer1MInput` when `costPriority` is enabled. */
+  private applyCostPriority(ordered: ScoredCandidate[]): ScoredCandidate[] {
+    if (!this.config.costPriority) return ordered;
+    const sorted = [...ordered].sort(
+      (a, b) => this.costScore(a.provider) - this.costScore(b.provider)
+    );
+    return sorted.map((entry, index) => ({
+      ...entry,
+      explain: `cost-priority: ${entry.provider.id} #${index + 1}`,
+    }));
+  }
+
+  /** Sort by ascending average latency when `latencyAware.enabled` and sampled. */
+  private applyLatencyAware(ordered: ScoredCandidate[]): ScoredCandidate[] {
+    if (!this.config.latencyAware?.enabled) return ordered;
+    const scored = ordered.map((entry) => ({
+      entry,
+      latency: this.averageLatencyMs(entry.provider.id),
+    }));
+    if (!scored.some((s) => s.latency !== null)) return ordered;
+    const sorted = scored.sort(
+      (a, b) => this.latencyScore(a.latency) - this.latencyScore(b.latency)
+    );
+    return sorted.map((s) => ({
+      ...s.entry,
+      explain:
+        s.latency !== null
+          ? `latency: ${s.entry.provider.id} avg ${Math.round(s.latency)}ms`
+          : `${s.entry.provider.id} unsampled`,
+    }));
   }
 
   private costScore(provider: StrategyProviderConfig): number {
@@ -455,6 +485,21 @@ export function parseStrategyConfig(value: unknown): StrategyConfig {
   };
 }
 
+/** Trim a field down to a non-empty string, or `undefined` when absent/blank. */
+function trimmedStringField(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/** Validate the optional `costPer1MInput` field for one provider entry. */
+function parseProviderCost(item: Record<string, unknown>, id: string): number | undefined {
+  if (item.costPer1MInput === undefined || item.costPer1MInput === null) return undefined;
+  const cost = Number(item.costPer1MInput);
+  if (!Number.isFinite(cost) || cost < 0) {
+    throw new Error(`provider ${id} costPer1MInput must be a non-negative number`);
+  }
+  return cost;
+}
+
 /**
  * Parse a provider entry that carries an optional per-provider cost.
  * The base fields (id/kind/baseUrl/model/apiKey) are validated exactly as in
@@ -462,11 +507,10 @@ export function parseStrategyConfig(value: unknown): StrategyConfig {
  * strategy-relevant addition, and it stays out of the public/safe projection.
  */
 export function toStrategyProviderConfig(item: Record<string, unknown>): StrategyProviderConfig {
-  const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : undefined;
+  const id = trimmedStringField(item.id);
   const kind = item.kind;
-  const baseUrl =
-    typeof item.baseUrl === "string" && item.baseUrl.trim() ? item.baseUrl.trim() : undefined;
-  const model = typeof item.model === "string" && item.model.trim() ? item.model.trim() : undefined;
+  const baseUrl = trimmedStringField(item.baseUrl);
+  const model = trimmedStringField(item.model);
   if (!id || !baseUrl || !model) {
     throw new Error("provider requires id/baseUrl/model");
   }
@@ -480,11 +524,8 @@ export function toStrategyProviderConfig(item: Record<string, unknown>): Strateg
     model,
     ...(typeof item.apiKey === "string" && item.apiKey ? { apiKey: item.apiKey } : {}),
   };
-  if (item.costPer1MInput !== undefined && item.costPer1MInput !== null) {
-    const cost = Number(item.costPer1MInput);
-    if (!Number.isFinite(cost) || cost < 0) {
-      throw new Error(`provider ${id} costPer1MInput must be a non-negative number`);
-    }
+  const cost = parseProviderCost(item, id);
+  if (cost !== undefined) {
     provider.costPer1MInput = cost;
   }
   return provider;
