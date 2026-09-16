@@ -169,6 +169,8 @@ export const PACK_ARTIFACT_ROOT_ALLOWED_EXACT_PATHS: string[] = [
 
 export const PACK_ARTIFACT_ROOT_ALLOWED_PATH_PREFIXES: string[] = [
   "@omniroute/opencode-plugin/",
+  // #12870 shipped the v2 plugin beside its v1 sibling but never widened this
+  // allowlist, so every packed file under it read as an unexpected artifact.
   "@omniroute/opencode-plugin-v2/",
   "@omniroute/opencode-provider/",
   "bin/cli/",
