@@ -5,8 +5,7 @@ import { MAX_PREVIEW_STRING, truncatePendingPreview } from "./usageHistory/helpe
 
 const COMPLETED_DETAIL_TTL_MS = 120_000;
 const MAX_COMPLETED_DETAILS = 256;
-const DEFAULT_MAX_COMPLETED_DETAILS_BYTES = 4 * 1024 * 1024;
-const MIN_MAX_COMPLETED_DETAILS_BYTES = 64 * 1024;
+const MAX_COMPLETED_DETAILS_BYTES = 4 * 1024 * 1024;
 const MAX_COMPLETED_STREAM_CHUNKS_PER_STAGE = 64;
 const OVERSIZED_DETAIL_MARKER = "[omitted: completed detail exceeded cache byte budget]";
 
@@ -14,14 +13,6 @@ const completedDetails = new Map<string, PendingRequestDetail>();
 const completedDetailTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const completedDetailBytes = new Map<string, number>();
 let totalCompletedDetailBytes = 0;
-
-export function getMaxCompletedDetailsBytes(
-  rawValue: string | undefined = process.env.MAX_COMPLETED_DETAILS_BYTES
-): number {
-  const parsed = Number.parseInt(rawValue ?? "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_COMPLETED_DETAILS_BYTES;
-  return Math.max(MIN_MAX_COMPLETED_DETAILS_BYTES, parsed);
-}
 
 /**
  * Force a diagnostic string onto its own backing store before it enters the
@@ -142,8 +133,10 @@ function deleteCompletedDetail(id: string) {
 }
 
 function trimCompletedDetails() {
-  const maxBytes = getMaxCompletedDetailsBytes();
-  while (completedDetails.size > MAX_COMPLETED_DETAILS || totalCompletedDetailBytes > maxBytes) {
+  while (
+    completedDetails.size > MAX_COMPLETED_DETAILS ||
+    totalCompletedDetailBytes > MAX_COMPLETED_DETAILS_BYTES
+  ) {
     const oldestId = completedDetails.keys().next().value;
     if (!oldestId) break;
     deleteCompletedDetail(oldestId);
@@ -159,19 +152,18 @@ export function getCompletedDetailCacheStats() {
     entries: completedDetails.size,
     bytes: totalCompletedDetailBytes,
     maxEntries: MAX_COMPLETED_DETAILS,
-    maxBytes: getMaxCompletedDetailsBytes(),
+    maxBytes: MAX_COMPLETED_DETAILS_BYTES,
   };
 }
 
 export function storeCompletedDetail(detail: PendingRequestDetail) {
   let stored = prepareCompletedDetail(detail);
-  const maxBytes = getMaxCompletedDetailsBytes();
   let bytes = estimateCompletedDetailBytes(stored);
 
   // A pathological diagnostic object must not defeat the global byte cap by
   // being larger than the cache all by itself. Preserve metadata needed for
   // correlation and replace only payload-heavy fields.
-  if (bytes > maxBytes) {
+  if (bytes > MAX_COMPLETED_DETAILS_BYTES) {
     stored = compactOversizedDetail(stored);
     bytes = estimateCompletedDetailBytes(stored);
   }
