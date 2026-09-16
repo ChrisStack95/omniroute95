@@ -1,4 +1,5 @@
 {
+  "_rebaseline_2026_09_15_12643_messages_entry_guard": "#12643 own growth: src/sse/handlers/chat.ts +10 (2490->2500 after syncing the 09-16 base, which itself moved the frozen value). A `messages` array containing a null/non-object entry (e.g. `[null]`) passed every existing entry guard (#5110/#6402/#6407/#6412) and crashed downstream translators/session helpers (openai-to-claude.ts, sessionManager.ts, contextManager.ts's fixToolPairs) reading `.role`/`.content` off the raw entry, surfacing as an HTTP 500 instead of a clean 400. Adds one more entry-shape guard clause to the same chokepoint, extending the existing guard family — same pattern, irreducible call-site wiring (the check itself is a one-line `.some()` predicate, not extractable into its own leaf without hiding the chokepoint). Covered by tests/unit/chat-messages-entry-objects-12643.test.ts (3/3) plus the sibling guard suites (chat-messages-validation-6402.test.ts, chat-non-string-model-6407.test.ts, 22/22, no regression).",
   "_rebaseline_2026_09_15_13572_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/executors/base.ts->1754. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13445_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/utils/proxyFetch.ts->1296. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13643_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/executors/codex.ts->1528. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
@@ -497,7 +498,7 @@
     "src/shared/components/RequestLoggerV2.tsx": 1718,
     "src/shared/constants/providers/apikey/gateways.ts": 1502,
     "src/shared/services/cliRuntime.ts": 1296,
-    "src/sse/handlers/chat.ts": 2490,
+    "src/sse/handlers/chat.ts": 2500,
     "src/sse/services/auth.ts": 3557,
     "tests/unit/account-fallback-service.test.ts": 2453,
     "tests/unit/provider-validation-specialty.test.ts": 4656,
