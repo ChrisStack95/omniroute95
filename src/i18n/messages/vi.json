@@ -7475,6 +7475,8 @@
     "clearSyncedPricing": "Xóa giá đã đồng bộ hóa",
     "compressionTitle": "Nén prompt",
     "compressionDesc": "Giảm mức sử dụng token bằng cách nén các prompt trước khi gửi đến các nhà cung cấp",
+    "autoCombosTitle": "Combo tự động",
+    "autoCombosDesc": "Cho phép khóa này sử dụng các combo auto/* tích hợp sẵn, vốn tự động chọn mô hình từ mọi nhà cung cấp đã cấu hình",
     "compressionGuidanceFullGuideLink": "Hướng dẫn nén đầy đủ",
     "compressionGuidanceShow": "Chi tiết",
     "compressionGuidanceHide": "Ẩn chi tiết",
@@ -8381,7 +8383,12 @@
     "headroomProxySave": "Lưu",
     "headroomProxyStart": "Bắt đầu",
     "headroomProxyStop": "Dừng",
-    "headroomProxyExternalHint": "URL này không phải loopback, nên OmniRoute sẽ không khởi chạy CLI cục bộ."
+    "headroomProxyExternalHint": "URL này không phải loopback, nên OmniRoute sẽ không khởi chạy CLI cục bộ.",
+    "catalogScopeTitle": "Danh sách API mô hình",
+    "catalogScopeDesc": "Những gì GET /v1/models hiển thị cho khóa này. Thu hẹp danh sách không làm thay đổi những gì khóa có thể gọi.",
+    "catalogScopeAll": "Cả hai",
+    "catalogScopeCombos": "Chỉ combo",
+    "catalogScopeModels": "Chỉ mô hình"
   },
   "contextRtk": {
     "title": "RTK Engine",

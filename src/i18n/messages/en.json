@@ -7474,6 +7474,8 @@
     "clearSyncedPricing": "Clear Synced Pricing",
     "compressionTitle": "Prompt Compression",
     "compressionDesc": "Reduce token usage by compressing prompts before sending to providers",
+    "autoCombosTitle": "Auto Combos",
+    "autoCombosDesc": "Allow this key to use the built-in auto/* combos, which pick a model automatically from every configured provider",
     "compressionGuidanceFullGuideLink": "Full compression guide",
     "compressionGuidanceShow": "Details",
     "compressionGuidanceHide": "Hide details",
@@ -8380,7 +8382,12 @@
     "cliproxyapiHealth": "Health",
     "cliproxyapiPort": "Port",
     "qdrantHost": "Host",
-    "qdrantCollection": "Collection"
+    "qdrantCollection": "Collection",
+    "catalogScopeTitle": "Models API listing",
+    "catalogScopeDesc": "What GET /v1/models advertises for this key. Narrowing the list never changes what the key can call.",
+    "catalogScopeAll": "Both",
+    "catalogScopeCombos": "Combos only",
+    "catalogScopeModels": "Models only"
   },
   "contextRtk": {
     "title": "RTK Engine",
