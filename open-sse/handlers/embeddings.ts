@@ -272,7 +272,7 @@ export function clampEmbeddingStringInput(input: unknown): unknown {
 function buildUpstreamBody(runtime: EmbeddingRuntime): Record<string, unknown> {
   const upstreamBody: Record<string, unknown> = {
     model: runtime.model,
-    input: runtime.body.input,
+    input: clampEmbeddingStringInput(runtime.body.input),
   };
   if (runtime.body.dimensions !== undefined) upstreamBody.dimensions = runtime.body.dimensions;
   if (runtime.body.encoding_format !== undefined) {
@@ -441,9 +441,10 @@ async function enforceEmbeddingQuota(runtime: EmbeddingRuntime): Promise<Embeddi
 function resolveSingleTexts(runtime: EmbeddingRuntime): string[] | EmbeddingFailure | null {
   if (runtime.providerConfig.singleTextProtocol !== "clova-v2") return null;
   const input = Array.isArray(runtime.body.input) ? runtime.body.input : [runtime.body.input];
+  const clamped = clampEmbeddingStringInput(input) as unknown[];
   if (
-    input.length === 0 ||
-    input.some((item) => typeof item !== "string" || item.trim().length === 0)
+    clamped.length === 0 ||
+    clamped.some((item) => typeof item !== "string" || item.trim().length === 0)
   ) {
     return failure(400, "CLOVA Studio embedding v2 accepts non-empty text strings only");
   }
@@ -453,7 +454,7 @@ function resolveSingleTexts(runtime: EmbeddingRuntime): string[] | EmbeddingFail
   if (runtime.body.dimensions !== undefined && Number(runtime.body.dimensions) !== 1024) {
     return failure(400, "CLOVA Studio embedding v2 has a fixed dimension of 1024");
   }
-  return input as string[];
+  return clamped as string[];
 }
 
 function appendClovaEmbedding(
