@@ -4,7 +4,7 @@
 
 ### ✨ New Features
 
-- **feat(compression):** Lite tool-result truncation length is configurable (`lite.maxToolLength`, env `OMNIROUTE_LITE_MAX_TOOL_LENGTH`). Default stays 2000. An out-of-range step cap no longer hides a valid global cap; a toggle-only settings write keeps a stored cap; `maxToolLength: null` clears it. ([#13178](https://github.com/diegosouzapw/OmniRoute/issues/13178))
+- **feat(compression):** Lite tool-result truncation length is configurable (`lite.maxToolLength`, env `OMNIROUTE_LITE_MAX_TOOL_LENGTH`). Default stays 2000. An out-of-range step cap no longer hides a valid global cap; a toggle-only settings write keeps a stored cap; `maxToolLength: null` clears it. Dashboard copy no longer hard-codes 2,000 characters. ([#13178](https://github.com/diegosouzapw/OmniRoute/issues/13178))
 - **feat(dashboard):** adaptive context-budget dial on the compression settings panel — mode (`off` / `floor` / `replace-autotrigger`) and policy (`reserve-output` / `percentage` / `absolute`) persist via `PUT /api/settings/compression` `contextBudget`. Completes the dashboard half of #7005 (API + DB already shipped in #7183).
 - **feat(sse): STRICT_ZERO_COST** — opt-in, off-by-default `freeAccessPolicy: "strict"` setting
   that hard-verifies every auto-combo candidate against live quota state and per-connection

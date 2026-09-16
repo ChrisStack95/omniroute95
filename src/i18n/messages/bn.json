@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "সক্রিয়ভাবে দীর্ঘ টুলের ফলাফল কেটে ফেলুন",
-        "description": "লাইট সংকোচনের সময় ২,০০০ অক্ষরের বেশি টুলের ফলাফল কেটে ফেলা হয়। জরুরি ওভারফ্লো সুরক্ষা এখনও কনটেন্ট কেটে ফেলতে পারে যখন প্রসঙ্গ মডেল বাজেট অতিক্রম করে।"
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

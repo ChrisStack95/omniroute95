@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "長いツールの結果を積極的に切り詰める",
-        "description": "Lite圧縮中に2,000文字を超えるツール結果を切り捨てます。コンテキストがモデルの予算を超えると、緊急オーバーフロープロテクションがコンテンツをトリムする場合があります。"
+        "description": "Lite圧縮中に長いツール結果を切り捨てます。上限は「最大ツール結果長」フィールド（未設定時は OMNIROUTE_LITE_MAX_TOOL_LENGTH）で決まります。コンテキストがモデルの予算を超えると、緊急オーバーフロープロテクションがコンテンツをトリムする場合があります。"
+      },
+      "maxToolLength": {
+        "label": "最大ツール結果長",
+        "description": "ツール結果の先行切り捨て文字数上限。デフォルト 2000。未設定時は OMNIROUTE_LITE_MAX_TOOL_LENGTH で上書きできます。"
       }
     },
     "engineFields": {

@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "主动截断过长的工具结果",
-        "description": "在 Lite 压缩期间截断超过 2,000 个字符的工具结果。当上下文超出模型预算时，紧急溢出保护仍可能裁剪内容。"
+        "description": "在 Lite 压缩期间截断过长的工具结果。截断上限由「最大工具结果长度」字段决定；该字段未设置时使用 OMNIROUTE_LITE_MAX_TOOL_LENGTH。当上下文超出模型预算时，紧急溢出保护仍可能裁剪内容。"
+      },
+      "maxToolLength": {
+        "label": "最大工具结果长度",
+        "description": "主动截断工具结果的字符上限。默认 2000。该字段未设置时可用 OMNIROUTE_LITE_MAX_TOOL_LENGTH 覆盖。"
       }
     },
     "engineFields": {

@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "主動截斷長工具結果",
-        "description": "在輕量壓縮期間，截斷超過 2,000 個字符的工具結果。當上下文超過模型預算時，緊急溢出保護仍可能修剪內容。"
+        "description": "在輕量壓縮期間截斷過長的工具結果。截斷上限由「最大工具結果長度」欄位決定；該欄位未設定時使用 OMNIROUTE_LITE_MAX_TOOL_LENGTH。當上下文超過模型預算時，緊急溢出保護仍可能修剪內容。"
+      },
+      "maxToolLength": {
+        "label": "最大工具結果長度",
+        "description": "主動截斷工具結果的字元上限。預設 2000。該欄位未設定時可用 OMNIROUTE_LITE_MAX_TOOL_LENGTH 覆寫。"
       }
     },
     "engineFields": {

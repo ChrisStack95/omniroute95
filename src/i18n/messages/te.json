@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "సక్రియంగా పొడవైన సాధన ఫలితాలను కత్తిరించండి",
-        "description": "Lite కంప్రెషన్ సమయంలో 2,000 అక్షరాల కంటే ఎక్కువ టూల్ ఫలితాలను కత్తిరిస్తుంది. సందర్భం మోడల్ బడ్జెట్‌ను మించితే అత్యవసర ఓవర్‌ఫ్లో రక్షణ ఇంకా కంటెంట్‌ను కత్తిరించవచ్చు."
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

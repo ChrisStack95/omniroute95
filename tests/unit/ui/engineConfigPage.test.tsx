@@ -485,6 +485,8 @@ describe("EngineConfigPage", () => {
     expect(toggle).not.toBeNull();
     expect(toggle?.checked).toBe(false);
     expect(container.textContent).toContain("Emergency overflow protection may still trim content");
+    expect(container.textContent).not.toContain("2,000 characters");
+    expect(container.textContent).toContain("Maximum tool-result length field");
 
     const saveButton = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("Save")
@@ -848,7 +850,7 @@ describe("EngineConfigPage", () => {
     });
 
     expect(settingsPuts).toEqual([]);
-    expect(container.textContent).toMatch(/save/i);
+    expect(container.textContent).toContain("Failed to save configuration.");
   });
 
   it("#8056: headroom minRows is persistable — Save PUTs headroom:{minRows:5}", async () => {

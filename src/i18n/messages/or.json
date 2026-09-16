@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "ଲମ୍ବା ଟୁଲ୍ ଫଳାଫଳଗୁଡ଼ିକୁ ଆଗୁଆ କାଟଛାଣ୍ଟ କରନ୍ତୁ",
-        "description": "ଲାଇଟ୍ ସଂକୁଚନ ସମୟରେ 2,000 ଅକ୍ଷରରୁ ଅଧିକ ଟୁଲ୍ ଫଳାଫଳକୁ କାଟଛାଣ୍ଟ କରେ। ପ୍ରସଙ୍ଗ ମଡେଲ୍ର ବଜେଟ୍ ଅତିକ୍ରମ କଲେ ଜରୁରୀ ଓଭରଫ୍ଲୋ ସୁରକ୍ଷା ତଥାପି ବିଷୟବସ୍ତୁକୁ ଛୋଟ କରିପାରେ।"
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

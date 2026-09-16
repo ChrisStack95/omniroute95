@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "Проактивно съкратете дългите резултати от инструменти",
-        "description": "Обрязва резултатите от инструмента над 2,000 знака по време на Lite компресия. Защитата от извънреден преливник все още може да отреже съдържание, когато контекстът надвишава бюджета на модела."
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

@@ -8593,7 +8593,11 @@
       },
       "compressToolResults": {
         "label": "Truncare proattivamente i risultati degli strumenti lunghi",
-        "description": "Tronca i risultati degli strumenti oltre 2.000 caratteri durante la compressione Lite. La protezione di overflow di emergenza potrebbe comunque ridurre il contenuto quando il contesto supera il budget del modello."
+        "description": "Tronca i risultati lunghi degli strumenti durante la compressione Lite. Il tetto è impostato dal campo Lunghezza massima del risultato strumento (o OMNIROUTE_LITE_MAX_TOOL_LENGTH se vuoto). La protezione di overflow di emergenza può comunque tagliare il contenuto quando il contesto supera il budget del modello."
+      },
+      "maxToolLength": {
+        "label": "Lunghezza massima del risultato strumento",
+        "description": "Limite di caratteri per il troncamento proattivo. Predefinito 2000. Sovrascrivibile con OMNIROUTE_LITE_MAX_TOOL_LENGTH se il campo è vuoto."
       }
     },
     "engineFields": {
