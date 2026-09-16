@@ -8,6 +8,10 @@ test("Node runner copies better-sqlite3 and refuses to ship without the native a
   assert.match(dockerfile, /COPY --from=builder \/app\/node_modules\/better-sqlite3/);
   assert.match(
     dockerfile,
+    /node-gyp\.js rebuild --force_build=1/
+  );
+  assert.match(
+    dockerfile,
     /&& test -f node_modules\/better-sqlite3\/build\/Release\/better_sqlite3\.node/
   );
   assert.match(
