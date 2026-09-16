@@ -261,7 +261,18 @@ test("runScheduledCleanupPass(): the timers' code path defers on NONE instead of
     console.log = originalLog;
   }
 
-  assert.equal(pragmaNumber("freelist_count"), before, "no reclamation on NONE");
+  // Retention cleanup runs before reclamation, and one of its targets
+  // (cleanupCompressionRunTelemetry) lazily creates its table on first use —
+  // a real, one-time, unrelated page cost from a freshly migrated DB, not
+  // something reclaimFreedPages() does. Tolerate that noise while still
+  // catching the regression this test guards against: incremental_vacuum (or
+  // a rebuild) draining most/all of the freelist, which the assertion below
+  // on `page_count` also independently rules out.
+  const freelistAfter = pragmaNumber("freelist_count");
+  assert.ok(
+    freelistAfter >= before - 5,
+    `expected no meaningful reclamation on NONE (freelist ~${before}), got ${freelistAfter}`
+  );
   assert.equal(pragmaNumber("page_count"), pageCountBefore, "no rebuild on NONE");
   assert.ok(
     typeof scheduler.getState().fullVacuumRequestedAt === "number",

@@ -7,7 +7,11 @@ import path from "node:path";
 // These verify the critical column name fixes that were causing silent cleanup failures.
 
 const CLEANUP_PATH = path.resolve(import.meta.dirname, "../../src/lib/db/cleanup.ts");
+const RECLAIM_PATH = path.resolve(import.meta.dirname, "../../src/lib/db/reclaimFreedPages.ts");
 const source = fs.readFileSync(CLEANUP_PATH, "utf-8");
+// Post-cleanup space reclamation (#12821) lives in its own module, kept out of
+// cleanup.ts to stay under the file-size cap — scan both for the invariants below.
+const reclaimSource = fs.readFileSync(RECLAIM_PATH, "utf-8");
 
 test("cleanup: compression_analytics uses 'timestamp' column (not 'created_at')", () => {
   // The bug: cleanup used WHERE created_at < ? but the table has 'timestamp' column.
@@ -60,11 +64,12 @@ test("cleanup: has background scheduler (startCleanupScheduler)", () => {
   assert.ok(source.includes("CLEANUP_INTERVAL_MS"), "must have a cleanup interval constant");
   // #12821: reclaim freed pages without a blocking full VACUUM on the serving thread.
   assert.ok(
-    source.includes("incremental_vacuum("),
-    "scheduler must reclaim freed pages via PRAGMA incremental_vacuum after deletes"
+    reclaimSource.includes("incremental_vacuum("),
+    "reclaimFreedPages() must reclaim freed pages via PRAGMA incremental_vacuum after deletes"
   );
   assert.ok(
-    !/\b(exec|run|prepare)\s*\(\s*[`'"]\s*VACUUM\b/i.test(source),
+    !/\b(exec|run|prepare)\s*\(\s*[`'"]\s*VACUUM\b/i.test(source) &&
+      !/\b(exec|run|prepare)\s*\(\s*[`'"]\s*VACUUM\b/i.test(reclaimSource),
     "scheduler must never run a blocking full VACUUM — defer to vacuumScheduler (#12821)"
   );
 });
