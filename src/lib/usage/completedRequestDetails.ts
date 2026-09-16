@@ -29,6 +29,15 @@ function materializeNullableString(value: string | null | undefined): string | n
   return typeof value === "string" ? materializeString(value) : value;
 }
 
+function prepareDiagnosticString(
+  value: string | null | undefined
+): string | null | undefined {
+  if (typeof value !== "string") return value;
+  const preview =
+    value.length > MAX_PREVIEW_STRING ? `${value.slice(0, MAX_PREVIEW_STRING)}...` : value;
+  return materializeString(preview);
+}
+
 function materializePreview(value: unknown): unknown {
   if (typeof value === "string") return materializeString(value);
   if (Array.isArray(value)) return value.map((entry) => materializePreview(entry));
@@ -70,13 +79,13 @@ function prepareCompletedDetail(detail: PendingRequestDetail): PendingRequestDet
     model: materializeString(detail.model),
     provider: materializeString(detail.provider),
     connectionId: materializeNullableString(detail.connectionId) ?? null,
-    clientEndpoint: materializeNullableString(detail.clientEndpoint),
-    providerUrl: materializeNullableString(detail.providerUrl),
-    error: materializeNullableString(detail.error),
-    errorCode: materializeNullableString(detail.errorCode),
-    stage: materializeNullableString(detail.stage),
+    clientEndpoint: prepareDiagnosticString(detail.clientEndpoint),
+    providerUrl: prepareDiagnosticString(detail.providerUrl),
+    error: prepareDiagnosticString(detail.error),
+    errorCode: prepareDiagnosticString(detail.errorCode),
+    stage: prepareDiagnosticString(detail.stage),
     correlationId: materializeNullableString(detail.correlationId),
-    sessionTag: materializeNullableString(detail.sessionTag),
+    sessionTag: prepareDiagnosticString(detail.sessionTag),
     clientRequest:
       detail.clientRequest === undefined ? undefined : preparePayloadPreview(detail.clientRequest),
     providerRequest:
