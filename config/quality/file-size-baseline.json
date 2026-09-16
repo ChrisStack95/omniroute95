@@ -1,4 +1,5 @@
 {
+  "_rebaseline_2026_09_16_13031_reasoning_replay_responses_target": "Own growth after rebase onto v3.8.51 tip cde49c937: open-sse/handlers/chatCore.ts 6146->6159 (+13 over the frozen ceiling; the base tip sits at 6143 by check-file-size counting). #13031 wires translateRequest's onReasoningReplayHistory callback into the two call sites that can target the Responses API, threads reasoningReplayHistory into both non-streaming leg inputs, and adds the historyMessages fallback at the streaming reasoning-cache write so plain-turn replay keys match the read side. All additive at existing chokepoints (no new god-file; the translator branch lives in open-sse/translator/index.ts). Covered by tests/unit/reasoning-replay-history-responses-target.test.ts and tests/unit/chatcore-reasoning-cache-write-guard-responses.test.ts.",
   "_rebaseline_2026_09_15_13609_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/services/accountFallback.ts->2507. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13602_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1214. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13580_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1202. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
@@ -453,7 +454,7 @@
     "open-sse/executors/codex.ts": 1505,
     "open-sse/executors/cursor.ts": 1759,
     "open-sse/executors/muse-spark-web.ts": 1405,
-    "open-sse/handlers/chatCore.ts": 6146,
+    "open-sse/handlers/chatCore.ts": 6159,
     "open-sse/handlers/imageGeneration.ts": 3293,
     "open-sse/handlers/search.ts": 1789,
     "open-sse/mcp-server/schemas/tools.ts": 1621,
