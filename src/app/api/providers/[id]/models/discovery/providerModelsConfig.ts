@@ -106,6 +106,7 @@ export function parsePerplexitySonarModels(data: any): any[] {
   );
 }
 export type ProviderModelsHeaderContext = {
+  id?: string;
   authType?: string;
   providerSpecificData?: unknown;
   email?: string | null;
@@ -397,12 +398,24 @@ const KIMI_CODING_MODELS_CONFIG: ProviderModelsConfigEntry = {
 
 const OPENCODE_DISCOVERY_PARSE = (data: any) => data.data || data.models || [];
 
-function readOpencodeBackgroundSeed(providerSpecificData: unknown): string | null {
-  if (providerSpecificData && typeof providerSpecificData === "object") {
-    const ws = (providerSpecificData as Record<string, unknown>)["opencodeGoWorkspaceId"];
-    if (typeof ws === "string" && ws.trim().length > 0) return ws.trim();
+/**
+ * Stable background-identity seed for one connection. Prefers the workspace id
+ * (all three spellings the providerSpecificData validator accepts) so
+ * connections sharing a workspace group under one upstream identity, then
+ * falls back to the connection id so a workspace-less connection still gets a
+ * deterministic session instead of a fresh anonymous UUID per discovery call.
+ */
+function readOpencodeBackgroundSeed(connection?: ProviderModelsHeaderContext): string | null {
+  const psd = connection?.providerSpecificData;
+  if (psd && typeof psd === "object") {
+    const record = psd as Record<string, unknown>;
+    for (const key of ["openCodeGoWorkspaceId", "opencodeGoWorkspaceId", "workspaceId"] as const) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim().length > 0) return value.trim();
+    }
   }
-  return null;
+  const id = connection?.id;
+  return typeof id === "string" && id.trim().length > 0 ? id.trim() : null;
 }
 
 /**
@@ -422,9 +435,7 @@ function buildOpencodeModelsDiscoveryEntry(url: string): ProviderModelsConfigEnt
     buildHeaders: (token, connection) => ({
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
-      ...buildOpencodeBackgroundHeaders({
-        seed: readOpencodeBackgroundSeed(connection?.providerSpecificData),
-      }),
+      ...buildOpencodeBackgroundHeaders({ seed: readOpencodeBackgroundSeed(connection) }),
     }),
     parseResponse: OPENCODE_DISCOVERY_PARSE,
   };

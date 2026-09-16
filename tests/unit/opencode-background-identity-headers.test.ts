@@ -80,3 +80,29 @@ test("discovery entries for opencode / opencode-zen / opencode-go attach the ses
     );
   }
 });
+
+test("discovery seed honours every workspace spelling the validator accepts", () => {
+  const entry = PROVIDER_MODELS_CONFIG["opencode-go"];
+  const expected = buildOpencodeBackgroundHeaders({ seed: "wrk_01ABC" })["x-opencode-session"];
+  for (const key of ["openCodeGoWorkspaceId", "opencodeGoWorkspaceId", "workspaceId"] as const) {
+    const headers = entry.buildHeaders!("test-token", {
+      providerSpecificData: { [key]: "wrk_01ABC" },
+    });
+    assert.equal(
+      headers["x-opencode-session"],
+      expected,
+      `${key} must seed the same identity as the canonical workspace key`
+    );
+  }
+});
+
+test("discovery falls back to the connection id, not a random session, when no workspace is set", () => {
+  const entry = PROVIDER_MODELS_CONFIG["opencode-go"];
+  const first = entry.buildHeaders!("test-token", { id: "conn-42" });
+  const second = entry.buildHeaders!("test-token", { id: "conn-42" });
+  assert.equal(first["x-opencode-session"], second["x-opencode-session"]);
+  assert.equal(
+    first["x-opencode-session"],
+    buildOpencodeBackgroundHeaders({ seed: "conn-42" })["x-opencode-session"]
+  );
+});
