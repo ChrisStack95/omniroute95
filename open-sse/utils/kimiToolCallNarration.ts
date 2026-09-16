@@ -197,7 +197,8 @@ const DELIM_KEYWORD_TOKEN_RE = /^(?:argument|call|tools|name)\s*<\|(?:close|sep)
 // Proper prefix of a grammar keyword (char-by-char streaming holdback), or a
 // complete keyword still waiting for its lookahead delimiter, or a keyword
 // followed by a partial delimiter token ("argument<", "call<|s").
-const DELIM_KEYWORD_PARTIAL_RE = /^(?:(?:a|ar|arg|argu|argum|argume|argumen|argument|c|ca|cal|call|t|to|too|tool|tools|n|na|nam|name)\s*)?(?:<\|?(?:(?:c|cl|clo|clos|close|s|se|sep)\|?)?)?$/;
+const DELIM_KEYWORD_PARTIAL_RE =
+  /^(?:(?:a|ar|arg|argu|argum|argume|argumen|argument|c|ca|cal|call|t|to|too|tool|tools|n|na|nam|name)\s*)?(?:<\|?(?:(?:c|cl|clo|clos|close|s|se|sep)\|?)?)?$/;
 
 export type NarrationStreamScrubber = {
   /** Feed one raw text delta; returns the safe-to-emit portion (may be ""). */
@@ -539,6 +540,24 @@ export interface KimiRecoveryCtx {
   totalText: string;
   toolCalls: Array<{ id: string; name: string; argumentsJson: string }>;
   emittedToolCallIndex?: number;
+}
+
+/**
+ * One-line-per-site executor hook: flush the narration scrubber's held-back
+ * prose, then run finalize-time recovery + scrub (applyKimiToolCallRecovery).
+ * Kept here so open-sse/executors/cursor.ts — a file-size-frozen file — does
+ * not grow per integration site (base growth consumed the old headroom).
+ */
+export function finalizeKimiTurn(
+  ctx: KimiRecoveryCtx & { narrationScrubber?: { finish(): string | null } },
+  emit?: (chunk: { content?: string; tool_calls?: unknown[] }) => void
+): boolean {
+  const flush = ctx.narrationScrubber?.finish() ?? null;
+  if (flush) {
+    ctx.totalText += flush;
+    emit?.({ content: flush });
+  }
+  return applyKimiToolCallRecovery(ctx, (c) => emit?.(c));
 }
 
 /**
