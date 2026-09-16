@@ -1294,6 +1294,44 @@ test("markAccountUnavailable applies a model-only lockout for Gemini 429 respons
   assert.equal(Number(updated.errorCode), 429);
 });
 
+test("markAccountUnavailable scopes native Claude account rate limits to the failed model", async () => {
+  const failedModel = "claude-fable-5-1";
+  const siblingModel = "claude-opus-5";
+  const connection = await seedConnection("claude", {
+    name: "claude-model-limit",
+    authType: "oauth",
+    accessToken: "claude-model-limit-access",
+    refreshToken: "claude-model-limit-refresh",
+  });
+
+  const result = await auth.markAccountUnavailable(
+    connection.id,
+    429,
+    "This request would exceed your account's rate limit. Please try again later.",
+    "claude",
+    failedModel
+  );
+  await flushWrites();
+  const updated = await providersDb.getProviderConnectionById(connection.id);
+
+  assert.equal(result.shouldFallback, true);
+  assert.ok(result.cooldownMs > 0);
+  assert.equal(updated.isActive, true);
+  assert.equal(updated.testStatus, "active");
+  assert.equal(updated.rateLimitedUntil, undefined);
+  assert.equal(fallback.isModelLocked("claude", connection.id, failedModel), true);
+  assert.equal(fallback.isModelLocked("claude", connection.id, siblingModel), false);
+
+  const failedSelection = await auth.getProviderCredentials("claude", null, null, failedModel);
+  const siblingSelection = await auth.getProviderCredentials("claude", null, null, siblingModel);
+
+  assert.equal(failedSelection.allRateLimited, true);
+  assert.equal(failedSelection.cooldownScope, "model");
+  assert.equal(failedSelection.cooldownModel, failedModel);
+  assert.equal(siblingSelection.connectionId, connection.id);
+  assert.equal(siblingSelection.authType, "oauth");
+});
+
 test("markAccountUnavailable applies a model-only lockout for compatible provider 429 responses", async () => {
   const connection = await seedConnection("openai-compatible-custom-node", {
     name: "compatible-model-limit",

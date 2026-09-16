@@ -968,7 +968,7 @@ export function hasPerModelQuota(
   const canonicalId = resolveProviderId(provider);
   if (getCanonicalLockProvider(canonicalId) === "antigravity") return true;
   if (getCanonicalLockProvider(canonicalId) === "codex") return true;
-  if (canonicalId === "gemini" || canonicalId === "github") return true;
+  if (canonicalId === "claude" || canonicalId === "gemini" || canonicalId === "github") return true;
   if (canonicalId === "antigravity" || canonicalId === "agy") return true;
   if (getPassthroughProviders().has(canonicalId)) return true;
   // #11071: getPassthroughProviders() reads the open-sse REGISTRY. A provider can declare
