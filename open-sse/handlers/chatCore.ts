@@ -2434,8 +2434,21 @@ export async function handleChatCore({
       // conflicts with Claude OAuth tools, but in the passthrough path the tools
       // are already in Claude format. Applying the prefix turns "Bash" into
       // "proxy_Bash", which Claude rejects ("No such tool available: proxy_Bash").
+      //
+      // #618's actual traffic was real Claude Code talking to first-party Anthropic
+      // (provider "claude") reaching this fallback branch instead of the dedicated
+      // Claude Code bridge/passthrough branches above. Scoping the disable to
+      // `provider === "claude"` keeps that fix intact while no longer blanket-applying
+      // it to every other provider that merely targets Claude's wire format — a
+      // third-party provider's own ordinary (non-Claude-native) tool names, e.g.
+      // GitHub Copilot's own client-executed "web_fetch" tool, were passing through
+      // unprefixed here and colliding with Claude's reserved tool namespace, since
+      // they were never "already in Claude format" the way this comment assumes.
+      // See #13835.
       if (targetFormat === FORMATS.CLAUDE) {
-        translatedBody._disableToolPrefix = true;
+        if (provider === "claude") {
+          translatedBody._disableToolPrefix = true;
+        }
         normalizeClaudeUpstreamMessages(translatedBody);
       }
 

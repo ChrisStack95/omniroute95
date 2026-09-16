@@ -1824,6 +1824,40 @@ test("chatCore sets Claude tool prefix disabling, strips empty Anthropic text bl
     ["hello"]
   );
 });
+// #13835: a third-party provider's own ordinary tool name (GitHub Copilot's client-executed
+// "web_fetch" function tool) must still get the proxy_ prefix even though this request lands
+// in the same general (non-claude-passthrough) branch as the "claude" provider test above —
+// only genuine first-party Anthropic traffic (provider "claude") should skip prefixing.
+test("chatCore still prefixes ordinary third-party tool names for non-Anthropic providers targeting Claude", async () => {
+  const { call } = await invokeChatCore({
+    provider: "github",
+    model: "claude-haiku-4.5",
+    endpoint: "/v1/chat/completions",
+    credentials: { apiKey: "gh-key", providerSpecificData: {} },
+    body: {
+      model: "github/claude-haiku-4.5",
+      messages: [{ role: "user", content: "fetch a url" }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "web_fetch",
+            description: "Fetches a URL from the internet.",
+            parameters: {
+              type: "object",
+              properties: { url: { type: "string" } },
+              required: ["url"],
+            },
+          },
+        },
+      ],
+    },
+    responseFormat: "claude",
+  });
+
+  assert.equal(call.body.tools[0].name, "proxy_web_fetch");
+  assert.equal(call.body._toolNameMap, undefined);
+});
 test("chatCore restores prefixed Claude passthrough tool names in upstream responses", async () => {
   const { result } = await invokeChatCore({
     provider: "claude",
