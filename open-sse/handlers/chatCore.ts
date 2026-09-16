@@ -2719,7 +2719,11 @@ export async function handleChatCore({
         (modelInfo as { defaultThinkingEffort?: string })?.defaultThinkingEffort
       );
     }
-    translatedBody = wireAdaptiveEffort(translatedBody, { rawBody: body, clientRawRequest });
+    translatedBody = wireAdaptiveEffort(translatedBody, {
+      rawBody: body,
+      clientRawRequest,
+      targetFormat,
+    });
   }
 
   // Xiaomi MiMo controls reasoning ONLY via `thinking:{type:"enabled"|"disabled"}` and

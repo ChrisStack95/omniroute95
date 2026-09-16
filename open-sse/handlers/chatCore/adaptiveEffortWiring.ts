@@ -12,6 +12,7 @@ import {
   isAdaptiveEffort,
   type ChatMessageLike,
 } from "../../services/adaptiveEffort.ts";
+import { FORMATS } from "../../translator/formats.ts";
 import { getHeaderValueCaseInsensitive } from "./headers.ts";
 
 export interface AdaptiveEffortContext {
@@ -21,17 +22,32 @@ export interface AdaptiveEffortContext {
   clientRawRequest?: { headers?: unknown } | undefined;
   /** Explicit header value, if already extracted by the caller. */
   headerEffort?: string | null | undefined;
+  /**
+   * Resolved upstream dispatch format (chatCore.ts's `targetFormat`). `reasoning_effort`
+   * is an OpenAI Chat-Completions-shaped field: on any other target it either does
+   * nothing (Claude/Gemini executors read `thinking`/`reasoning.effort` instead and
+   * never look at it) or, worse, reaches an upstream that rejects unrecognized
+   * top-level parameters (e.g. Anthropic's Messages API 400s on one). Every other
+   * reasoning-shape normalization in chatCore.ts (applyDefaultReasoningEffort,
+   * promoteStrayReasoningEffort for the Responses same-format lane) is scoped the
+   * same way — wiring must match, or an operator's `X-OmniRoute-Effort: auto` header
+   * on a Claude/Gemini-targeted request would silently no-op or break the request.
+   */
+  targetFormat: string | undefined;
 }
 
 /**
  * Resolve "auto" reasoning effort to a concrete level when the request opted in
  * (header or ModelSpec.defaultReasoningEffort === "auto") and carries no explicit
  * reasoning field. Returns `body` unchanged (same reference) otherwise.
+ *
+ * Scoped to `FORMATS.OPENAI` dispatch — see {@link AdaptiveEffortContext.targetFormat}.
  */
 export function wireAdaptiveEffort<T extends Record<string, unknown>>(
   body: T,
   ctx: AdaptiveEffortContext
 ): T {
+  if (ctx.targetFormat !== FORMATS.OPENAI) return body;
   // Lever: applyDefaultReasoningEffort may have just injected the literal
   // "auto" from ModelSpec.defaultReasoningEffort — that is an opt-in marker,
   // not a wire value, so it must NOT count as an explicit client field (it
