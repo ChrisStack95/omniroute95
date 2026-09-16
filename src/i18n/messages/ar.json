@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "تمنع مجموعات الوكلاء والتناوب لكل حساب في opencode إعادة استخدام وكيل فشل للتو (رفض فحص TCP، أو تم تلقي 429 من خلاله) لمدة خاصة بكل عملية تتضاعف مع كل تكرار، حتى حد أقصى. لا تُكتب أي حالة للوكيل؛ وعند استبعاد جميع المرشحين، يظل الاختيار دون تغيير. معطّل افتراضيًا: ترتيب الاختيار هو بالضبط التناوب العادي.",
   "featureFlagProxyPoolEgressObservationDescription": "اعرض، أسفل مجموعة وكلاء في لوحة المعلومات، عدد عناوين IP الصادرة المرصودة التي خدمت أعضاءها خلال آخر 24 ساعة، وعدد الاتصالات التي استخدمتها، وأكبر عدد شوهد خلف عنوان IP واحد. للقراءة فقط، ويُحتسب من سجل الوكيل، ولا يُستخدم مطلقًا للتوجيه. معطّل افتراضيًا: يظل محرر المجموعة دون تغيير ويُرجع مسار الرصد null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "في فحص سلامة الوكلاء، اسمح للفحص الذي رفضه الهدف (401/403/429: قام الوكيل بالترحيل، لكن الوجهة رفضت عنوان IP الصادر هذا) بإعادة تعيين سلسلة حالات الفشل المتتالية للوكيل، كما لو كان فحصًا تمت خدمته. معطّل افتراضيًا: يظل الرفض محايدًا ويحافظ على السلسلة. تظل استجابة 5xx غير حاسمة في كلتا الحالتين، ولا يؤدي الرفض مطلقًا إلى إزالة وكيل أو تعطيله أو إعادة تنشيطه.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "الصفحة الرئيسية",
     "dashboard": "لوحة القيادة",
@@ -6125,6 +6126,7 @@
       "agentrouter": "احصل على رصيد مجاني بقيمة $200 على https://agentrouter.org/register — لا يتطلب بطاقة ائتمان.",
       "unorouter": "قم بإنشاء مفتاح API على https://unorouter.ai، ثم الصقّه هنا كرمز Bearer.",
       "agnes": "احصل على مفتاح API من agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "تم إيقاف الفئة المجانية مؤقتًا (2026) — أصبحت واجهة برمجة تطبيقات الذكاء الاصطناعي/تعلم الآلة (AI/ML API) مدفوعة حسب الاستخدام فقط (الحد الأدنى للشحن $20)؛ لا توجد أرصدة مجانية متكررة.",
       "ai21": "رصيد تجريبي بقيمة $10 عند التسجيل (صالح لمدة 3 أشهر)، لا يتطلب بطاقة ائتمان",
       "alibaba": "ربط Alibaba بمفتاح API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "تدقيق MCP (أيام)",
     "retentionA2aEvents": "أحداث A2A (أيام)",
     "retentionCallLogs": "سجلات المكالمات (أيام)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "تاريخ الاستخدام (بالأيام)",
     "retentionMemoryEntries": "إدخالات الذاكرة (أيام)",
     "retentionXpAuditLog": "سجل تدقيق XP (أيام)",

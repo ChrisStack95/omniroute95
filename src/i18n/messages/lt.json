@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Tarpinių serverių telkiniai ir kiekvienai paskyrai taikoma opencode rotacija pakartotinai nebenaudoja ką tik nesuveikusio tarpinio serverio (atmestas TCP patikrinimas arba per jį gautas 429 atsakymas) tam procesui nustatytą laikotarpį, kuris po kiekvieno pasikartojimo padvigubėja iki nustatytos ribos. Tarpinio serverio būsena neįrašoma; atidėjus visus kandidatus, pasirinkimas nesikeičia. Pagal numatytąsias nuostatas išjungta: pasirinkimo tvarka yra lygiai tokia pati kaip įprastos rotacijos.",
   "featureFlagProxyPoolEgressObservationDescription": "Ataskaitų srityje po tarpinių serverių telkiniu rodyti, kiek stebėtų išeinančių IP adresų per pastarąsias 24 val. aptarnavo jo narius, kiek ryšių juos naudojo ir didžiausią už vieno IP adreso matytą skaičių. Tik skaitymui, apskaičiuojama pagal tarpinių serverių žurnalą ir niekada nenaudojama maršrutizavimui. Pagal numatytąsias nuostatas išjungta: telkinio redagavimo priemonė nesikeičia, o stebėjimo maršrutas grąžina null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Atliekant tarpinių serverių būklės patikrą leisti paskirties vietos atmestam patikrinimui (401/403/429: tarpinis serveris persiuntė užklausą, o paskirties vieta atmetė šį išeinantį IP adresą) iš naujo nustatyti tarpinio serverio nuoseklių nesėkmių seką, kaip ir aptarnauto patikrinimo atveju. Pagal numatytąsias nuostatas išjungta: atmetimas lieka neutralus ir išsaugo seką. 5xx atsakymas abiem atvejais lieka neapibrėžtas, o atmetimas niekada nepašalina, neišjungia ir iš naujo nesuaktyvina tarpinio serverio.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Pradžia",
     "dashboard": "Suvestinė",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Gaukite $200 nemokamų kreditų adresu https://agentrouter.org/register — kredito kortelės nereikia.",
       "unorouter": "Sukurkite API raktą adresu https://unorouter.ai, tada įklijuokite jį čia kaip Bearer prieigos raktą.",
       "agnes": "Gaukite API raktą adresu agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Nemokamas planas sustabdytas (2026 m.) — AI/ML API dabar apmokestinama tik pagal naudojimą (mažiausias papildymas – $20); periodinių nemokamų kreditų nėra.",
       "ai21": "Užsiregistravus suteikiama $10 bandomųjų kreditų (galioja 3 mėnesius), kredito kortelės nereikia",
       "alibaba": "Prijunkite Alibaba naudodami API raktą.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP auditas (dienomis)",
     "retentionA2aEvents": "A2A įvykiai (dienomis)",
     "retentionCallLogs": "Skambučių žurnalai (dienomis)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Naudojimo istorija (dienomis)",
     "retentionMemoryEntries": "Atminties įrašai (dienomis)",
     "retentionXpAuditLog": "XP audito žurnalas (dienomis)",

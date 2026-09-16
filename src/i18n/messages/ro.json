@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Pool-urile de proxy-uri și rotația per cont din opencode nu mai reutilizează un proxy care tocmai a eșuat (sondă TCP refuzată sau un răspuns 429 primit prin acesta) pentru o perioadă per proces care se dublează la fiecare repetare, până la o limită maximă. Nu este înregistrată nicio stare a proxy-ului; când fiecare candidat este pus deoparte, alegerea rămâne neschimbată. Dezactivat în mod implicit: ordinea de selectare este exact cea a rotației simple.",
   "featureFlagProxyPoolEgressObservationDescription": "Afișează, sub un pool de proxy-uri din panoul de control, câte IP-uri de ieșire observate au deservit membrii acestuia în ultimele 24 h, câte conexiuni le-au folosit și numărul maxim observat în spatele unui singur IP. Doar pentru citire, calculat din jurnalul proxy-ului și niciodată utilizat pentru rutare. Dezactivat în mod implicit: editorul pool-ului rămâne neschimbat, iar ruta de observare returnează null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "În verificarea periodică a stării proxy-urilor, permite unei sonde refuzate de destinație (401/403/429: proxy-ul a retransmis, iar destinația a refuzat acest IP de ieșire) să reseteze seria de eșecuri consecutive a proxy-ului, la fel ca o sondă deservită. Dezactivat în mod implicit: un refuz rămâne neutru și păstrează seria. Un răspuns 5xx rămâne neconcludent în ambele cazuri, iar un refuz nu elimină, nu dezactivează și nu reactivează niciodată un proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Acasă",
     "dashboard": "Tabloul de bord",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Obține credite gratuite de 200 $ la https://agentrouter.org/register — nu este necesar un card de credit.",
       "unorouter": "Creează un API key la https://unorouter.ai, apoi lipește-l aici ca un Bearer token.",
       "agnes": "Obține cheia API la agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Nivelul gratuit este întrerupt (2026) — API-ul AI/ML este acum doar de tip pay-as-you-go (reîncărcare minimă de 20 $); fără credite gratuite recurente.",
       "ai21": "Credite de încercare de 10 $ la înregistrare (valabile 3 luni), nu este necesar un card de credit",
       "alibaba": "Conectează Alibaba cu o cheie API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Audit MCP (zile)",
     "retentionA2aEvents": "Evenimente A2A (zile)",
     "retentionCallLogs": "Jurnalele de apeluri (zile)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Istoricul utilizării (zile)",
     "retentionMemoryEntries": "Intrări de memorie (zile)",
     "retentionXpAuditLog": "Jurnal de audit XP (zile)",

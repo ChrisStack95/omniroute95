@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Os conjuntos de proxies e a rotação por conta do opencode deixam de voltar a disponibilizar um proxy que acabou de falhar (sondagem TCP recusada ou resposta 429 recebida através do mesmo) durante um período por processo que duplica a cada repetição, até um limite máximo. Não é registado qualquer estado do proxy; se todos os candidatos forem postos de parte, a escolha permanece inalterada. Desativado por predefinição: a ordem de seleção corresponde exatamente à rotação simples.",
   "featureFlagProxyPoolEgressObservationDescription": "Mostrar, sob um conjunto de proxies no painel, quantos IPs de saída observados serviram os respetivos membros nas últimas 24 h, quantas ligações os utilizaram e o maior número observado por trás de um único IP. Apenas de leitura, calculado a partir do registo do proxy e nunca utilizado para encaminhamento. Desativado por predefinição: o editor do conjunto permanece inalterado e a rota de observação devolve null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Na verificação de integridade dos proxies, permitir que uma sondagem recusada pelo destino (401/403/429: o proxy reencaminhou o pedido, mas o destino recusou este IP de saída) reinicie a sequência de falhas consecutivas do proxy, tal como uma sondagem servida. Desativado por predefinição: uma recusa permanece neutra e mantém a sequência. Uma resposta 5xx permanece inconclusiva em qualquer dos casos, e uma recusa nunca remove, desativa nem reativa um proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Página inicial",
     "dashboard": "Painel",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Obtenha $200 em créditos gratuitos em https://agentrouter.org/register — sem necessidade de cartão de crédito.",
       "unorouter": "Crie uma chave de API em https://unorouter.ai, depois cole-a aqui como um token Bearer.",
       "agnes": "Obtenha a chave de API em agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Plano gratuito pausado (2026) — a API AI/ML é agora apenas pay-as-you-go (carregamento mín. de $20); sem créditos gratuitos recorrentes.",
       "ai21": "$10 em créditos de avaliação no registo (válidos por 3 meses), sem necessidade de cartão de crédito",
       "alibaba": "Ligue a Alibaba com uma chave de API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Auditoria MCP (dias)",
     "retentionA2aEvents": "Eventos A2A (dias)",
     "retentionCallLogs": "Registros de chamadas (dias)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Histórico de uso (dias)",
     "retentionMemoryEntries": "Entradas de memória (dias)",
     "retentionXpAuditLog": "Log de Auditoria de XP (dias)",

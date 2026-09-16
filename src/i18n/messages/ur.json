@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "پراکسی پولز اور opencode کی فی اکاؤنٹ روٹیشن کسی ایسی پراکسی کو دوبارہ پیش کرنے سے عارضی طور پر روکتی ہے جو ابھی ناکام ہوئی ہو (TCP پروب مسترد ہوا ہو، یا اس کے ذریعے 429 موصول ہوا ہو)۔ یہ فی پروسیس مدت ہر بار ناکامی دہرائے جانے پر دگنی ہوتی ہے، ایک مقررہ حد تک۔ پراکسی کا کوئی اسٹیٹس نہیں لکھا جاتا؛ تمام امیدواروں کو ایک طرف رکھ دیے جانے کی صورت میں انتخاب میں کوئی تبدیلی نہیں آتی۔ بطور ڈیفالٹ بند: انتخاب کی ترتیب بالکل سادہ روٹیشن کے مطابق رہتی ہے۔",
   "featureFlagProxyPoolEgressObservationDescription": "ڈیش بورڈ میں کسی پراکسی پول کے تحت دکھائیں کہ گزشتہ 24 گھنٹوں کے دوران کتنے مشاہدہ شدہ ایگریس IPs نے اس کے اراکین کو سروس فراہم کی، کتنے کنکشنز نے انہیں استعمال کیا، اور ایک IP کے پیچھے زیادہ سے زیادہ کتنے دیکھے گئے۔ صرف پڑھنے کے لیے، پراکسی لاگ سے شمار شدہ، اور روٹنگ کے لیے کبھی استعمال نہیں ہوتا۔ بطور ڈیفالٹ بند: پول ایڈیٹر میں کوئی تبدیلی نہیں ہوتی اور مشاہدے کا روٹ null واپس کرتا ہے۔",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "پراکسی ہیلتھ سویپ میں، ہدف کی جانب سے مسترد کردہ پروب (401/403/429: پراکسی نے اسے آگے پہنچایا، مگر منزل نے اس ایگریس IP کو مسترد کر دیا) کو پراکسی کی مسلسل ناکامیوں کا سلسلہ اسی طرح ری سیٹ کرنے دیں جیسے کامیابی سے پیش کیا گیا پروب کرتا ہے۔ بطور ڈیفالٹ بند: مسترد ہونا غیر جانب دار رہتا ہے اور سلسلے کو برقرار رکھتا ہے۔ 5xx دونوں صورتوں میں غیر فیصلہ کن رہتا ہے، اور مسترد ہونا کبھی بھی کسی پراکسی کو ہٹاتا، غیر فعال کرتا یا دوبارہ فعال نہیں کرتا۔",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ہوم",
     "dashboard": "ڈیش بورڈ",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register پر $200 کے مفت کریڈٹس حاصل کریں — کسی کریڈٹ کارڈ کی ضرورت نہیں ہے۔",
       "unorouter": "https://unorouter.ai پر ایک API کلید بنائیں، پھر اسے یہاں Bearer ٹوکن کے طور پر پیسٹ کریں۔",
       "agnes": "agnes-ai.com پر API کلید حاصل کریں",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "مفت ٹیر معطل ہے (2026) — AI/ML API اب صرف پے-ایز-یو-گو (کم از کم $20 ٹاپ اپ) ہے؛ کوئی بار بار ملنے والے مفت کریڈٹس نہیں ہیں۔",
       "ai21": "سائن اپ پر $10 کے ٹرائل کریڈٹس (3 ماہ کے لیے کارآمد)، کسی کریڈٹ کارڈ کی ضرورت نہیں ہے",
       "alibaba": "علی بابا کو ایک API کلید کے ساتھ منسلک کریں۔",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP آڈٹ (دن)",
     "retentionA2aEvents": "A2A واقعات (دن)",
     "retentionCallLogs": "کال لاگز (دن)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "استعمال کی تاریخ (دن)",
     "retentionMemoryEntries": "یادداشت کے اندراجات (دن)",
     "retentionXpAuditLog": "XP آڈٹ لاگ (دن)",

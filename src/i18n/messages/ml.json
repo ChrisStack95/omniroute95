@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy പൂളുകളും opencode-ന്റെ ഓരോ അക്കൗണ്ടിലുമുള്ള റൊട്ടേഷനും, ഇപ്പോൾ പരാജയപ്പെട്ട ഒരു Proxy-യെ (നിരസിക്കപ്പെട്ട TCP പ്രോബ്, അല്ലെങ്കിൽ അതിലൂടെ ലഭിച്ച 429) ഓരോ ആവർത്തനത്തിലും ഇരട്ടിയാകുന്ന, ഒരു പരമാവധി പരിധിവരെയുള്ള ഓരോ പ്രോസസിനുമുള്ള കാലയളവിൽ വീണ്ടും ഉപയോഗിക്കുന്നത് നിർത്തുന്നു. Proxy നിലയൊന്നും രേഖപ്പെടുത്തില്ല; എല്ലാ സ്ഥാനാർഥികളെയും മാറ്റിവെച്ചാൽ തിരഞ്ഞെടുപ്പ് മാറ്റമില്ലാതെ തുടരും. ഡിഫോൾട്ടായി ഓഫാണ്: തിരഞ്ഞെടുപ്പ് ക്രമം സാധാരണ റൊട്ടേഷൻ തന്നെയാണ്.",
   "featureFlagProxyPoolEgressObservationDescription": "ഡാഷ്ബോർഡിലെ ഒരു Proxy പൂളിന് കീഴിൽ, കഴിഞ്ഞ 24 മണിക്കൂറിനിടെ അതിലെ അംഗങ്ങൾക്ക് സേവനം നൽകിയതായി നിരീക്ഷിച്ച എത്ര എഗ്രസ് IP-കൾ ഉണ്ടായിരുന്നു, എത്ര കണക്ഷനുകൾ അവ ഉപയോഗിച്ചു, ഒരു IP-ക്ക് പിന്നിൽ കണ്ട ഏറ്റവും ഉയർന്ന എണ്ണം എത്ര എന്നിവ കാണിക്കുക. വായനയ്ക്ക് മാത്രം; Proxy ലോഗിൽനിന്ന് കണക്കാക്കുന്നതും റൂട്ടിംഗിനായി ഒരിക്കലും ഉപയോഗിക്കാത്തതുമാണ്. ഡിഫോൾട്ടായി ഓഫാണ്: പൂൾ എഡിറ്ററിൽ മാറ്റമില്ല, നിരീക്ഷണ റൂട്ട് null എന്ന് മറുപടി നൽകും.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Proxy ആരോഗ്യ പരിശോധനയിൽ, ലക്ഷ്യം നിരസിച്ച ഒരു പ്രോബ് (401/403/429: Proxy റിലേ ചെയ്തു, ലക്ഷ്യസ്ഥാനം ഈ എഗ്രസ് IP നിരസിച്ചു) സേവനം നൽകിയ പ്രോബിനെപ്പോലെ Proxy-യുടെ തുടർച്ചയായ പരാജയങ്ങളുടെ എണ്ണം പുനഃസജ്ജമാക്കാൻ അനുവദിക്കുക. ഡിഫോൾട്ടായി ഓഫാണ്: ഒരു നിരസിക്കൽ നിഷ്പക്ഷമായി തുടരുകയും പരാജയങ്ങളുടെ എണ്ണം നിലനിർത്തുകയും ചെയ്യും. ഏതുവിധമായാലും 5xx അനിശ്ചിതമായി തുടരും; ഒരു നിരസിക്കൽ ഒരിക്കലും Proxy-യെ നീക്കം ചെയ്യുകയോ പ്രവർത്തനരഹിതമാക്കുകയോ വീണ്ടും സജീവമാക്കുകയോ ചെയ്യില്ല.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ഹോം",
     "dashboard": "ഡാഷ്ബോർഡ്",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register-ൽ $200 സൗജന്യ ക്രെഡിറ്റുകൾ നേടുക — ക്രെഡിറ്റ് കാർഡ് ആവശ്യമില്ല.",
       "unorouter": "https://unorouter.ai-ൽ ഒരു API കീ സൃഷ്ടിച്ച്, അത് Bearer ടോക്കണായി ഇവിടെ ഒട്ടിക്കുക.",
       "agnes": "agnes-ai.com-ൽ API കീ നേടുക",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "സൗജന്യ ടയർ താൽക്കാലികമായി നിർത്തി (2026) — AI/ML API ഇപ്പോൾ ഉപയോഗത്തിനനുസരിച്ച് പണം നൽകുന്ന രീതിയിൽ മാത്രം ലഭ്യമാണ് (കുറഞ്ഞത് $20 ടോപ്പ്-അപ്പ്); ആവർത്തിച്ചുള്ള സൗജന്യ ക്രെഡിറ്റുകൾ ഇല്ല.",
       "ai21": "സൈൻ അപ്പ് ചെയ്യുമ്പോൾ $10 ട്രയൽ ക്രെഡിറ്റുകൾ (3 മാസം സാധുത), ക്രെഡിറ്റ് കാർഡ് ആവശ്യമില്ല",
       "alibaba": "API കീ ഉപയോഗിച്ച് Alibaba കണക്റ്റ് ചെയ്യുക.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP ഓഡിറ്റ് (ദിവസങ്ങൾ)",
     "retentionA2aEvents": "A2A ഇവന്റുകൾ (ദിവസങ്ങൾ)",
     "retentionCallLogs": "കോൾ ലോഗുകൾ (ദിവസങ്ങൾ)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "ഉപയോഗ ചരിത്രം (ദിവസങ്ങൾ)",
     "retentionMemoryEntries": "മെമ്മറി എൻട്രികൾ (ദിവസങ്ങൾ)",
     "retentionXpAuditLog": "XP ഓഡിറ്റ് ലോഗ് (ദിവസങ്ങൾ)",

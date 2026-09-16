@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "代理池和 opencode 的按账户轮换会在每个进程的一段时间内，停止再次提供刚刚失败的代理（TCP 探测被拒绝，或通过该代理收到 429）。每次重复失败时，该时段都会翻倍，直至达到上限。不会写入代理状态；当所有候选代理都被暂时搁置时，选择保持不变。默认关闭：选择顺序与普通轮换完全相同。",
   "featureFlagProxyPoolEgressObservationDescription": "在仪表板的代理池下显示：过去 24 小时内观察到多少个出口 IP 为其成员提供服务、使用这些 IP 的连接数，以及单个 IP 背后观察到的最大数量。此信息为只读，根据代理日志计算，绝不用于路由。默认关闭：代理池编辑器保持不变，观测路由返回 null。",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "在代理健康检查中，如果探测被目标拒绝（401/403/429：代理已转发，但目标拒绝了此出口 IP），则像探测成功一样重置代理的连续失败计数。默认关闭：拒绝保持中性，并保留当前连续失败计数。无论如何，5xx 均保持结果不确定，而且拒绝绝不会导致代理被移除、禁用或重新激活。",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "首页",
     "dashboard": "仪表板",
@@ -6125,6 +6126,7 @@
       "agentrouter": "在 https://agentrouter.org/register 获取 $200 免费额度 — 无需信用卡。",
       "unorouter": "在 https://unorouter.ai 创建一个 API 密钥，然后将其作为 Bearer 令牌粘贴到这里。",
       "agnes": "在 agnes-ai.com 获取 API 密钥",
+      "agnes-cn": "使用中国站（api.agnes-ai.cn）签发的 API 密钥连接 Agnes。国际站（apihub.agnes-ai.com）的密钥不能用。",
       "aimlapi": "免费层已暂停 (2026) — AI/ML API 现在仅支持按需付费（最低充值 $20）；无循环免费额度。",
       "ai21": "注册即送 $10 体验额度（有效期 3 个月），无需信用卡",
       "alibaba": "使用 API 密钥连接阿里巴巴。",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP 审核（天）",
     "retentionA2aEvents": "A2A 活动（天）",
     "retentionCallLogs": "通话记录（天）",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "使用历史（天）",
     "retentionMemoryEntries": "内存条目（天）",
     "retentionXpAuditLog": "XP 审计日志（天数）",

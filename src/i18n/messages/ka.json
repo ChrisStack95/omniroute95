@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "პროქსი-პულები და opencode-ის თითოეულ ანგარიშზე როტაცია აღარ იყენებს ახლახან ჩავარდნილ პროქსის (უარყოფილი TCP შემოწმება ან მისი მეშვეობით მიღებული 429) თითოეული პროცესისთვის განსაზღვრული პერიოდით, რომელიც ყოველი განმეორებისას ორმაგდება მაქსიმალურ ზღვრამდე. პროქსის სტატუსი არ იწერება; ყველა კანდიდატის გვერდზე გადადების შემთხვევაში არჩევანი უცვლელი რჩება. ნაგულისხმევად გამორთულია: არჩევის თანმიმდევრობა ზუსტად ჩვეულებრივი როტაციის იდენტურია.",
   "featureFlagProxyPoolEgressObservationDescription": "დეშბორდზე, პროქსი-პულის ქვეშ, აჩვენეთ ბოლო 24 საათში რამდენი დაფიქსირებული გამავალი IP ემსახურებოდა მის წევრებს, რამდენმა კავშირმა გამოიყენა ისინი და ყველაზე მეტი რამდენი კავშირი დაფიქსირდა ერთი IP-ის უკან. მხოლოდ წაკითხვისთვისაა, გამოითვლება პროქსის ჟურნალიდან და არასოდეს გამოიყენება მარშრუტიზაციისთვის. ნაგულისხმევად გამორთულია: პულის რედაქტორი უცვლელია, ხოლო დაკვირვების მარშრუტი აბრუნებს null-ს.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "პროქსის მდგომარეობის შემოწმებისას, სამიზნის მიერ უარყოფილმა მოთხოვნამ (401/403/429: პროქსიმ გადააგზავნა მოთხოვნა, ხოლო დანიშნულების მხარემ უარყო ეს გამავალი IP) გაანულოს პროქსის ზედიზედ წარუმატებლობათა სერია, როგორც წარმატებით შესრულებული შემოწმებისას. ნაგულისხმევად გამორთულია: უარყოფა ნეიტრალური რჩება და სერიას ინარჩუნებს. 5xx ნებისმიერ შემთხვევაში გაურკვეველ შედეგად რჩება, ხოლო უარყოფა არასოდეს შლის, თიშავს ან ხელახლა ააქტიურებს პროქსის.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "მთავარი",
     "dashboard": "მართვის პანელი",
@@ -6125,6 +6126,7 @@
       "agentrouter": "მიიღეთ $200-ის უფასო კრედიტები https://agentrouter.org/register-ზე — საკრედიტო ბარათი საჭირო არ არის.",
       "unorouter": "შექმენით API-გასაღები https://unorouter.ai-ზე, შემდეგ ჩასვით აქ Bearer ტოკენის სახით.",
       "agnes": "მიიღეთ API-გასაღები agnes-ai.com-ზე",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "უფასო ტარიფი შეჩერებულია (2026) — AI/ML API ახლა მხოლოდ მოხმარების მიხედვით ფასიანია (მინიმალური შევსება $20); პერიოდული უფასო კრედიტები აღარ არის.",
       "ai21": "რეგისტრაციისას მიიღებთ $10-ის საცდელ კრედიტებს (მოქმედებს 3 თვე); საკრედიტო ბარათი საჭირო არ არის",
       "alibaba": "დააკავშირეთ Alibaba API-გასაღებით.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP აუდიტი (დღე)",
     "retentionA2aEvents": "A2A მოვლენები (დღე)",
     "retentionCallLogs": "ზარების ჟურნალები (დღე)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "გამოყენების ისტორია (დღე)",
     "retentionMemoryEntries": "მეხსიერების ჩანაწერები (დღე)",
     "retentionXpAuditLog": "XP აუდიტის ჟურნალი (დღე)",

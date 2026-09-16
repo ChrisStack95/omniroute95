@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy pools र opencode को प्रति-खाता रोटेसनले भर्खरै असफल भएको प्रोक्सी (TCP प्रोब अस्वीकार भएको वा त्यसमार्फत 429 प्राप्त भएको) लाई प्रत्येक पटक दोब्बर हुँदै अधिकतम सीमासम्म पुग्ने प्रति-प्रक्रिया अवधिका लागि पुनः प्रयोग गर्न रोक्छ। कुनै प्रोक्सी स्थिति लेखिँदैन; प्रत्येक उम्मेदवारलाई अलग राख्दा छनोट अपरिवर्तित रहन्छ। पूर्वनिर्धारित रूपमा बन्द: छनोट क्रम ठ्याक्कै साधारण रोटेसन नै हुन्छ।",
   "featureFlagProxyPoolEgressObservationDescription": "ड्यासबोर्डमा प्रोक्सी पूलअन्तर्गत, पछिल्लो २४ घण्टामा त्यसका सदस्यहरूलाई सेवा दिने कति वटा अवलोकित इग्रेस IP थिए, कति जडानले तिनलाई प्रयोग गरे र एउटै IP पछाडि देखिएको अधिकतम संख्या कति थियो भन्ने देखाउनुहोस्। पढ्नका लागि मात्र, प्रोक्सी लगबाट गणना गरिएको र राउटिङका लागि कहिल्यै प्रयोग नगरिने। पूर्वनिर्धारित रूपमा बन्द: पूल सम्पादक अपरिवर्तित रहन्छ र अवलोकन रुटले null फर्काउँछ।",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "प्रोक्सी स्वास्थ्य स्वीपमा, लक्ष्यले अस्वीकार गरेको प्रोब (401/403/429: प्रोक्सीले रिले गर्यो, गन्तव्यले यो इग्रेस IP अस्वीकार गर्यो) लाई सेवा दिइएको प्रोबजस्तै प्रोक्सीको लगातार-असफलता क्रम रिसेट गर्न दिनुहोस्। पूर्वनिर्धारित रूपमा बन्द: अस्वीकृति तटस्थ रहन्छ र क्रम कायम राख्छ। दुवै अवस्थामा 5xx अनिर्णायक नै रहन्छ, र अस्वीकृतिले प्रोक्सीलाई कहिल्यै हटाउँदैन, निष्क्रिय पार्दैन वा पुनः सक्रिय गर्दैन।",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "गृहपृष्ठ",
     "dashboard": "ड्यासबोर्ड",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register मा $200 को निःशुल्क क्रेडिट प्राप्त गर्नुहोस् — क्रेडिट कार्ड आवश्यक छैन।",
       "unorouter": "https://unorouter.ai मा API key सिर्जना गर्नुहोस्, त्यसपछि यसलाई Bearer token का रूपमा यहाँ टाँस्नुहोस्।",
       "agnes": "agnes-ai.com मा API key प्राप्त गर्नुहोस्",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "निःशुल्क टियर स्थगित (2026) — AI/ML API अब प्रयोगअनुसार भुक्तानीमा मात्र उपलब्ध छ (न्यूनतम $20 टप-अप); नियमित निःशुल्क क्रेडिट छैन।",
       "ai21": "साइनअप गर्दा $10 को परीक्षण क्रेडिट (३ महिनासम्म मान्य), क्रेडिट कार्ड आवश्यक छैन",
       "alibaba": "Alibaba लाई API key मार्फत जडान गर्नुहोस्।",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP अडिट (दिन)",
     "retentionA2aEvents": "A2A घटनाहरू (दिन)",
     "retentionCallLogs": "कल लगहरू (दिन)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "प्रयोग इतिहास (दिन)",
     "retentionMemoryEntries": "मेमोरी प्रविष्टिहरू (दिन)",
     "retentionXpAuditLog": "XP अडिट लग (दिन)",

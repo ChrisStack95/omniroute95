@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "ප්රොක්සි සංචිත සහ opencode හි ගිණුමකට වෙන් වූ මාරු කිරීම, අසාර්ථක වූ ප්රොක්සියක් (ප්රතික්ෂේප වූ TCP පරීක්ෂාවක් හෝ එය හරහා ලැබුණු 429 ප්රතිචාරයක්) එක් එක් නැවත සිදුවීමේදී දෙගුණ වන, උපරිම සීමාවකට යටත් ක්රියාවලි-විශේෂිත කාලයක් සඳහා නැවත භාවිත කිරීම නවත්වයි. කිසිදු ප්රොක්සි තත්ත්වයක් ලියනු නොලැබේ; සෑම අපේක්ෂකයෙකුම පසෙකට කළ විට තේරීම වෙනස් නොවේ. පෙරනිමියෙන් අක්රියයි: තේරීම් අනුපිළිවෙළ සරල මාරු කිරීමේ අනුපිළිවෙළට හරියටම සමාන වේ.",
   "featureFlagProxyPoolEgressObservationDescription": "උපකරණ පුවරුවේ ප්රොක්සි සංචිතයක් යටතේ, පසුගිය පැය 24 තුළ එහි සාමාජිකයන්ට සේවය සැපයූ නිරීක්ෂිත පිටතට යන IP ලිපින ගණන, ඒවා භාවිත කළ සම්බන්ධතා ගණන සහ එක් IP ලිපිනයක් පිටුපසින් නිරීක්ෂණය වූ උපරිම ගණන පෙන්වන්න. මෙය කියවීමට පමණක් වන අතර ප්රොක්සි ලොගයෙන් ගණනය කෙරෙන අතර මාර්ගගත කිරීම සඳහා කිසි විටෙක භාවිත නොකෙරේ. පෙරනිමියෙන් අක්රියයි: සංචිත සංස්කාරකය වෙනස් නොවන අතර නිරීක්ෂණ මාර්ගය null ලෙස පිළිතුරු දෙයි.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "ප්රොක්සි සෞඛ්ය පරීක්ෂණ වටයේදී, ඉලක්කය ප්රතික්ෂේප කළ පරීක්ෂාවකට (401/403/429: ප්රොක්සිය ප්රතිචාරය ප්රචාරණය කළ නමුත් ගමනාන්තය මෙම පිටතට යන IP ලිපිනය ප්රතික්ෂේප කළේය) සාර්ථකව සේවය කළ පරීක්ෂාවක් මෙන් ප්රොක්සියේ අඛණ්ඩ අසාර්ථකවීම් පෙළ යළි සැකසීමට ඉඩ දෙන්න. පෙරනිමියෙන් අක්රියයි: ප්රතික්ෂේප කිරීමක් මධ්යස්ථව පවතින අතර අඛණ්ඩ අසාර්ථකවීම් පෙළ එලෙසම තබයි. 5xx ප්රතිචාරයක් අවස්ථා දෙකේදීම අවිනිශ්චිතව පවතින අතර, ප්රතික්ෂේප කිරීමක් කිසි විටෙක ප්රොක්සියක් ඉවත් කිරීම, අක්රිය කිරීම හෝ නැවත සක්රිය කිරීම සිදු නොකරයි.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "මුල් පිටුව",
     "dashboard": "උපකරණ පුවරුව",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register වෙතින් නොමිලේ $200 ණය ලබා ගන්න — ක්රෙඩිට් කාඩ්පතක් අවශ්ය නොවේ.",
       "unorouter": "https://unorouter.ai හි API යතුරක් සාදා, එය Bearer ටෝකනයක් ලෙස මෙහි අලවන්න.",
       "agnes": "agnes-ai.com වෙතින් API යතුර ලබා ගන්න",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "නොමිලේ ස්තරය තාවකාලිකව නවතා ඇත (2026) — AI/ML API දැන් භාවිතය අනුව ගෙවීමේ ක්රමයට පමණක් ලබා ගත හැකිය (අවම $20 නැවත පිරවීමක්); නැවත නැවත ලැබෙන නොමිලේ ණය නොමැත.",
       "ai21": "ලියාපදිංචි වීමේදී $10 අත්හදා බැලීමේ ණය (මාස 3ක් වලංගුයි), ක්රෙඩිට් කාඩ්පතක් අවශ්ය නොවේ",
       "alibaba": "API යතුරක් සමඟ Alibaba සම්බන්ධ කරන්න.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP විගණනය (දින)",
     "retentionA2aEvents": "A2A සිදුවීම් (දින)",
     "retentionCallLogs": "ඇමතුම් ලොග් (දින)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "භාවිත ඉතිහාසය (දින)",
     "retentionMemoryEntries": "මතක ඇතුළත් කිරීම් (දින)",
     "retentionXpAuditLog": "XP විගණන ලොගය (දින)",

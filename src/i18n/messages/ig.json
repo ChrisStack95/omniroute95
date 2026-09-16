@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Ọdọ proxy na ntụgharị opencode nke akaụntụ ọ bụla na-akwụsị iji proxy dara ugbu a ọzọ (nnyocha TCP a jụrụ, ma ọ bụ nzaghachi 429 e nwetara site na ya) ruo oge nke usoro ọ bụla nke na-amụba okpukpu abụọ mgbe ọdịda ahụ megharịrị, ruo n'ókè kachasị. A naghị ede ọkwa proxy ọ bụla; mgbe e wepụrụ ndị niile a ga-ahọrọ n'akụkụ, nhọrọ ahụ anaghị agbanwe. A gbanyụrụ ya na ndabara: usoro nhọrọ bụ kpọmkwem ntụgharị nkịtị.",
   "featureFlagProxyPoolEgressObservationDescription": "Gosi, n'okpuru ọdọ proxy na dashboard, IP ọpụpụ ole a hụrụ jere ndị otu ya ozi n'ime awa 24 gara aga, njikọ ole jiri ha, na ọnụ ọgụgụ kachasị a hụrụ n'azụ otu IP. Ọ bụ naanị maka ọgụgụ, a na-agbakọ ya site na ndekọ proxy, a naghị eji ya eme routing. A gbanyụrụ ya na ndabara: editọ ọdọ ahụ anaghị agbanwe, route nlele ahụ na-azaghachi null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "N'oge nyocha ahụike proxy, kwe ka nyocha ebumnuche jụrụ (401/403/429: proxy ahụ zigara ya, ebe njedebe ahụ jụrụ IP ọpụpụ a) tọgharịa usoro ọdịda na-aga n'ihu nke proxy ahụ, dịka nyocha e jere ozi. A gbanyụrụ ya na ndabara: ọjụjụ na-anọpụ iche ma na-edobe usoro ahụ. 5xx ka na-enweghị nkwubi okwu n'ọnọdụ ọ bụla, ọjụjụ anaghị ewepụ, gbanyụọ, ma ọ bụ mee ka proxy rụọ ọrụ ọzọ.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Ụlọ",
     "dashboard": "Ogwe njikwa",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Nweta kredit efu $200 na https://agentrouter.org/register — achọghị kaadị kredit.",
       "unorouter": "Mepụta API key na https://unorouter.ai, wee mado ya ebe a dị ka token Bearer.",
       "agnes": "Nweta API key na agnes-ai.com",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Akwụsịla ọkwa efu nwa oge (2026) — AI/ML API na-akwụzi naanị dịka ojiji siri dị (ntinye ego kacha nta bụ $20); enweghị kredit efu na-emegharị kwa oge.",
       "ai21": "Kredit nnwale $10 mgbe ị debanyere aha (ọ na-adị irè ọnwa 3), achọghị kaadị kredit",
       "alibaba": "Jikọọ Alibaba site na API key.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Nyocha MCP (ụbọchị)",
     "retentionA2aEvents": "Ihe Omume A2A (ụbọchị)",
     "retentionCallLogs": "Ndekọ Oku (ụbọchị)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Akụkọ Ojiji (ụbọchị)",
     "retentionMemoryEntries": "Ndenye Ncheta (ụbọchị)",
     "retentionXpAuditLog": "Ndekọ Nyocha XP (ụbọchị)",

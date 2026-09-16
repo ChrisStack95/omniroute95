@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Cuireann linnte seachfhreastalaí agus rothlú opencode in aghaidh an chuntais cosc ar sheachfhreastalaí ar theip air díreach (diúltaíodh don tóireadóir TCP, nó fuarthas 429 tríd) a sheirbheáil arís ar feadh tréimhse in aghaidh an phróisis a dhúblaíonn le gach teip eile, suas le huasteorainn. Ní scríobhtar aon stádas seachfhreastalaí; má chuirtear gach iarrthóir ar leataobh, fanann an rogha gan athrú. As de réir réamhshocraithe: is ionann an t-ord roghnúcháin go díreach agus an gnáthrothlú.",
   "featureFlagProxyPoolEgressObservationDescription": "Taispeáin, faoi linn seachfhreastalaí sa deais, cé mhéad seoladh IP amach a breathnaíodh a d’fhreastail ar a bhaill le 24 h anuas, cé mhéad nasc a d’úsáid iad agus an líon is mó a chonacthas taobh thiar d’aon IP amháin. Inléite amháin, ríofa ón loga seachfhreastalaí, agus ní úsáidtear riamh é le haghaidh ródúcháin. As de réir réamhshocraithe: fanann eagarthóir na linne gan athrú agus freagraíonn bealach na breathnóireachta le null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "I scuabadh sláinte an tseachfhreastalaí, lig do thóraíocht ar dhiúltaigh an sprioc di (401/403/429: rinne an seachfhreastalaí athsheoladh, ach dhiúltaigh an ceann scríbe don seoladh IP amach seo) stríoc teipeanna comhleanúnacha an tseachfhreastalaí a athshocrú, amhail tóraíocht a seirbheáladh. As de réir réamhshocraithe: fanann diúltú neodrach agus coinníonn sé an stríoc. Fanann 5xx neamhchinntitheach sa dá chás, agus ní bhaineann diúltú seachfhreastalaí choíche, ní dhíchumasaíonn sé é ná ní athghníomhachtaíonn sé é.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Baile",
     "dashboard": "Deais",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Faigh $200 creidmheasanna saor in aisce ag https://agentrouter.org/register — ní gá cárta creidmheasa.",
       "unorouter": "Cruthaigh eochair API ag https://unorouter.ai, ansin greamaigh anseo é mar chomhartha Bearer.",
       "agnes": "Faigh eochair API ag agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Sraith saor in aisce ar sos (2026) — níl AI/ML API ar fáil anois ach ar bhonn íoc-mar-a-úsáide (íosmhéid $20 d'athlíonadh); níl aon chreidmheasanna saor in aisce athfhillteacha.",
       "ai21": "Creidmheasanna trialach $10 ar chlárú (bailí ar feadh 3 mhí), ní gá cárta creidmheasa.",
       "alibaba": "Ceangail Alibaba le heochair API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Iniúchadh MCP (laethanta)",
     "retentionA2aEvents": "Imeachtaí A2A (laethanta)",
     "retentionCallLogs": "Logaí Glaonna (laethanta)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Stair Úsáide (laethanta)",
     "retentionMemoryEntries": "Iontráil Cuimhne (laethanta)",
     "retentionXpAuditLog": "Log Iniúchadh XP (laethanta)",

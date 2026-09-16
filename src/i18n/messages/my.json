@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy pool များနှင့် opencode ၏ အကောင့်တစ်ခုချင်းစီအလိုက် အလှည့်ကျရွေးချယ်မှုသည် ပျက်ကွက်ခဲ့သည့် proxy (TCP probe ကို ငြင်းပယ်ခဲ့ခြင်း သို့မဟုတ် ၎င်းမှတစ်ဆင့် 429 တုံ့ပြန်မှုရရှိခြင်း) ကို process တစ်ခုချင်းစီအလိုက် သတ်မှတ်ကာလအတွင်း ပြန်လည်အသုံးမပြုတော့ပါ။ ထပ်မံဖြစ်ပွားတိုင်း ထိုကာလသည် နှစ်ဆတိုးလာပြီး သတ်မှတ်အများဆုံးပမာဏအထိသာ တိုးပါမည်။ Proxy အခြေအနေကို မှတ်တမ်းတင်မည်မဟုတ်ပါ။ Candidate အားလုံးကို ဘေးဖယ်ထားရသည့်အခါ ရွေးချယ်မှုသည် မပြောင်းလဲပါ။ မူလအားဖြင့် ပိတ်ထားသည်။ ရွေးချယ်မှုအစီအစဉ်သည် ရိုးရိုးအလှည့်ကျအစီအစဉ်အတိုင်း အတိအကျဖြစ်သည်။",
   "featureFlagProxyPoolEgressObservationDescription": "Dashboard ရှိ proxy pool တစ်ခု၏အောက်တွင် လွန်ခဲ့သော 24 နာရီအတွင်း ၎င်း၏ member များအတွက် အသုံးပြုခဲ့သည့် စောင့်ကြည့်တွေ့ရှိထားသော egress IP အရေအတွက်၊ ထို IP များကို အသုံးပြုခဲ့သည့် connection အရေအတွက်နှင့် IP တစ်ခုတည်း၏နောက်ကွယ်တွင် အများဆုံးတွေ့ရှိရသည့် အရေအတွက်တို့ကို ပြသပါ။ ၎င်းသည် ဖတ်ရှုရန်သာဖြစ်ပြီး proxy log မှ တွက်ချက်ထားကာ routing အတွက် မည်သည့်အခါမျှ အသုံးမပြုပါ။ မူလအားဖြင့် ပိတ်ထားသည်။ Pool editor သည် မပြောင်းလဲဘဲ observation route က null ကို ပြန်ပေးသည်။",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Proxy health sweep တွင် target က ငြင်းပယ်ခဲ့သော probe (401/403/429—proxy က လက်ဆင့်ကမ်းပေးခဲ့သော်လည်း destination က ဤ egress IP ကို ငြင်းပယ်ခြင်း) ကို အောင်မြင်စွာ ဆောင်ရွက်ခဲ့သည့် probe ကဲ့သို့ proxy ၏ ဆက်တိုက်ပျက်ကွက်မှုအရေအတွက်ကို ပြန်လည်သတ်မှတ်ခွင့်ပြုပါ။ မူလအားဖြင့် ပိတ်ထားသည်။ ငြင်းပယ်မှုသည် သက်ရောက်မှုမရှိဘဲ streak ကို ဆက်လက်ထိန်းထားသည်။ မည်သည့်အခြေအနေတွင်မဆို 5xx သည် အတည်မပြုနိုင်သည့်အခြေအနေအဖြစ် ဆက်ရှိနေပြီး ငြင်းပယ်မှုတစ်ခုကြောင့် proxy ကို ဖယ်ရှားခြင်း၊ ပိတ်ခြင်း သို့မဟုတ် ပြန်လည်အသက်သွင်းခြင်း မည်သည့်အခါမျှ မပြုလုပ်ပါ။",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ပင်မစာမျက်နှာ",
     "dashboard": "ဒက်ရှ်ဘုတ်",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register တွင် အခမဲ့ခရက်ဒစ် $200 ရယူပါ — ခရက်ဒစ်ကတ် မလိုအပ်ပါ။",
       "unorouter": "https://unorouter.ai တွင် API key တစ်ခု ဖန်တီးပြီးနောက် Bearer token အဖြစ် ဤနေရာတွင် ကူးထည့်ပါ။",
       "agnes": "agnes-ai.com တွင် API key ရယူရန်",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "အခမဲ့အဆင့်ကို ယာယီရပ်နားထားသည် (2026) — AI/ML API သည် ယခု အသုံးပြုသလောက် ပေးချေရသည့်စနစ်သာ ရရှိနိုင်သည် (အနည်းဆုံး $20 ဖြည့်သွင်းရမည်)၊ ပုံမှန်ထပ်မံရရှိသည့် အခမဲ့ခရက်ဒစ်များ မရှိပါ။",
       "ai21": "စာရင်းသွင်းချိန်တွင် စမ်းသပ်သုံးခရက်ဒစ် $10 ရရှိမည် (၃ လ သက်တမ်းရှိသည်)၊ ခရက်ဒစ်ကတ် မလိုအပ်ပါ",
       "alibaba": "Alibaba ကို API key ဖြင့် ချိတ်ဆက်ပါ။",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP စစ်ဆေးမှတ်တမ်း (ရက်)",
     "retentionA2aEvents": "A2A ဖြစ်ရပ်များ (ရက်)",
     "retentionCallLogs": "ခေါ်ဆိုမှုမှတ်တမ်းများ (ရက်)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "အသုံးပြုမှုမှတ်တမ်း (ရက်)",
     "retentionMemoryEntries": "မှတ်ဉာဏ်ထည့်သွင်းချက်များ (ရက်)",
     "retentionXpAuditLog": "XP စစ်ဆေးမှတ်တမ်း (ရက်)",

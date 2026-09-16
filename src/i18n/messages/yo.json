@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Àwọn àkójọpọ̀ proxy àti yíyí opencode fún àkọọ́lẹ̀ kọ̀ọ̀kan máa ń dáwọ́ lílo proxy kan tí ó ṣẹ̀ṣẹ̀ kùnà dúró (ìdánwò TCP tí a kọ̀, tàbí 429 tí a gbà nípasẹ̀ rẹ̀) fún àkókò kan nínú process kọ̀ọ̀kan, èyí tí yóò di ìlọ́po méjì ní gbogbo ìgbà tí ó tún ṣẹlẹ̀, títí dé òpin tí a yàn. A kì í kọ ipò proxy sílẹ̀; bí a bá fi gbogbo olùdíje sí ẹ̀gbẹ́ kan, yíyan náà kì í yí padà. Ó wà ní pípa ní àkọ́kọ́: bí a ṣe ń yan tẹ̀ lé yíyí lasán náà gan-an.",
   "featureFlagProxyPoolEgressObservationDescription": "Ṣàfihàn, lábẹ́ àkójọpọ̀ proxy kan nínú dashboard, iye àwọn IP egress tí a ṣàkíyèsí tí ó ṣiṣẹ́ fún àwọn ọmọ ẹgbẹ́ rẹ̀ láàárín wákàtí 24 tó kọjá, iye àwọn ìsopọ̀ tí ó lò wọ́n àti iye tó pọ̀ jù tí a rí lẹ́yìn IP kan. Fún kíkà nìkan, a ṣírò rẹ̀ láti inú àkọsílẹ̀ proxy, a kò sì lò ó fún routing láé. Ó wà ní pípa ní àkọ́kọ́: olóòtú àkójọpọ̀ náà kò yí padà, ipa-ọ̀nà àkíyèsí sì ń dá null padà.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Nínú àyẹ̀wò ìlera proxy, jẹ́ kí ìdánwò kan tí ibi àfojúsùn kọ̀ (401/403/429: proxy náà gbé e dé, ibi àfojúsùn sì kọ IP egress yìí) tún iye àwọn ìkùnà tẹ̀léra ti proxy náà bẹ̀rẹ̀, bí ìdánwò tí a ṣiṣẹ́ fún. Ó wà ní pípa ní àkọ́kọ́: ìkọ̀sílẹ̀ kan ṣì jẹ́ aláìdásí, ó sì ń pa iye tẹ̀léra náà mọ́. 5xx ṣì jẹ́ aláìdánilójú lọ́nà méjèèjì, ìkọ̀sílẹ̀ kò sì lè yọ proxy kan kúrò, mú un má ṣiṣẹ́, tàbí tún mú un ṣiṣẹ́ láé.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Ilé",
     "dashboard": "Pátákó Ìṣàkóso",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Gba kírẹ́díìtì ọ̀fẹ́ $200 ní https://agentrouter.org/register — kò nílò káàdì kírẹ́díìtì.",
       "unorouter": "Ṣẹ̀dá API key kan ní https://unorouter.ai, lẹ́yìn náà lẹ̀ ẹ́ síbí gẹ́gẹ́ bí Bearer token.",
       "agnes": "Gba API key ní agnes-ai.com",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "A ti dá ìpele ọ̀fẹ́ dúró (2026) — AI/ML API ti di èyí tí a ń sanwó gẹ́gẹ́ bí lílò nìkan (àfikún owó tó kéré jù ni $20); kò sí kírẹ́díìtì ọ̀fẹ́ tó ń ṣẹlẹ̀ léraléra.",
       "ai21": "Kírẹ́díìtì àdánwò $10 nígbà ìforúkọsílẹ̀ (ó wúlò fún oṣù mẹ́ta), kò nílò káàdì kírẹ́díìtì",
       "alibaba": "So Alibaba pọ̀ pẹ̀lú API key.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Àyẹ̀wò MCP (ọjọ́)",
     "retentionA2aEvents": "Àwọn Ìṣẹ̀lẹ̀ A2A (ọjọ́)",
     "retentionCallLogs": "Àwọn Àkọsílẹ̀ Ìpè (ọjọ́)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Ìtàn Ìlò (ọjọ́)",
     "retentionMemoryEntries": "Àwọn Àkọsílẹ̀ Ìrántí (ọjọ́)",
     "retentionXpAuditLog": "Àkọsílẹ̀ Àyẹ̀wò XP (ọjọ́)",

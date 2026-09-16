@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Pool proxy dan rotasi per akun opencode berhenti menyajikan kembali proxy yang baru saja gagal (probe TCP ditolak atau respons 429 diterima melaluinya) selama periode per proses yang berlipat ganda setiap kali kegagalan berulang, hingga batas maksimum. Status proxy tidak ditulis; jika setiap kandidat disisihkan, pilihannya tetap tidak berubah. Nonaktif secara default: urutan pemilihan sama persis dengan rotasi biasa.",
   "featureFlagProxyPoolEgressObservationDescription": "Tampilkan, di bawah pool proxy pada dasbor, jumlah IP keluar yang teramati melayani anggotanya selama 24 jam terakhir, jumlah koneksi yang menggunakannya, dan jumlah terbanyak yang terlihat di balik satu IP. Hanya-baca, dihitung dari log proxy, dan tidak pernah digunakan untuk perutean. Nonaktif secara default: editor pool tidak berubah dan rute observasi memberikan jawaban null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Dalam pemeriksaan kesehatan proxy, izinkan probe yang ditolak oleh target (401/403/429: proxy meneruskan, tetapi tujuan menolak IP keluar ini) mereset rentetan kegagalan berturut-turut proxy, seperti probe yang berhasil dilayani. Nonaktif secara default: penolakan tetap netral dan mempertahankan rentetan tersebut. Respons 5xx tetap tidak meyakinkan dalam kedua kasus, dan penolakan tidak pernah menghapus, menonaktifkan, atau mengaktifkan kembali proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Rumah",
     "dashboard": "Dasbor",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Dapatkan kredit gratis $200 di https://agentrouter.org/register — tidak memerlukan kartu kredit.",
       "unorouter": "Buat kunci API di https://unorouter.ai, lalu tempelkan di sini sebagai token Bearer.",
       "agnes": "Dapatkan kunci API di agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Tingkat gratis ditangguhkan (2026) — AI/ML API sekarang hanya bayar sesuai pemakaian (isi ulang min $20); tidak ada kredit gratis berulang.",
       "ai21": "Kredit uji coba $10 saat mendaftar (berlaku 3 bulan), tidak memerlukan kartu kredit",
       "alibaba": "Hubungkan Alibaba dengan kunci API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Audit MCP (hari)",
     "retentionA2aEvents": "Acara A2A (hari)",
     "retentionCallLogs": "Log Panggilan (hari)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Riwayat Penggunaan (hari)",
     "retentionMemoryEntries": "Entri Memori (hari)",
     "retentionXpAuditLog": "Log Audit XP (hari)",

@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proksi-pullar va opencode’ning har bir hisob bo‘yicha aylantirish mexanizmi hozirgina ishlamay qolgan proksini (TCP tekshiruvini rad etgan yoki u orqali 429 javobi olingan) har bir jarayon uchun takroriy urinish sayin ikki baravar oshib, belgilangan chegaragacha yetadigan muddat davomida qayta taqdim etmaydi. Proksi holati yozib qo‘yilmaydi; barcha nomzodlar chetga surilsa, tanlov o‘zgarmaydi. Standart holatda o‘chiq: tanlash tartibi oddiy aylantirish bilan aynan bir xil.",
   "featureFlagProxyPoolEgressObservationDescription": "Boshqaruv panelida proksi-pul ostida so‘nggi 24 soat ichida uning a’zolariga nechta kuzatilgan chiquvchi IP xizmat ko‘rsatgani, ulardan nechta ulanish foydalangani va bitta IP ortida kuzatilgan eng katta sonni ko‘rsating. Faqat o‘qish uchun mo‘ljallangan, proksi jurnalidan hisoblanadi va yo‘naltirish uchun hech qachon ishlatilmaydi. Standart holatda o‘chiq: pul muharriri o‘zgarmaydi va kuzatuv marshruti null javobini qaytaradi.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Proksi holatini tekshirish jarayonida nishon rad etgan tekshiruv (401/403/429: proksi uzatdi, manzil esa ushbu chiquvchi IP’ni rad etdi) xizmat ko‘rsatilgan tekshiruv kabi proksining ketma-ket muvaffaqiyatsizliklar hisoblagichini tiklashiga ruxsat bering. Standart holatda o‘chiq: rad etish neytral bo‘lib qoladi va hisoblagichni saqlaydi. 5xx har ikki holatda ham noaniq bo‘lib qoladi, rad etish esa proksini hech qachon olib tashlamaydi, o‘chirib qo‘ymaydi yoki qayta faollashtirmaydi.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Bosh sahifa",
     "dashboard": "Boshqaruv paneli",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register manzilida $200 bepul kredit oling — kredit karta talab qilinmaydi.",
       "unorouter": "https://unorouter.ai saytida API kalitini yarating, soʻng uni Bearer tokeni sifatida shu yerga kiriting.",
       "agnes": "API kalitini agnes-ai.com saytida oling",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Bepul tarif toʻxtatilgan (2026) — AI/ML API endi faqat foydalanish hajmiga qarab toʻlanadi (kamida $20 hisob toʻldirish); muntazam bepul kreditlar yoʻq.",
       "ai21": "Roʻyxatdan oʻtganda $10 sinov krediti (3 oy amal qiladi), kredit karta talab qilinmaydi",
       "alibaba": "Alibaba xizmatiga API kaliti bilan ulaning.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP auditi (kun)",
     "retentionA2aEvents": "A2A hodisalari (kun)",
     "retentionCallLogs": "Qo‘ng‘iroqlar jurnallari (kun)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Foydalanish tarixi (kun)",
     "retentionMemoryEntries": "Xotira yozuvlari (kun)",
     "retentionXpAuditLog": "XP audit jurnali (kun)",

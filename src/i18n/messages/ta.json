@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy குளங்களும் opencode-இன் ஒவ்வொரு கணக்கிற்குமான சுழற்சியும், இப்போது தோல்வியடைந்த ஒரு proxy-ஐ (மறுக்கப்பட்ட TCP ஆய்வு அல்லது அதன் வழியாகப் பெறப்பட்ட 429) ஒவ்வொரு செயல்முறைக்கும் உரிய ஒரு காலகட்டத்திற்கு மீண்டும் வழங்குவதை நிறுத்தும்; ஒவ்வொரு தொடர் தோல்வியின்போதும் அந்தக் காலகட்டம் இரட்டிப்பாகி, அதிகபட்ச வரம்பு வரை செல்லும். எந்த proxy நிலையும் எழுதப்படாது; ஒவ்வொரு தேர்வுக்குரியதும் ஒதுக்கி வைக்கப்பட்டால், தேர்வு மாறாமல் இருக்கும். இயல்பாக முடக்கப்பட்டிருக்கும்: தேர்வு வரிசை சாதாரண சுழற்சியை அப்படியே பின்பற்றும்.",
   "featureFlagProxyPoolEgressObservationDescription": "டாஷ்போர்டில் ஒரு proxy குளத்தின் கீழ், கடந்த 24 மணிநேரத்தில் அதன் உறுப்பினர்களுக்குச் சேவையளித்த கண்டறியப்பட்ட வெளியேற்ற IP-களின் எண்ணிக்கை, அவற்றைப் பயன்படுத்திய இணைப்புகளின் எண்ணிக்கை மற்றும் ஓர் IP-க்குப் பின்னால் காணப்பட்ட அதிகபட்ச எண்ணிக்கை ஆகியவற்றைக் காட்டும். படிக்க மட்டும்; proxy பதிவிலிருந்து கணக்கிடப்படும்; வழித்தடத் தேர்வுக்கு ஒருபோதும் பயன்படுத்தப்படாது. இயல்பாக முடக்கப்பட்டிருக்கும்: குளத் திருத்தி மாறாமல் இருக்கும், மேலும் கண்காணிப்பு வழித்தடம் null எனப் பதிலளிக்கும்.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Proxy ஆரோக்கியச் சோதனையில், இலக்கு மறுத்த ஓர் ஆய்வு (401/403/429: proxy அதை அனுப்பியது, ஆனால் இலக்கு இந்த வெளியேற்ற IP-ஐ மறுத்தது), சேவையளிக்கப்பட்ட ஆய்வைப் போலவே proxy-இன் தொடர்ச்சியான தோல்வி வரிசையை மீட்டமைக்க அனுமதிக்கும். இயல்பாக முடக்கப்பட்டிருக்கும்: ஒரு மறுப்பு நடுநிலையாகவே இருந்து, தோல்வி வரிசையைத் தொடர வைத்திருக்கும். எந்த நிலையிலும் 5xx முடிவுறாததாகவே இருக்கும்; மேலும் ஒரு மறுப்பு ஒருபோதும் proxy-ஐ அகற்றவோ, முடக்கவோ அல்லது மீண்டும் செயல்படுத்தவோ செய்யாது.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "முகப்பு",
     "dashboard": "கட்டுப்பாட்டுப் பலகம்",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register இல் $200 இலவச கிரெடிட்களைப் பெறவும் — கிரெடிட் கார்டு தேவையில்லை.",
       "unorouter": "https://unorouter.ai இல் ஒரு API விசையை உருவாக்கவும், பின்னர் அதை இங்கே Bearer டோக்கனாக ஒட்டவும்.",
       "agnes": "agnes-ai.com இல் API கீயைப் பெறவும்",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "இலவச அடுக்கு இடைநிறுத்தப்பட்டுள்ளது (2026) — AI/ML API இப்போது பயன்படுத்தியதற்கு மட்டும் செலுத்தும் (குறைந்தபட்சம் $20 டாப்-அப்) முறையில் மட்டுமே உள்ளது; தொடர்ச்சியான இலவச கிரெடிட்கள் இல்லை.",
       "ai21": "பதிவு செய்யும் போது $10 சோதனை கிரெடிட்கள் (3 மாதங்கள் செல்லுபடியாகும்), கிரெடிட் கார்டு தேவையில்லை",
       "alibaba": "Alibaba-வை ஒரு API கீயுடன் இணைக்கவும்.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP தணிக்கை (நாட்கள்)",
     "retentionA2aEvents": "A2A நிகழ்வுகள் (நாட்கள்)",
     "retentionCallLogs": "அழைப்பு பதிவுகள் (நாட்கள்)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "பயன்பாட்டு வரலாறு (நாட்கள்)",
     "retentionMemoryEntries": "நினைவக உள்ளீடுகள் (நாட்கள்)",
     "retentionXpAuditLog": "XP தணிக்கைப் பதிவு (நாட்கள்)",

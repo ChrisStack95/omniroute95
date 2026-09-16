@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Rukunin proxy da juyawar opencode ta kowane asusu suna daina sake amfani da proxy da ya gaza kwanan nan (ya ƙi gwajin TCP, ko aka karɓi 429 ta cikinsa) na wani lokaci na kowane tsari wanda ke ninkuwa a duk lokacin da gazawar ta sake faruwa, har zuwa iyaka. Ba a rubuta matsayin proxy; idan aka ware dukkan waɗanda za a iya zaɓa, zaɓin ba ya canzawa. A kashe yake ta tsohuwa: tsarin zaɓi daidai yake da juyawa na yau da kullum.",
   "featureFlagProxyPoolEgressObservationDescription": "A ƙarƙashin rukunin proxy a dashboard, nuna adadin IPs na fita da aka lura sun yi wa membobinsa hidima a cikin awanni 24 da suka gabata, adadin haɗin da suka yi amfani da su, da mafi yawan adadin da aka gani a bayan IP guda. Na karantawa kawai ne, ana lissafa shi daga kundin proxy, kuma ba a taɓa amfani da shi wajen routing. A kashe yake ta tsohuwa: editan rukuni ba ya canzawa kuma hanyar lura tana amsa null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "A yayin binciken lafiyar proxy, bari gwajin da manufa ta ƙi (401/403/429: proxy ya isar, amma wurin da ake nufi ya ƙi wannan IP na fita) ya sake saita jerin gazawar proxy masu jere, kamar gwajin da aka yi wa hidima. A kashe yake ta tsohuwa: ƙin amincewa yana kasancewa tsaka-tsaki kuma yana riƙe da jerin gazawar. 5xx yana kasancewa mara tabbas a kowane hali, kuma ƙin amincewa ba ya taɓa cirewa, kashewa ko sake kunna proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Gida",
     "dashboard": "Allon sarrafawa",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Samu kuɗin amfani na $200 kyauta a https://agentrouter.org/register — ba a buƙatar katin kuɗi.",
       "unorouter": "Ƙirƙiri API key a https://unorouter.ai, sannan liƙa shi a nan a matsayin Bearer token.",
       "agnes": "Samu API key a agnes-ai.com",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "An dakatar da matakin kyauta (2026) — yanzu AI/ML API na biyan gwargwadon amfani ne kawai (mafi ƙarancin ƙarin kuɗi $20); babu kuɗin amfani na kyauta da ke maimaituwa.",
       "ai21": "Kuɗin gwaji na $10 bayan yin rajista (yana aiki na tsawon watanni 3), ba a buƙatar katin kuɗi",
       "alibaba": "Haɗa Alibaba da API key.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Binciken MCP (kwanaki)",
     "retentionA2aEvents": "Abubuwan da Suka Faru na A2A (kwanaki)",
     "retentionCallLogs": "Rajistan Kira (kwanaki)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Tarihin Amfani (kwanaki)",
     "retentionMemoryEntries": "Bayanan Ƙwaƙwalwa (kwanaki)",
     "retentionXpAuditLog": "Rajistan Binciken XP (kwanaki)",

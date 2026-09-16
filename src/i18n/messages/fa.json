@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "مخزنهای پراکسی و چرخش بهازای هر حساب در opencode، پراکسیای را که بهتازگی ناموفق بوده است (کاوش TCP را رد کرده یا از طریق آن پاسخ 429 دریافت شده است)، برای مدتی مختص هر فرایند دوباره ارائه نمیکنند؛ این مدت با هر تکرار دو برابر میشود تا به سقف تعیینشده برسد. هیچ وضعیتی برای پراکسی ثبت نمیشود؛ اگر همه گزینهها کنار گذاشته شوند، انتخاب بدون تغییر میماند. بهطور پیشفرض غیرفعال است: ترتیب انتخاب دقیقاً همان چرخش ساده است.",
   "featureFlagProxyPoolEgressObservationDescription": "در داشبورد، زیر هر مخزن پراکسی نشان دهید که طی ۲۴ ساعت گذشته چه تعداد IP خروجی مشاهدهشده به اعضای آن سرویس دادهاند، چه تعداد اتصال از آنها استفاده کردهاند و بیشترین تعداد اتصال مشاهدهشده پشت یک IP چقدر بوده است. فقط خواندنی است، از گزارش پراکسی محاسبه میشود و هرگز برای مسیریابی استفاده نمیشود. بهطور پیشفرض غیرفعال است: ویرایشگر مخزن بدون تغییر میماند و مسیر مشاهده مقدار null را برمیگرداند.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "در پیمایش سلامت پراکسی، اجازه دهید کاوشی که مقصد آن را رد کرده است (401/403/429: پراکسی درخواست را عبور داده اما مقصد این IP خروجی را رد کرده است)، مانند یک کاوش سرویسدهیشده، شمارنده شکستهای متوالی پراکسی را بازنشانی کند. بهطور پیشفرض غیرفعال است: رد شدن همچنان خنثی باقی میماند و شمارنده را حفظ میکند. پاسخ 5xx در هر دو حالت نامشخص باقی میماند و رد شدن هرگز باعث حذف، غیرفعالسازی یا فعالسازی مجدد پراکسی نمیشود.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "خانه",
     "dashboard": "داشبورد",
@@ -6125,6 +6126,7 @@
       "agentrouter": "۲۰۰ دلار اعتبار رایگان در https://agentrouter.org/register دریافت کنید — بدون نیاز به کارت اعتباری.",
       "unorouter": "یک کلید API در https://unorouter.ai ایجاد کنید، سپس آن را به عنوان یک توکن Bearer در اینجا بچسبانید.",
       "agnes": "کلید API را از agnes-ai.com دریافت کنید",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "سطح رایگان متوقف شد (۲۰۲۶) — API هوش مصنوعی/یادگیری ماشین اکنون فقط به صورت پرداخت به میزان مصرف است (حداقل شارژ ۲۰ دلار)؛ بدون اعتبار رایگان دوره‌ای.",
       "ai21": "۱۰ دلار اعتبار آزمایشی هنگام ثبت‌نام (معتبر به مدت ۳ ماه)، بدون نیاز به کارت اعتباری",
       "alibaba": "اتصال به Alibaba با یک کلید API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "ممیزی MCP (روزها)",
     "retentionA2aEvents": "رویدادهای A2A (روزها)",
     "retentionCallLogs": "گزارش تماس (روزها)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "تاریخچه استفاده (روزها)",
     "retentionMemoryEntries": "ورودی های حافظه (روز)",
     "retentionXpAuditLog": "گزارش حسابرسی XP (روز)",

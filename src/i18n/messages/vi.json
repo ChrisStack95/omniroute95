@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Các pool proxy và cơ chế xoay vòng theo tài khoản của opencode ngừng dùng lại một proxy vừa thất bại (thăm dò TCP bị từ chối, hoặc nhận 429 qua proxy đó) trong một khoảng thời gian theo tiến trình, tăng gấp đôi sau mỗi lần lặp lại, tối đa đến một giới hạn. Không ghi trạng thái proxy nào; khi mọi ứng viên đều bị tạm gác, lựa chọn vẫn như cũ. Tắt theo mặc định: thứ tự chọn giữ nguyên xoay vòng thông thường.",
   "featureFlagProxyPoolEgressObservationDescription": "Hiển thị, bên dưới một nhóm proxy trong bảng điều khiển, số IP đầu ra quan sát được đã phục vụ các thành viên của nhóm trong 24 giờ qua, số kết nối đã dùng chúng và số lớn nhất thấy sau cùng một IP. Chỉ đọc, tính từ nhật ký proxy, không bao giờ dùng để định tuyến. Tắt theo mặc định: trình chỉnh sửa nhóm không đổi và tuyến quan sát trả về null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Trong lượt kiểm tra sức khỏe proxy, cho phép một lần thăm dò bị đích từ chối (401/403/429: proxy đã chuyển tiếp, đích từ chối IP đầu ra này) đặt lại chuỗi lỗi liên tiếp của proxy, giống như một lần thăm dò được phục vụ. Tắt theo mặc định: lần từ chối vẫn trung lập và giữ nguyên chuỗi. Lỗi 5xx vẫn không kết luận trong mọi trường hợp, và lần từ chối không bao giờ xóa, vô hiệu hóa hay kích hoạt lại proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "Buộc kết nối xai-oauth lấy danh mục mô hình xAI trực tiếp từ https://api.x.ai/v1/models bằng token OAuth bearer, thay vì danh sách tĩnh đã đóng băng. Mặc định tắt: xai-oauth vẫn dùng danh sách tĩnh không đổi. Nếu có lỗi phân giải, hệ thống quay lại danh sách tĩnh.",
   "sidebar": {
     "home": "Trang chủ",
     "dashboard": "Trang tổng quan",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Nhận 200 USD tín dụng miễn phí tại https://agentrouter.org/register — không cần thẻ tín dụng.",
       "unorouter": "Tạo khóa API tại https://unorouter.ai, sau đó dán vào đây dưới dạng Bearer token.",
       "agnes": "Lấy khóa API tại agnes-ai.com",
+      "agnes-cn": "Kết nối Agnes AI (Trung Quốc) bằng khóa API được cấp cho api.agnes-ai.cn. Khóa từ apihub.agnes-ai.com sẽ không hoạt động.",
       "aimlapi": "Gói miễn phí đã tạm dừng (2026) — AI/ML API hiện chỉ tính phí theo mức sử dụng (nạp tối thiểu 20 USD); không còn tín dụng miễn phí định kỳ.",
       "ai21": "10 USD tín dụng dùng thử khi đăng ký (có hiệu lực 3 tháng), không cần thẻ tín dụng",
       "alibaba": "Kết nối Alibaba bằng khóa API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Kiểm toán MCP (ngày)",
     "retentionA2aEvents": "Sự kiện A2A (ngày)",
     "retentionCallLogs": "Nhật ký cuộc gọi (ngày)",
+    "retentionConversationTurnNodes": "Nút lượt hội thoại (ngày)",
     "retentionUsageHistory": "Lịch sử sử dụng (ngày)",
     "retentionMemoryEntries": "Mục nhập bộ nhớ (ngày)",
     "retentionXpAuditLog": "Nhật ký kiểm toán XP (ngày)",

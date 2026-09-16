@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Skupovi proxy poslužitelja i rotacija opencodea po računu privremeno prestaju ponovno posluživati proxy poslužitelj koji je upravo zakazao (odbijena TCP provjera ili odgovor 429 primljen preko njega) tijekom razdoblja po procesu koje se udvostručuje pri svakom ponavljanju, do zadanog maksimuma. Status proxy poslužitelja ne zapisuje se; kada se svi kandidati izuzmu, odabir ostaje nepromijenjen. Prema zadanim postavkama isključeno: redoslijed odabira potpuno je jednak običnoj rotaciji.",
   "featureFlagProxyPoolEgressObservationDescription": "Na nadzornoj ploči, ispod skupa proxy poslužitelja, prikažite koliko je opaženih izlaznih IP adresa opsluživalo njegove članove tijekom posljednja 24 h, koliko ih je veza upotrebljavalo i najveći broj veza zabilježen iza jedne IP adrese. Samo za čitanje, izračunava se iz zapisnika proxy poslužitelja i nikada se ne upotrebljava za usmjeravanje. Prema zadanim postavkama isključeno: uređivač skupa ostaje nepromijenjen, a ruta za opažanja vraća null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Tijekom provjere stanja proxy poslužitelja omogućite da provjera koju je cilj odbio (401/403/429: proxy poslužitelj proslijedio je zahtjev, a odredište je odbilo ovu izlaznu IP adresu) poništi niz uzastopnih neuspjeha proxy poslužitelja, kao i uspješno poslužena provjera. Prema zadanim postavkama isključeno: odbijanje ostaje neutralno i zadržava niz. Odgovor 5xx u oba slučaja ostaje neodređen, a odbijanje nikada ne uklanja, onemogućuje niti ponovno aktivira proxy poslužitelj.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Početna",
     "dashboard": "Nadzorna ploča",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Nabavi $200 besplatnih kredita na https://agentrouter.org/register — nije potrebna kreditna kartica.",
       "unorouter": "Stvori API ključ na https://unorouter.ai, zatim ga ovdje zalijepi kao Bearer token.",
       "agnes": "Nabavi API ključ na agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Besplatna razina pauzirana (2026.) — AI/ML API sada je isključivo prema potrošnji (minimalna uplata $20); nema redovnih besplatnih kredita.",
       "ai21": "$10 probnih kredita pri registraciji (vrijedi 3 mjeseca), nije potrebna kreditna kartica",
       "alibaba": "Poveži Alibaba s API ključem.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP revizija (dani)",
     "retentionA2aEvents": "A2A događaji (dani)",
     "retentionCallLogs": "Zapisi poziva (dani)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Povijest korištenja (dani)",
     "retentionMemoryEntries": "Memorijski unosi (dani)",
     "retentionXpAuditLog": "XP revizijski dnevnik (dani)",

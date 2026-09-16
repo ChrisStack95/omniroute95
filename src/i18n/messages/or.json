@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "ପ୍ରକ୍ସି ପୁଲ୍ ଏବଂ opencodeର ପ୍ରତି-ଆକାଉଣ୍ଟ ରୋଟେସନ୍, ସଦ୍ୟ ବିଫଳ ହୋଇଥିବା ପ୍ରକ୍ସିକୁ (ପ୍ରତ୍ୟାଖ୍ୟାନ ହୋଇଥିବା TCP ପ୍ରୋବ୍ କିମ୍ବା ତାହା ମାଧ୍ୟମରେ ପ୍ରାପ୍ତ 429) ପ୍ରତ୍ୟେକ ପୁନରାବୃତ୍ତିରେ ଦ୍ୱିଗୁଣିତ ହେଉଥିବା, ଏକ ସର୍ବାଧିକ ସୀମା ପର୍ଯ୍ୟନ୍ତ ପ୍ରତି-ପ୍ରକ୍ରିୟା ଅବଧି ପାଇଁ ପୁଣି ସେବାରେ ବ୍ୟବହାର କରିବା ବନ୍ଦ କରେ। କୌଣସି ପ୍ରକ୍ସି ସ୍ଥିତି ଲେଖାଯାଏ ନାହିଁ; ପ୍ରତ୍ୟେକ ପ୍ରାର୍ଥୀକୁ ପାଖକୁ ରଖାଗଲେ ଚୟନ ଅପରିବର୍ତ୍ତିତ ରହେ। ଡିଫଲ୍ଟ ଭାବେ ବନ୍ଦ: ଚୟନ କ୍ରମ ଠିକ୍ ସାଧାରଣ ରୋଟେସନ୍ ପରି।",
   "featureFlagProxyPoolEgressObservationDescription": "ଡ୍ୟାସବୋର୍ଡରେ ଗୋଟିଏ ପ୍ରକ୍ସି ପୁଲ୍ ଅଧୀନରେ, ଗତ 24 ଘଣ୍ଟାରେ କେତୋଟି ପର୍ଯ୍ୟବେକ୍ଷିତ ଏଗ୍ରେସ୍ IP ଏହାର ସଦସ୍ୟମାନଙ୍କୁ ସେବା ଦେଇଥିଲା, କେତୋଟି ସଂଯୋଗ ସେଗୁଡ଼ିକୁ ବ୍ୟବହାର କରିଥିଲା ଏବଂ ଗୋଟିଏ IP ପଛରେ ସର୍ବାଧିକ କେତୋଟି ଦେଖାଯାଇଥିଲା, ତାହା ଦେଖାନ୍ତୁ। କେବଳ ପଠନୀୟ, ପ୍ରକ୍ସି ଲଗ୍ରୁ ଗଣନା କରାଯାଏ, ରାଉଟିଂ ପାଇଁ କେବେ ବ୍ୟବହୃତ ହୁଏ ନାହିଁ। ଡିଫଲ୍ଟ ଭାବେ ବନ୍ଦ: ପୁଲ୍ ଏଡିଟର୍ ଅପରିବର୍ତ୍ତିତ ରହେ ଏବଂ ପର୍ଯ୍ୟବେକ୍ଷଣ ରୁଟ୍ null ଉତ୍ତର ଦିଏ।",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "ପ୍ରକ୍ସି ସ୍ୱାସ୍ଥ୍ୟ ଯାଞ୍ଚରେ, ଲକ୍ଷ୍ୟ ଦ୍ୱାରା ପ୍ରତ୍ୟାଖ୍ୟାନ ହୋଇଥିବା ପ୍ରୋବ୍କୁ (401/403/429: ପ୍ରକ୍ସି ରିଲେ କରିଥିଲା, ଗନ୍ତବ୍ୟସ୍ଥଳ ଏହି ଏଗ୍ରେସ୍ IPକୁ ପ୍ରତ୍ୟାଖ୍ୟାନ କରିଥିଲା) ଏକ ସେବା ପ୍ରଦାନ କରାଯାଇଥିବା ପ୍ରୋବ୍ ପରି ପ୍ରକ୍ସିର କ୍ରମାଗତ ବିଫଳତା ଧାରାକୁ ରିସେଟ୍ କରିବାକୁ ଦିଅନ୍ତୁ। ଡିଫଲ୍ଟ ଭାବେ ବନ୍ଦ: ଏକ ପ୍ରତ୍ୟାଖ୍ୟାନ ନିରପେକ୍ଷ ରହେ ଏବଂ ଧାରାକୁ ଅପରିବର୍ତ୍ତିତ ରଖେ। ଉଭୟ କ୍ଷେତ୍ରରେ 5xx ଅନିର୍ଣ୍ଣାୟକ ରହେ, ଏବଂ ଏକ ପ୍ରତ୍ୟାଖ୍ୟାନ କେବେ ମଧ୍ୟ ପ୍ରକ୍ସିକୁ ହଟାଏ, ଅକ୍ଷମ କରେ କିମ୍ବା ପୁନଃସକ୍ରିୟ କରେ ନାହିଁ।",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ମୂଳପୃଷ୍ଠା",
     "dashboard": "ଡ୍ୟାସ୍ବୋର୍ଡ",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register ରେ $200 ମାଗଣା କ୍ରେଡିଟ୍ ପାଆନ୍ତୁ — କୌଣସି କ୍ରେଡିଟ୍ କାର୍ଡ ଆବଶ୍ୟକ ନାହିଁ।",
       "unorouter": "https://unorouter.ai ରେ ଏକ API କୀ ସୃଷ୍ଟି କରନ୍ତୁ, ତା’ପରେ ଏଠାରେ ଏହାକୁ Bearer token ଭାବେ ପେଷ୍ଟ କରନ୍ତୁ।",
       "agnes": "agnes-ai.com ରୁ API କୀ ପାଆନ୍ତୁ",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "ମାଗଣା ସ୍ତର ସ୍ଥଗିତ (2026) — AI/ML API ବର୍ତ୍ତମାନ କେବଳ ବ୍ୟବହାର ଅନୁଯାୟୀ ଦେୟଯୁକ୍ତ (ସର୍ବନିମ୍ନ $20 ଟପ୍-ଅପ୍); କୌଣସି ପୁନରାବୃତ୍ତ ମାଗଣା କ୍ରେଡିଟ୍ ନାହିଁ।",
       "ai21": "ସାଇନ୍ ଅପ୍ କଲେ $10 ପରୀକ୍ଷାମୂଳକ କ୍ରେଡିଟ୍ (3 ମାସ ପାଇଁ ବୈଧ), କୌଣସି କ୍ରେଡିଟ୍ କାର୍ଡ ଆବଶ୍ୟକ ନାହିଁ",
       "alibaba": "ଏକ API କୀ ସହିତ Alibaba ସଂଯୋଗ କରନ୍ତୁ।",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP ଅଡିଟ୍ (ଦିନ)",
     "retentionA2aEvents": "A2A ଇଭେଣ୍ଟ୍ (ଦିନ)",
     "retentionCallLogs": "କଲ୍ ଲଗ୍ (ଦିନ)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "ବ୍ୟବହାର ଇତିହାସ (ଦିନ)",
     "retentionMemoryEntries": "ମେମୋରି ଏଣ୍ଟ୍ରି (ଦିନ)",
     "retentionXpAuditLog": "XP ଅଡିଟ୍ ଲଗ୍ (ଦିନ)",

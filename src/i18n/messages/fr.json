@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Les pools de proxys et la rotation par compte d’opencode cessent de réutiliser un proxy qui vient d’échouer (sonde TCP refusée ou réponse 429 reçue par son intermédiaire) pendant une durée propre au processus qui double à chaque nouvel échec, jusqu’à une limite maximale. Aucun état de proxy n’est enregistré ; lorsque tous les candidats sont écartés, le choix reste inchangé. Désactivé par défaut : l’ordre de sélection correspond exactement à la rotation simple.",
   "featureFlagProxyPoolEgressObservationDescription": "Afficher, sous un pool de proxys dans le tableau de bord, combien d’adresses IP de sortie observées ont servi ses membres au cours des dernières 24 h, combien de connexions les ont utilisées et le nombre maximal observé derrière une même adresse IP. En lecture seule, calculé à partir du journal du proxy, jamais utilisé pour le routage. Désactivé par défaut : l’éditeur de pool reste inchangé et la route d’observation renvoie null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Lors du contrôle d’intégrité des proxys, permettez à une sonde refusée par la cible (401/403/429 : le proxy a relayé la requête, mais la destination a refusé cette adresse IP de sortie) de réinitialiser la série d’échecs consécutifs du proxy, comme une sonde traitée. Désactivé par défaut : un refus reste neutre et maintient la série. Une réponse 5xx reste non concluante dans les deux cas, et un refus ne supprime, ne désactive ni ne réactive jamais un proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Accueil",
     "dashboard": "Tableau de bord",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Obtenez 200 $ de crédits gratuits sur https://agentrouter.org/register — aucune carte de crédit requise.",
       "unorouter": "Créez une clé API sur https://unorouter.ai, puis collez-la ici en tant que jeton Bearer.",
       "agnes": "Obtenez une clé API sur agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Offre gratuite suspendue (2026) — L'API AI/ML est désormais uniquement pay-as-you-go (recharge minimale de 20 $) ; pas de crédits gratuits récurrents.",
       "ai21": "10 $ de crédits d'essai à l'inscription (valables 3 mois), aucune carte de crédit requise",
       "alibaba": "Connectez Alibaba avec une clé API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Audit MCP (jours)",
     "retentionA2aEvents": "Événements A2A (jours)",
     "retentionCallLogs": "Journaux d'appels (jours)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Historique d'utilisation (jours)",
     "retentionMemoryEntries": "Entrées de mémoire (jours)",
     "retentionXpAuditLog": "Journal d'audit XP (jours)",

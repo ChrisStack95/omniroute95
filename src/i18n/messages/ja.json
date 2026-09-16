@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "プロキシプールと、アカウントごとのopencodeローテーションで、直前に失敗したプロキシ（TCPプローブが拒否された、またはそのプロキシ経由で429を受信したもの）の再使用を、同一プロセス内で一定期間停止します。この期間は失敗を繰り返すたびに倍増し、上限があります。プロキシのステータスは書き込まれません。すべての候補が除外された場合、選択は変更されません。デフォルトではオフです。有効にしない限り、選択順序は通常のローテーションとまったく同じです。",
   "featureFlagProxyPoolEgressObservationDescription": "ダッシュボードのプロキシプールの下に、過去24時間にそのメンバーが使用したことが観測された送信元IPの数、それらを使用した接続数、および1つのIPの背後で観測された最大数を表示します。読み取り専用で、プロキシログから算出され、ルーティングには使用されません。デフォルトではオフです。プールエディターは変更されず、観測ルートはnullを返します。",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "プロキシのヘルススイープで、ターゲットに拒否されたプローブ（401/403/429：プロキシは中継したが、宛先がこの送信元IPを拒否したもの）が、正常に処理されたプローブと同様に、プロキシの連続失敗回数をリセットできるようにします。デフォルトではオフです。拒否は中立のままで、連続失敗回数は維持されます。どちらの場合も5xxは判定不能のままであり、拒否によってプロキシが削除、無効化、または再有効化されることはありません。",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ホーム",
     "dashboard": "ダッシュボード",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register で200ドルの無料クレジットを取得 — クレジットカードは不要です。",
       "unorouter": "https://unorouter.ai で API キーを作成し、ここに Bearer トークンとして貼り付けてください。",
       "agnes": "agnes-ai.com でAPIキーを取得",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "無料枠は一時停止中（2026年） — AI/ML APIは従量課金制のみ（最低20ドルのチャージが必要）となり、定期的な無料クレジットはありません。",
       "ai21": "サインアップ時に10ドルのトライアルクレジット（3か月間有効）、クレジットカード不要",
       "alibaba": "APIキーでAlibabaに接続します。",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP 監査 (日)",
     "retentionA2aEvents": "A2A イベント (日)",
     "retentionCallLogs": "通話記録 (日)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "利用履歴（日）",
     "retentionMemoryEntries": "メモリエントリ (日)",
     "retentionXpAuditLog": "XP監査ログ (日)",

@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Пуловете от проксита и ротацията на opencode за всеки акаунт временно спират повторното използване на прокси, което току-що е дало грешка (отказана TCP проверка или получен чрез него отговор 429), за период в рамките на процеса, който се удвоява при всяко повторение до достигане на максимална стойност. Не се записва състояние на проксито; ако всички кандидати бъдат временно изключени, изборът остава непроменен. Изключено по подразбиране: редът на избор е точно този на обикновената ротация.",
   "featureFlagProxyPoolEgressObservationDescription": "Показва под пул от проксита в таблото колко наблюдавани изходящи IP адреса са обслужвали членовете му през последните 24 ч., колко връзки са ги използвали и най-големия брой връзки зад един IP адрес. Само за четене, изчислява се от дневника на проксито и никога не се използва за маршрутизиране. Изключено по подразбиране: редакторът на пула остава непроменен, а маршрутът за наблюдение връща null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "При проверката на състоянието на прокситата позволява на проверка, отказана от целта (401/403/429: проксито е препратило заявката, но местоназначението е отказало този изходящ IP адрес), да нулира поредицата от последователни неуспехи на проксито, както при успешно обслужена проверка. Изключено по подразбиране: отказът остава неутрален и запазва поредицата. Отговор 5xx остава неубедителен и в двата случая, а отказът никога не премахва, деактивира или активира повторно прокси.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Начало",
     "dashboard": "Табло",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Вземете $200 безплатни кредити на https://agentrouter.org/register — не се изисква кредитна карта.",
       "unorouter": "Създайте API ключ на https://unorouter.ai, след което го поставете тук като Bearer токен.",
       "agnes": "Вземете API ключ на agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Безплатният план е спрян (2026) — AI/ML API вече е само с разплащане според потреблението (мин. $20 презареждане); без периодични безплатни кредити.",
       "ai21": "$10 пробни кредити при регистрация (валидни 3 месеца), не се изисква кредитна карта",
       "alibaba": "Свържете Alibaba с API ключ.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Одит на MCP (дни)",
     "retentionA2aEvents": "Събития A2A (дни)",
     "retentionCallLogs": "Регистри на обажданията (дни)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "История на използването (дни)",
     "retentionMemoryEntries": "Записи в паметта (дни)",
     "retentionXpAuditLog": "Одитен дневник на XP (дни)",

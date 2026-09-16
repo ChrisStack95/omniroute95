@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "ಪ್ರಾಕ್ಸಿ ಪೂಲ್ಗಳು ಮತ್ತು opencode ನ ಪ್ರತಿ-ಖಾತೆ ರೊಟೇಶನ್, ಇತ್ತೀಚೆಗೆ ವಿಫಲವಾದ ಪ್ರಾಕ್ಸಿಯನ್ನು (TCP ಪ್ರೋಬ್ ನಿರಾಕರಿಸಲ್ಪಟ್ಟಿದ್ದರೆ ಅಥವಾ ಅದರ ಮೂಲಕ 429 ಬಂದಿದ್ದರೆ) ಪ್ರತಿ ಪ್ರಕ್ರಿಯೆಗೆ ಅನ್ವಯಿಸುವ ಅವಧಿಯವರೆಗೆ ಮತ್ತೆ ಬಳಸುವುದಿಲ್ಲ. ಪ್ರತಿ ಪುನರಾವರ್ತನೆಯಲ್ಲೂ ಈ ಅವಧಿ ದ್ವಿಗುಣಗೊಳ್ಳುತ್ತದೆ, ನಿಗದಿತ ಗರಿಷ್ಠ ಮಿತಿಯವರೆಗೆ. ಯಾವುದೇ ಪ್ರಾಕ್ಸಿ ಸ್ಥಿತಿಯನ್ನು ಬರೆಯಲಾಗುವುದಿಲ್ಲ; ಪ್ರತಿಯೊಂದು ಅಭ್ಯರ್ಥಿಯನ್ನೂ ಬದಿಗಿರಿಸಿದಾಗ ಆಯ್ಕೆಯು ಬದಲಾಗುವುದಿಲ್ಲ. ಪೂರ್ವನಿಯೋಜಿತವಾಗಿ ಆಫ್: ಆಯ್ಕೆಯ ಕ್ರಮವು ಸರಳ ರೊಟೇಶನ್ನಂತೆಯೇ ಇರುತ್ತದೆ.",
   "featureFlagProxyPoolEgressObservationDescription": "ಡ್ಯಾಶ್ಬೋರ್ಡ್ನಲ್ಲಿ ಪ್ರಾಕ್ಸಿ ಪೂಲ್ನ ಅಡಿಯಲ್ಲಿ, ಕಳೆದ 24 ಗಂಟೆಗಳಲ್ಲಿ ಅದರ ಸದಸ್ಯರಿಗೆ ಸೇವೆ ನೀಡಿದ ಗಮನಿಸಲಾದ ಎಗ್ರೆಸ್ IPಗಳ ಸಂಖ್ಯೆ, ಅವುಗಳನ್ನು ಬಳಸಿದ ಸಂಪರ್ಕಗಳ ಸಂಖ್ಯೆ ಮತ್ತು ಒಂದೇ IPಯ ಹಿಂದೆ ಕಂಡುಬಂದ ಗರಿಷ್ಠ ಸಂಖ್ಯೆಯನ್ನು ತೋರಿಸಿ. ಇದು ಓದಲು ಮಾತ್ರ; ಪ್ರಾಕ್ಸಿ ಲಾಗ್ನಿಂದ ಲೆಕ್ಕ ಹಾಕಲಾಗುತ್ತದೆ ಮತ್ತು ರೂಟಿಂಗ್ಗಾಗಿ ಎಂದಿಗೂ ಬಳಸಲಾಗುವುದಿಲ್ಲ. ಪೂರ್ವನಿಯೋಜಿತವಾಗಿ ಆಫ್: ಪೂಲ್ ಎಡಿಟರ್ ಬದಲಾಗುವುದಿಲ್ಲ ಮತ್ತು ವೀಕ್ಷಣಾ ರೂಟ್ null ಎಂದು ಉತ್ತರಿಸುತ್ತದೆ.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "ಪ್ರಾಕ್ಸಿ ಆರೋಗ್ಯ ಪರಿಶೀಲನೆಯಲ್ಲಿ, ಗುರಿಯು ನಿರಾಕರಿಸಿದ ಪ್ರೋಬ್ (401/403/429: ಪ್ರಾಕ್ಸಿಯು ರಿಲೇ ಮಾಡಿದೆ, ಆದರೆ ಗಮ್ಯಸ್ಥಾನವು ಈ ಎಗ್ರೆಸ್ IPಯನ್ನು ನಿರಾಕರಿಸಿದೆ) ಸೇವೆ ಸಲ್ಲಿಸಿದ ಪ್ರೋಬ್ನಂತೆಯೇ ಪ್ರಾಕ್ಸಿಯ ಸತತ-ವೈಫಲ್ಯ ಸರಣಿಯನ್ನು ಮರುಹೊಂದಿಸಲು ಅನುಮತಿಸಿ. ಪೂರ್ವನಿಯೋಜಿತವಾಗಿ ಆಫ್: ನಿರಾಕರಣೆಯು ತಟಸ್ಥವಾಗಿಯೇ ಉಳಿದು ಸರಣಿಯನ್ನು ಹಾಗೆಯೇ ಇಡುತ್ತದೆ. ಎರಡೂ ಸಂದರ್ಭಗಳಲ್ಲಿ 5xx ಅನಿರ್ಣಾಯಕವಾಗಿಯೇ ಉಳಿಯುತ್ತದೆ ಮತ್ತು ನಿರಾಕರಣೆಯು ಪ್ರಾಕ್ಸಿಯನ್ನು ಎಂದಿಗೂ ತೆಗೆದುಹಾಕುವುದಿಲ್ಲ, ನಿಷ್ಕ್ರಿಯಗೊಳಿಸುವುದಿಲ್ಲ ಅಥವಾ ಮರುಸಕ್ರಿಯಗೊಳಿಸುವುದಿಲ್ಲ.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ಹೋಮ್",
     "dashboard": "ಡ್ಯಾಶ್ಬೋರ್ಡ್",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register ನಲ್ಲಿ $200 ಉಚಿತ ಕ್ರೆಡಿಟ್ಗಳನ್ನು ಪಡೆಯಿರಿ — ಕ್ರೆಡಿಟ್ ಕಾರ್ಡ್ ಅಗತ್ಯವಿಲ್ಲ.",
       "unorouter": "https://unorouter.ai ನಲ್ಲಿ API ಕೀ ರಚಿಸಿ, ನಂತರ ಅದನ್ನು Bearer ಟೋಕನ್ ಆಗಿ ಇಲ್ಲಿ ಅಂಟಿಸಿ.",
       "agnes": "agnes-ai.com ನಲ್ಲಿ API ಕೀ ಪಡೆಯಿರಿ",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "ಉಚಿತ ಶ್ರೇಣಿಯನ್ನು ಸ್ಥಗಿತಗೊಳಿಸಲಾಗಿದೆ (2026) — AI/ML API ಈಗ ಬಳಕೆಯಷ್ಟು ಪಾವತಿಸುವ ಆಯ್ಕೆಯಲ್ಲಿ ಮಾತ್ರ ಲಭ್ಯವಿದೆ (ಕನಿಷ್ಠ $20 ಟಾಪ್-ಅಪ್); ಮರುಕಳಿಸುವ ಉಚಿತ ಕ್ರೆಡಿಟ್ಗಳಿಲ್ಲ.",
       "ai21": "ನೋಂದಣಿಯ ವೇಳೆ $10 ಪ್ರಯೋಗಾತ್ಮಕ ಕ್ರೆಡಿಟ್ಗಳು (3 ತಿಂಗಳು ಮಾನ್ಯ), ಕ್ರೆಡಿಟ್ ಕಾರ್ಡ್ ಅಗತ್ಯವಿಲ್ಲ",
       "alibaba": "API ಕೀ ಬಳಸಿ Alibaba ಅನ್ನು ಸಂಪರ್ಕಿಸಿ.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP ಲೆಕ್ಕಪರಿಶೋಧನೆ (ದಿನಗಳು)",
     "retentionA2aEvents": "A2A ಈವೆಂಟ್ಗಳು (ದಿನಗಳು)",
     "retentionCallLogs": "ಕರೆ ಲಾಗ್ಗಳು (ದಿನಗಳು)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "ಬಳಕೆಯ ಇತಿಹಾಸ (ದಿನಗಳು)",
     "retentionMemoryEntries": "ಮೆಮೊರಿ ನಮೂದುಗಳು (ದಿನಗಳು)",
     "retentionXpAuditLog": "XP ಲೆಕ್ಕಪರಿಶೋಧನಾ ಲಾಗ್ (ದಿನಗಳು)",

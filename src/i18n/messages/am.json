@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "የፕሮክሲ ፑሎች እና የ opencode የየመለያው ዙር ምርጫ፣ አሁን ያልተሳካን ፕሮክሲ (ውድቅ የተደረገ TCP ሙከራ ወይም በእሱ በኩል የተቀበለ 429) በድጋሚ እንዳያቀርቡ ያደርጋሉ፤ ይህም በእያንዳንዱ ድግግሞሽ እስከ ከፍተኛው ገደብ ድረስ በእጥፍ ለሚጨምር የየሂደቱ ጊዜ ነው። ምንም የፕሮክሲ ሁኔታ አይጻፍም፤ እያንዳንዱ እጩ ወደ ጎን ሲቀመጥ ምርጫው አይለወጥም። በነባሪ ጠፍቷል፦ የምርጫው ቅደም ተከተል ከተለመደው ዙር ምርጫ ጋር በትክክል አንድ ነው።",
   "featureFlagProxyPoolEgressObservationDescription": "በዳሽቦርዱ ውስጥ ከፕሮክሲ ፑል ሥር፣ ባለፉት 24 ሰዓታት ምን ያህል የታዩ የመውጫ IPዎች አባላቱን እንዳገለገሉ፣ ምን ያህል ግንኙነቶች እንደተጠቀሙባቸው እና ከአንድ IP ጀርባ የታየውን ከፍተኛ ቁጥር አሳይ። ለንባብ ብቻ ነው፣ ከፕሮክሲ ሎጉ ይሰላል፣ ለማዞሪያም ፈጽሞ ጥቅም ላይ አይውልም። በነባሪ ጠፍቷል፦ የፑሉ አርታዒ አይለወጥም፣ የምልከታ መስመሩም null ይመልሳል።",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "በፕሮክሲ ጤና ፍተሻ ውስጥ፣ ዒላማው ውድቅ ያደረገው ሙከራ (401/403/429፦ ፕሮክሲው አስተላልፏል፣ መዳረሻው ግን ይህን የመውጫ IP ውድቅ አድርጓል) ልክ እንደተሳካ ሙከራ የፕሮክሲውን ተከታታይ የውድቀት ቆጠራ ዳግም እንዲጀምር ፍቀድ። በነባሪ ጠፍቷል፦ ውድቅ መደረጉ ገለልተኛ ሆኖ ይቆያል እና ቆጠራውን እንዳለ ያቆያል። 5xx በሁለቱም ሁኔታ የማያረጋግጥ ሆኖ ይቆያል፣ እና ውድቅ መደረግ ፕሮክሲን ፈጽሞ አያስወግድም፣ አያሰናክልም ወይም ዳግም አያነቃም።",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "መነሻ",
     "dashboard": "ዳሽቦርድ",
@@ -6125,6 +6126,7 @@
       "agentrouter": "በhttps://agentrouter.org/register የ$200 ነፃ ክሬዲት ያግኙ — የክሬዲት ካርድ አያስፈልግም።",
       "unorouter": "በhttps://unorouter.ai የAPI ቁልፍ ይፍጠሩ፣ ከዚያም እዚህ እንደ Bearer token ይለጥፉት።",
       "agnes": "የAPI ቁልፍን ከagnes-ai.com ያግኙ",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "ነፃው ደረጃ ቆሟል (2026) — AI/ML API አሁን በአጠቃቀም መጠን ብቻ የሚከፈል ነው (ቢያንስ $20 መሙላት)፤ ተደጋጋሚ ነፃ ክሬዲት የለም።",
       "ai21": "ሲመዘገቡ $10 የሙከራ ክሬዲት (ለ3 ወራት የሚሰራ)፣ የክሬዲት ካርድ አያስፈልግም",
       "alibaba": "Alibabaን በAPI ቁልፍ ያገናኙ።",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "የMCP ኦዲት (ቀናት)",
     "retentionA2aEvents": "የA2A ክስተቶች (ቀናት)",
     "retentionCallLogs": "የጥሪ ምዝግቦች (ቀናት)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "የአጠቃቀም ታሪክ (ቀናት)",
     "retentionMemoryEntries": "የማህደረ ትውስታ ግቤቶች (ቀናት)",
     "retentionXpAuditLog": "የXP ኦዲት ምዝግብ (ቀናት)",

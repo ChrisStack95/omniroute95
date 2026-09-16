@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Makundi ya proksi na uzungushaji wa kila akaunti wa opencode huacha kutumia tena proksi iliyoshindwa hivi punde (jaribio la TCP lilikataliwa, au 429 ilipokelewa kupitia proksi hiyo) kwa kipindi maalumu kwa kila mchakato, ambacho huongezeka maradufu kila kushindwa kunaporudiwa, hadi kikomo fulani. Hakuna hali ya proksi inayoandikwa; kila chaguo linalowezekana likiwekwa kando, uteuzi hubaki bila kubadilika. Imezimwa kwa chaguo-msingi: mpangilio wa uteuzi ni sawa kabisa na uzungushaji wa kawaida.",
   "featureFlagProxyPoolEgressObservationDescription": "Onyesha, chini ya kundi la proksi kwenye dashibodi, idadi ya anwani za IP za kutoka zilizozingatiwa ambazo zilitumiwa na wanachama wake katika saa 24 zilizopita, idadi ya miunganisho iliyozitumia, na idadi kubwa zaidi iliyoonekana nyuma ya anwani moja ya IP. Ni ya kusoma pekee, huhesabiwa kutoka kwenye kumbukumbu ya proksi, na haitumiki kamwe kuelekeza trafiki. Imezimwa kwa chaguo-msingi: kihariri cha kundi hakibadiliki na njia ya uchunguzi hujibu null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Katika ukaguzi wa afya ya proksi, ruhusu jaribio lililokataliwa na lengwa (401/403/429: proksi ilisambaza ombi, lakini unakoenda kukakataa anwani hii ya IP ya kutoka) liweke upya mfululizo wa kushindwa kwa proksi, kama jaribio lililohudumiwa. Imezimwa kwa chaguo-msingi: kukataliwa hubaki bila upande na hudumisha mfululizo huo. 5xx hubaki bila hitimisho kwa vyovyote vile, na kukataliwa kamwe hakuondoi, hakuzima wala kuwezesha tena proksi.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Nyumbani",
     "dashboard": "Dashibodi",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Pata salio la bure la $200 kwenye https://agentrouter.org/register — hakuna kadi ya mkopo inayohitajika.",
       "unorouter": "Unda ufunguo wa API kwenye https://unorouter.ai, kisha ubandike hapa kama token ya Bearer.",
       "agnes": "Pata ufunguo wa API kwenye agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Kiwango cha bure kimesitishwa (2026) — AI/ML API sasa ni ya kulipia kadri unavyotumia pekee (kiwango cha chini cha kuongeza salio ni $20); hakuna salio la bure linalojirudia.",
       "ai21": "Salio la majaribio la $10 wakati wa kujisajili (halali kwa miezi 3), hakuna kadi ya mkopo inayohitajika",
       "alibaba": "Unganisha Alibaba kwa ufunguo wa API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Ukaguzi wa MCP (siku)",
     "retentionA2aEvents": "Matukio ya A2A (siku)",
     "retentionCallLogs": "Rekodi za simu (siku)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Historia ya Matumizi (siku)",
     "retentionMemoryEntries": "Maingizo ya Kumbukumbu (siku)",
     "retentionXpAuditLog": "Kumbukumbu ya Ukaguzi wa XP (siku)",

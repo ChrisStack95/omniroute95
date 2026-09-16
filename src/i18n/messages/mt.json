@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Il-pools tal-proxy u r-rotazzjoni għal kull kont ta’ opencode jieqfu jerġgħu jservu proxy li jkun għadu kemm falla (sonda TCP miċħuda, jew 429 riċevut permezz tiegħu) għal perjodu għal kull proċess li jirdoppja ma’ kull ripetizzjoni, sa limitu massimu. Ma jinkiteb ebda status tal-proxy; meta kull kandidat jitwarrab, l-għażla tibqa’ l-istess. Mitfi b’mod awtomatiku: l-ordni tal-għażla hija eżattament ir-rotazzjoni sempliċi.",
   "featureFlagProxyPoolEgressObservationDescription": "Uri, taħt pool tal-proxy fid-dashboard, kemm-il IP ta’ ħruġ osservat serva lill-membri tiegħu matul l-aħħar 24 siegħa, kemm-il konnessjoni użathom u l-ogħla għadd osservat wara IP wieħed. Għall-qari biss, ikkalkulat mil-log tal-proxy, u qatt ma jintuża għar-routing. Mitfi b’mod awtomatiku: l-editur tal-pool ma jinbidilx u r-rotta tal-osservazzjoni twieġeb null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Fl-iskennjar tas-saħħa tal-proxy, ħalli sonda li l-mira tkun irrifjutat (401/403/429: il-proxy għadda t-talba, iżda d-destinazzjoni rrifjutat dan l-IP ta’ ħruġ) tirrisettja s-sensiela ta’ fallimenti konsekuttivi tal-proxy, bħal sonda moqdija. Mitfi b’mod awtomatiku: rifjut jibqa’ newtrali u jżomm is-sensiela. 5xx jibqa’ inkonklussiv fiż-żewġ każijiet, u rifjut qatt ma jneħħi, jiddiżattiva jew jerġa’ jattiva proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Paġna Ewlenija",
     "dashboard": "Pannell tal-kontroll",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Ikseb $200 fi krediti b’xejn minn https://agentrouter.org/register — ebda karta ta’ kreditu mhi meħtieġa.",
       "unorouter": "Oħloq ċavetta API fuq https://unorouter.ai, imbagħad waħħalha hawn bħala token Bearer.",
       "agnes": "Ikseb ċavetta API minn agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Il-pjan bla ħlas twaqqaf temporanjament (2026) — l-API AI/ML issa taħdem biss fuq bażi ta’ ħlas skont l-użu (rikarika minima ta’ $20); m’hemmx krediti bla ħlas rikorrenti.",
       "ai21": "$10 fi krediti ta’ prova mar-reġistrazzjoni (validi għal 3 xhur), ebda karta ta’ kreditu mhi meħtieġa",
       "alibaba": "Qabbad Alibaba b’ċavetta API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Awditjar tal-MCP (jiem)",
     "retentionA2aEvents": "Avvenimenti A2A (jiem)",
     "retentionCallLogs": "Reġistri tas-Sejħiet (jiem)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Storja tal-Użu (jiem)",
     "retentionMemoryEntries": "Entrati tal-Memorja (jiem)",
     "retentionXpAuditLog": "Reġistru tal-Awditjar tal-XP (jiem)",

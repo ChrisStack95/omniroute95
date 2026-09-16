@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Puhverserverite kogumid ja opencode'i kontopõhine roteerimine väldivad äsja nurjunud puhverserveri (TCP-proovist keelduti või selle kaudu saadi vastus 429) uuesti kasutamist protsessipõhise ajavahemiku jooksul, mis iga korduva tõrke korral kahekordistub kuni ülempiirini. Puhverserveri olekut ei salvestata; kui kõik kandidaadid kõrvale jäetakse, valik ei muutu. Vaikimisi väljas: valikujärjekord järgib täpselt tavalist roteerimist.",
   "featureFlagProxyPoolEgressObservationDescription": "Kuva töölaual puhverserverite kogumi all, mitu vaadeldud väljuvat IP-aadressi teenindas selle liikmeid viimase 24 tunni jooksul, mitu ühendust neid kasutas ja suurim ühe IP-aadressi taga täheldatud arv. Kirjutuskaitstud, arvutatakse puhverserveri logist ja seda ei kasutata kunagi marsruutimiseks. Vaikimisi väljas: kogumi redaktor ei muutu ja vaatlusmarsruut tagastab null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Luba puhverserveri seisundi kontrollimisel sihtkoha poolt tagasi lükatud proovil (401/403/429: puhverserver vahendas päringu, sihtkoht keeldus sellest väljuvast IP-aadressist) lähtestada puhverserveri järjestikuste tõrgete jada nagu teenindatud proovi korral. Vaikimisi väljas: tagasilükkamine jääb neutraalseks ja säilitab jada. 5xx jääb mõlemal juhul ebaselgeks ning tagasilükkamine ei eemalda, keela ega taasaktiveeri kunagi puhverserverit.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Avaleht",
     "dashboard": "Juhtpaneel",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Saa $200 tasuta krediiti aadressilt https://agentrouter.org/register — krediitkaarti pole vaja.",
       "unorouter": "Loo API-võti aadressil https://unorouter.ai ja kleebi see seejärel siia Bearer-tokenina.",
       "agnes": "Hangi API-võti aadressilt agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Tasuta pakett on peatatud (2026) — AI/ML API on nüüd ainult kasutuspõhise hinnastusega (minimaalne sissemakse $20); korduvaid tasuta krediite pole.",
       "ai21": "Registreerumisel $10 proovikrediiti (kehtib 3 kuud), krediitkaarti pole vaja",
       "alibaba": "Ühenda Alibaba API-võtmega.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP audit (päevades)",
     "retentionA2aEvents": "A2A sündmused (päevades)",
     "retentionCallLogs": "Kõnelogid (päevades)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Kasutusajalugu (päevades)",
     "retentionMemoryEntries": "Mälukirjed (päevades)",
     "retentionXpAuditLog": "XP auditilogi (päevades)",

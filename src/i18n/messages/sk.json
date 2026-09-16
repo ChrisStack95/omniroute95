@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Fondy proxy serverov a rotácia opencode pre jednotlivé účty prestanú počas obdobia platného pre daný proces opätovne používať proxy server, ktorý práve zlyhal (odmietnutá sonda TCP alebo odpoveď 429 prijatá cez tento proxy server). Toto obdobie sa pri každom opakovaní zdvojnásobí až po stanovený limit. Stav proxy servera sa nezapisuje; ak sú všetci kandidáti odložení bokom, výber zostáva nezmenený. Predvolene vypnuté: poradie výberu presne zodpovedá bežnej rotácii.",
   "featureFlagProxyPoolEgressObservationDescription": "V ovládacom paneli zobraziť pod fondom proxy serverov, koľko pozorovaných výstupných IP adries obsluhovalo jeho členov za posledných 24 h, koľko pripojení ich použilo a najvyšší počet zaznamenaný za jednou IP adresou. Iba na čítanie, vypočítané z denníka proxy servera a nikdy nepoužívané na smerovanie. Predvolene vypnuté: editor fondu zostáva nezmenený a trasa pozorovania vracia null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Pri kontrole stavu proxy serverov umožniť, aby sonda odmietnutá cieľom (401/403/429: proxy server ju preniesol, ale cieľ odmietol túto výstupnú IP adresu) vynulovala sériu po sebe nasledujúcich zlyhaní proxy servera rovnako ako obslúžená sonda. Predvolene vypnuté: odmietnutie zostáva neutrálne a zachováva sériu. Odpoveď 5xx zostáva v oboch prípadoch nejednoznačná a odmietnutie nikdy neodstráni, nezakáže ani znovu neaktivuje proxy server.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Domov",
     "dashboard": "Prehľad",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Získajte bezplatný kredit 200 $ na https://agentrouter.org/register — nevyžaduje sa kreditná karta.",
       "unorouter": "Vytvorte API kľúč na https://unorouter.ai, potom ho sem vložte ako Bearer token.",
       "agnes": "Získajte API kľúč na agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Bezplatná úroveň pozastavená (2026) — AI/ML API je teraz len vo forme pay-as-you-go (min. dobitie 20 $); žiadne opakujúce sa bezplatné kredity.",
       "ai21": "Skúšobný kredit 10 $ pri registrácii (platnosť 3 mesiace), nevyžaduje sa kreditná karta",
       "alibaba": "Pripojte Alibaba pomocou API kľúča.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Audit MCP (dni)",
     "retentionA2aEvents": "Udalosti A2A (dni)",
     "retentionCallLogs": "Denníky hovorov (dni)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "História používania (dni)",
     "retentionMemoryEntries": "Záznamy pamäte (dni)",
     "retentionXpAuditLog": "Auditný log XP (dni)",

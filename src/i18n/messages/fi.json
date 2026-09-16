@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Välityspalvelinpoolit ja opencoden tilikohtainen kierto estävät juuri epäonnistuneen välityspalvelimen (hylätty TCP-tarkistus tai sen kautta saatu 429-vastaus) tarjoamisen uudelleen prosessikohtaisen ajanjakson ajan. Ajanjakso kaksinkertaistuu jokaisen toistuvan epäonnistumisen myötä enimmäisrajaan asti. Välityspalvelimen tilaa ei kirjata; jos kaikki ehdokkaat on siirretty sivuun, valinta pysyy ennallaan. Oletusarvoisesti poissa käytöstä: valintajärjestys vastaa täsmälleen tavallista kiertoa.",
   "featureFlagProxyPoolEgressObservationDescription": "Näytä hallintapaneelissa välityspalvelinpoolin kohdalla, kuinka monta havaittua lähtevän liikenteen IP-osoitetta sen jäsenet käyttivät viimeisten 24 tunnin aikana, kuinka monta yhteyttä käytti niitä ja mikä oli yhden IP-osoitteen takana havaittu suurin määrä. Vain luku -tieto, joka lasketaan välityspalvelinlokista eikä jota koskaan käytetä reititykseen. Oletusarvoisesti poissa käytöstä: poolieditori säilyy ennallaan ja havaintoreitti palauttaa arvon null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Salli välityspalvelinten kuntotarkistuksessa sellaisen tarkistuksen, jonka kohde hylkäsi (401/403/429: välityspalvelin välitti pyynnön, mutta kohde hylkäsi tämän lähtevän liikenteen IP-osoitteen), nollata välityspalvelimen peräkkäisten epäonnistumisten sarja onnistuneesti palvellun tarkistuksen tavoin. Oletusarvoisesti poissa käytöstä: hylkäys pysyy neutraalina eikä katkaise sarjaa. 5xx-vastaus pysyy kummassakin tapauksessa tuloksettomana, eikä hylkäys koskaan poista välityspalvelinta, poista sitä käytöstä tai aktivoi sitä uudelleen.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Kotiin",
     "dashboard": "Kojelauta",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Hanki 200 $ ilmaista saldoa osoitteesta https://agentrouter.org/register — luottokorttia ei vaadita.",
       "unorouter": "Luo API-avain osoitteessa https://unorouter.ai, ja liitä se sitten tänne Bearer-tokenina.",
       "agnes": "Hanki API-avain osoitteesta agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Ilmaisversio keskeytetty (2026) — AI/ML API on nyt vain käytön mukaan laskutettava (vähintään 20 $ lisäys); ei toistuvia ilmaissaldoja.",
       "ai21": "10 $ kokeilusaldona rekisteröitymisen yhteydessä (voimassa 3 kuukautta), luottokorttia ei vaadita",
       "alibaba": "Yhdistä Alibaba API-avaimella.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP-tarkastus (päiviä)",
     "retentionA2aEvents": "A2A-tapahtumat (päiviä)",
     "retentionCallLogs": "Puhelulokit (päiviä)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Käyttöhistoria (päiviä)",
     "retentionMemoryEntries": "Muistimerkinnät (päiviä)",
     "retentionXpAuditLog": "XP-tarkastusloki (päivää)",

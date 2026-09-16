@@ -46,7 +46,7 @@ A boolean flag is considered **enabled** when its effective value is `"true"`,
 
 ## Flag Catalog
 
-69 flags across 6 categories. **Default** is the definition default — the value
+70 flags across 6 categories. **Default** is the definition default — the value
 used when neither a DB override nor an environment variable is present.
 
 ### Security (10)
@@ -94,7 +94,7 @@ used when neither a DB override nor an environment variable is present.
 | `CAPABILITY_FILTER_ENABLED`     | boolean | `false`    | Reject requests before dispatch when the target model lacks required capabilities (vision, tools, structured output, context window). Protects direct single-provider requests that bypass the combo-layer compatibility filter. |
 | `RADAR_ENABLED`                 | boolean | `false`    | Enable the OmniRoute Radar module (catalog feed screens and sync). Off by default; enabling only unlocks the UI — data sync remains a separate opt-in.                                                                           |
 
-### Runtime (30)
+### Runtime (31)
 
 | Key                                         | Type    | Default | Restart | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -128,6 +128,7 @@ used when neither a DB override nor an environment variable is present.
 | `RETRY_AFTER_PROVENANCE_ENABLED`            | boolean | `false` |         | On aggregated 429/503 unavailable responses, omit `Retry-After` when no concrete future retry time is known (instead of a synthetic 1s), add `error.retry_after_provenance` (`signal` \| `none`), and let combo drain paths read prose retry hints from JSON and plain-text upstream bodies. The field only appears on responses built by `unavailableResponse()`; other 429/503 bodies are unchanged.                                                               |
 | `PROTECTED_PRIORITY_INFRA_502_ENABLED`      | boolean | `false` |         | When a `priority` combo target marked fallback-only-on-quota-exhaustion stops the combo for a cause that is provably not quota (provider circuit breaker open, predictive latency skip), answer 502 instead of the quota-looking 503. Lockout, cooldown, unavailable, exhaustion and concurrency-cap stops keep 503.                                                                                                                                                 |
 | `MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT`        | boolean | `false` |         | A bare Mistral 401 (`{"detail":"Unauthorized"}`, no explicit auth signal) is identical for a revoked key and for exhausted quota. When on, it cools the connection down instead of parking it as `expired`, at most 3 times per hour per connection; the next one parks it, so a revoked key still converges. Off by default: every bare Mistral 401 parks the connection as before.                                                                                 |
+| `XAI_OAUTH_LIVE_MODEL_DISCOVERY`            | boolean | `false` |         | Fetch the live xAI model catalog for `xai-oauth` connections from `https://api.x.ai/v1/models` using the OAuth bearer token, instead of the frozen static seed. Off by default: `xai-oauth` keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed (unverified whether x.ai accepts an OAuth bearer at this endpoint).                                                                                                   |
 
 ### CLI (5)
 
@@ -209,7 +210,7 @@ Returns every flag with its effective value, source, and a summary.
       "requiresRestart": false,
       "warningLevel": "caution",
     },
-    // ... all 69 flags
+    // ... all 70 flags
   ],
   "summary": {
     "total": 56,

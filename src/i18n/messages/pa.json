@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy ਪੂਲ ਅਤੇ opencode ਦੀ ਪ੍ਰਤੀ-ਖਾਤਾ ਰੋਟੇਸ਼ਨ ਉਸ Proxy ਨੂੰ ਮੁੜ ਵਰਤਣਾ ਬੰਦ ਕਰ ਦਿੰਦੇ ਹਨ ਜੋ ਹੁਣੇ ਅਸਫਲ ਹੋਇਆ ਹੈ (TCP ਪ੍ਰੋਬ ਅਸਵੀਕਾਰ ਹੋਈ, ਜਾਂ ਇਸ ਰਾਹੀਂ 429 ਮਿਲਿਆ), ਇੱਕ ਪ੍ਰਤੀ-ਪ੍ਰਕਿਰਿਆ ਮਿਆਦ ਲਈ ਜੋ ਹਰ ਦੁਹਰਾਅ ਨਾਲ ਦੁੱਗਣੀ ਹੁੰਦੀ ਹੈ, ਇੱਕ ਅਧਿਕਤਮ ਹੱਦ ਤੱਕ। ਕੋਈ Proxy ਸਥਿਤੀ ਲਿਖੀ ਨਹੀਂ ਜਾਂਦੀ; ਹਰ ਉਮੀਦਵਾਰ ਨੂੰ ਪਾਸੇ ਰੱਖਣ ’ਤੇ ਚੋਣ ਬਦਲਦੀ ਨਹੀਂ ਹੈ। ਮੂਲ ਰੂਪ ਵਿੱਚ ਬੰਦ: ਚੋਣ ਕ੍ਰਮ ਬਿਲਕੁਲ ਸਧਾਰਨ ਰੋਟੇਸ਼ਨ ਵਰਗਾ ਹੈ।",
   "featureFlagProxyPoolEgressObservationDescription": "ਡੈਸ਼ਬੋਰਡ ਵਿੱਚ ਕਿਸੇ Proxy ਪੂਲ ਹੇਠ ਦਿਖਾਓ ਕਿ ਪਿਛਲੇ 24 ਘੰਟਿਆਂ ਦੌਰਾਨ ਕਿੰਨੇ ਦੇਖੇ ਗਏ egress IPs ਨੇ ਇਸ ਦੇ ਮੈਂਬਰਾਂ ਨੂੰ ਸੇਵਾ ਦਿੱਤੀ, ਕਿੰਨੇ ਕਨੈਕਸ਼ਨਾਂ ਨੇ ਉਨ੍ਹਾਂ ਨੂੰ ਵਰਤਿਆ ਅਤੇ ਇੱਕ IP ਦੇ ਪਿੱਛੇ ਸਭ ਤੋਂ ਵੱਧ ਕਿੰਨੇ ਦੇਖੇ ਗਏ। ਕੇਵਲ ਪੜ੍ਹਨਯੋਗ, Proxy ਲੌਗ ਤੋਂ ਗਣਨਾ ਕੀਤੀ ਗਈ, ਰੂਟਿੰਗ ਲਈ ਕਦੇ ਨਹੀਂ ਵਰਤੀ ਜਾਂਦੀ। ਮੂਲ ਰੂਪ ਵਿੱਚ ਬੰਦ: ਪੂਲ ਸੰਪਾਦਕ ਬਦਲਦਾ ਨਹੀਂ ਹੈ ਅਤੇ ਨਿਰੀਖਣ ਰੂਟ null ਜਵਾਬ ਦਿੰਦਾ ਹੈ।",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Proxy ਸਿਹਤ ਜਾਂਚ ਵਿੱਚ, ਟਾਰਗੇਟ ਵੱਲੋਂ ਅਸਵੀਕਾਰ ਕੀਤੀ ਪ੍ਰੋਬ (401/403/429: Proxy ਨੇ ਅੱਗੇ ਭੇਜਿਆ, ਮੰਜ਼ਿਲ ਨੇ ਇਸ egress IP ਨੂੰ ਅਸਵੀਕਾਰ ਕੀਤਾ) ਨੂੰ, ਸਫਲਤਾਪੂਰਵਕ ਸੇਵਾ ਕੀਤੀ ਪ੍ਰੋਬ ਵਾਂਗ, Proxy ਦੀ ਲਗਾਤਾਰ ਅਸਫਲਤਾ ਲੜੀ ਰੀਸੈੱਟ ਕਰਨ ਦਿਓ। ਮੂਲ ਰੂਪ ਵਿੱਚ ਬੰਦ: ਅਸਵੀਕਾਰਤਾ ਨਿਰਪੱਖ ਰਹਿੰਦੀ ਹੈ ਅਤੇ ਲੜੀ ਨੂੰ ਕਾਇਮ ਰੱਖਦੀ ਹੈ। 5xx ਦੋਵਾਂ ਹਾਲਤਾਂ ਵਿੱਚ ਅਨਿਰਣਾਇਕ ਰਹਿੰਦਾ ਹੈ, ਅਤੇ ਅਸਵੀਕਾਰਤਾ ਕਦੇ ਵੀ ਕਿਸੇ Proxy ਨੂੰ ਹਟਾਉਂਦੀ, ਅਯੋਗ ਜਾਂ ਮੁੜ ਸਰਗਰਮ ਨਹੀਂ ਕਰਦੀ।",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "ਮੁੱਖ ਪੰਨਾ",
     "dashboard": "ਡੈਸ਼ਬੋਰਡ",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register 'ਤੇ $200 ਦੇ ਮੁਫ਼ਤ ਕ੍ਰੈਡਿਟ ਪ੍ਰਾਪਤ ਕਰੋ — ਕ੍ਰੈਡਿਟ ਕਾਰਡ ਦੀ ਲੋੜ ਨਹੀਂ ਹੈ।",
       "unorouter": "https://unorouter.ai 'ਤੇ ਇੱਕ API key ਬਣਾਓ, ਫਿਰ ਇਸਨੂੰ ਇੱਥੇ Bearer token ਵਜੋਂ ਪੇਸਟ ਕਰੋ।",
       "agnes": "agnes-ai.com ਤੋਂ API key ਪ੍ਰਾਪਤ ਕਰੋ",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "ਮੁਫ਼ਤ ਟੀਅਰ ਰੋਕਿਆ ਗਿਆ ਹੈ (2026) — AI/ML API ਹੁਣ ਸਿਰਫ਼ ਵਰਤੋਂ ਅਨੁਸਾਰ ਭੁਗਤਾਨ ਵਾਲਾ ਹੈ (ਘੱਟੋ-ਘੱਟ $20 ਟਾਪ-ਅੱਪ); ਕੋਈ ਨਿਯਮਿਤ ਮੁਫ਼ਤ ਕ੍ਰੈਡਿਟ ਨਹੀਂ ਹਨ।",
       "ai21": "ਸਾਈਨ ਅੱਪ ਕਰਨ 'ਤੇ $10 ਦੇ ਟ੍ਰਾਇਲ ਕ੍ਰੈਡਿਟ (3 ਮਹੀਨਿਆਂ ਲਈ ਵੈਧ), ਕ੍ਰੈਡਿਟ ਕਾਰਡ ਦੀ ਲੋੜ ਨਹੀਂ ਹੈ",
       "alibaba": "Alibaba ਨੂੰ API key ਨਾਲ ਕਨੈਕਟ ਕਰੋ।",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP ਆਡਿਟ (ਦਿਨ)",
     "retentionA2aEvents": "A2A ਇਵੈਂਟ (ਦਿਨ)",
     "retentionCallLogs": "ਕਾਲ ਲੌਗ (ਦਿਨ)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "ਵਰਤੋਂ ਇਤਿਹਾਸ (ਦਿਨ)",
     "retentionMemoryEntries": "ਮੈਮੋਰੀ ਐਂਟਰੀਆਂ (ਦਿਨ)",
     "retentionXpAuditLog": "XP ਆਡਿਟ ਲੌਗ (ਦਿਨ)",

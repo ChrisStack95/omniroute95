@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "מאגרי פרוקסי והתחלופה לפי חשבון של opencode מפסיקים להשתמש מחדש בפרוקסי שזה עתה נכשל (בדיקת TCP נדחתה, או שהתקבלה דרכו תגובת 429) למשך פרק זמן נפרד לכל תהליך, שמוכפל בכל הישנות עד לתקרה. לא נכתב סטטוס לפרוקסי; כאשר כל המועמדים מושהים, הבחירה נשארת ללא שינוי. מושבת כברירת מחדל: סדר הבחירה זהה בדיוק לתחלופה הרגילה.",
   "featureFlagProxyPoolEgressObservationDescription": "הצגת מספר כתובות ה-IP הנצפות ליציאה ששירתו את חברי מאגר הפרוקסי במהלך 24 השעות האחרונות, מספר החיבורים שהשתמשו בהן והמספר המרבי שנצפה מאחורי כתובת IP אחת, מתחת למאגר בלוח הבקרה. לקריאה בלבד, מחושב מיומן הפרוקסי ולעולם אינו משמש לניתוב. מושבת כברירת מחדל: עורך המאגר נשאר ללא שינוי ונתיב התצפית מחזיר null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "בסריקת תקינות הפרוקסי, יש לאפשר לבדיקה שהיעד דחה (401/403/429: הפרוקסי העביר את הבקשה, והיעד דחה את כתובת ה-IP הזו ליציאה) לאפס את רצף הכשלים העוקבים של הפרוקסי, כמו בדיקה שנענתה. מושבת כברירת מחדל: דחייה נשארת ניטרלית ושומרת על הרצף. תגובת 5xx נשארת בלתי מכרעת בכל מקרה, ודחייה לעולם אינה מסירה, משביתה או מפעילה מחדש פרוקסי.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "בית",
     "dashboard": "לוח מחוונים",
@@ -6125,6 +6126,7 @@
       "agentrouter": "קבל $200 קרדיט חינם ב-https://agentrouter.org/register — ללא צורך בכרטיס אשראי.",
       "unorouter": "צור מפתח API ב- https://unorouter.ai, ואז הדבק אותו כאן כטוקן Bearer.",
       "agnes": "קבל מפתח API ב-agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "המסלול החינמי הושהה (2026) — AI/ML API פועל כעת במודל של תשלום לפי שימוש בלבד (טעינה מינימלית של $20); אין קרדיטים חינמיים חוזרים.",
       "ai21": "$10 קרדיט ניסיון בהרשמה (בתוקף ל-3 חודשים), ללא צורך בכרטיס אשראי",
       "alibaba": "חבר את Alibaba באמצעות מפתח API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "ביקורת MCP (ימים)",
     "retentionA2aEvents": "אירועי A2A (ימים)",
     "retentionCallLogs": "יומני שיחות (ימים)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "היסטוריית שימוש (ימים)",
     "retentionMemoryEntries": "ערכי זיכרון (ימים)",
     "retentionXpAuditLog": "יומן ביקורת XP (ימים)",

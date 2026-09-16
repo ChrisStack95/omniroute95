@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxypools en de rotatie per account van opencode zorgen ervoor dat een proxy die zojuist is mislukt (geweigerde TCP-probe of een 429 die via de proxy is ontvangen) gedurende een periode per proces niet opnieuw wordt aangeboden. Deze periode verdubbelt bij elke herhaling, tot een maximum. Er wordt geen proxystatus opgeslagen; wanneer elke kandidaat terzijde is geschoven, blijft de keuze ongewijzigd. Standaard uitgeschakeld: de selectievolgorde is exact gelijk aan de gewone rotatie.",
   "featureFlagProxyPoolEgressObservationDescription": "Toon onder een proxypool in het dashboard hoeveel waargenomen uitgaande IP-adressen de leden ervan in de afgelopen 24 uur hebben bediend, hoeveel verbindingen deze hebben gebruikt en hoeveel verbindingen maximaal achter één IP zijn waargenomen. Alleen-lezen, berekend op basis van het proxylogboek en nooit gebruikt voor routering. Standaard uitgeschakeld: de pooleditor blijft ongewijzigd en de observatieroute antwoordt met null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Laat bij de proxygezondheidscontrole een probe die door het doel is geweigerd (401/403/429: de proxy heeft doorgestuurd, maar de bestemming heeft dit uitgaande IP-adres geweigerd) de reeks opeenvolgende fouten van de proxy resetten, net als een geslaagde probe. Standaard uitgeschakeld: een weigering blijft neutraal en behoudt de reeks. Een 5xx blijft in beide gevallen onbeslist, en een weigering verwijdert, deactiveert of heractiveert een proxy nooit.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Thuis",
     "dashboard": "Dashboard",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Ontvang $200 gratis tegoed op https://agentrouter.org/register — geen creditcard vereist.",
       "unorouter": "Maak een API-sleutel aan op https://unorouter.ai en plak deze hier als een Bearer-token.",
       "agnes": "Verkrijg API-sleutel op agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Gratis abonnement gepauzeerd (2026) — AI/ML API is nu alleen pay-as-you-go (min. $20 opwaarderen); geen terugkerend gratis tegoed.",
       "ai21": "$10 proeftegoed bij registratie (3 maanden geldig), geen creditcard vereist",
       "alibaba": "Verbind Alibaba met een API-sleutel.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP-audit (dagen)",
     "retentionA2aEvents": "A2A-evenementen (dagen)",
     "retentionCallLogs": "Oproeplogboeken (dagen)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Gebruiksgeschiedenis (dagen)",
     "retentionMemoryEntries": "Geheugeninvoer (dagen)",
     "retentionXpAuditLog": "XP-auditlog (dagen)",

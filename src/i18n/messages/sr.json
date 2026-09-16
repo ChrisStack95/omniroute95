@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Прокси скупови и ротација по налогу у opencode престају да поново користе прокси који је управо отказао (одбијена TCP провера или одговор 429 примљен преко њега) током периода на нивоу процеса који се удвостручује при сваком понављању, до задате горње границе. Статус проксија се не уписује; када су сви кандидати издвојени, избор остаје непромењен. Подразумевано је искључено: редослед избора је потпуно исти као код обичне ротације.",
   "featureFlagProxyPoolEgressObservationDescription": "У контролној табли, испод прокси скупа, прикажите колико је уочених излазних IP адреса опслуживало његове чланове током последња 24 ч, колико их је веза користило и највећи број веза забележен иза једне IP адресе. Само за читање, израчунава се из евиденције проксија и никада се не користи за усмеравање. Подразумевано је искључено: уређивач скупа остаје непромењен, а рута за посматрање враћа null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "У провери исправности проксија омогућите да провера коју је циљ одбио (401/403/429: прокси је проследио захтев, а одредиште је одбило ову излазну IP адресу) ресетује низ узастопних неуспеха проксија, као и успешно опслужена провера. Подразумевано је искључено: одбијање остаје неутрално и задржава низ. Одговор 5xx у оба случаја остаје неодређен, а одбијање никада не уклања, не онемогућава нити поново активира прокси.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Почетна",
     "dashboard": "Контролна табла",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Ostvarite besplatnih 200$ kredita na https://agentrouter.org/register — kreditna kartica nije potrebna.",
       "unorouter": "Napravite API ključ na https://unorouter.ai, zatim ga ovde nalepite kao Bearer token.",
       "agnes": "Preuzmite API ključ na agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Besplatni nivo pauziran (2026) — AI/ML API je sada samo plaćanje po korišćenju (min. dopuna 20$); nema stalnih besplatnih kredita.",
       "ai21": "10$ probnih kredita pri registraciji (važi 3 meseca), kreditna kartica nije potrebna",
       "alibaba": "Povežite Alibaba pomoću API ključa.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP ревизија (дани)",
     "retentionA2aEvents": "A2A догађаји (дани)",
     "retentionCallLogs": "Евиденције позива (дани)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Историја коришћења (дани)",
     "retentionMemoryEntries": "Ставке меморије (дани)",
     "retentionXpAuditLog": "XP лог ревизије (дани)",

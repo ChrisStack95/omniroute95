@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxypooler och opencodes rotation per konto slutar att återanvända en proxy som nyss misslyckades (nekad TCP-kontroll eller ett 429-svar som togs emot via den) under en processpecifik period som fördubblas vid varje upprepat fel, upp till en maxgräns. Ingen proxystatus skrivs; om alla kandidater läggs åt sidan förblir valet oförändrat. Avstängt som standard: urvalsordningen följer exakt den vanliga rotationen.",
   "featureFlagProxyPoolEgressObservationDescription": "Visa under en proxypool på instrumentpanelen hur många observerade utgående IP-adresser som betjänade dess medlemmar under de senaste 24 timmarna, hur många anslutningar som använde dem och det högsta antalet som observerades bakom en och samma IP-adress. Skrivskyddat, beräknat från proxyloggen och används aldrig för dirigering. Avstängt som standard: poolredigeraren är oförändrad och observationsrutten returnerar null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Låt en kontroll som avvisades av målet (401/403/429: proxyn vidarebefordrade begäran men destinationen avvisade den utgående IP-adressen) nollställa proxyns serie av på varandra följande fel i proxyhälsokontrollen, precis som en betjänad kontroll. Avstängt som standard: ett avvisande förblir neutralt och bibehåller serien. Ett 5xx-svar förblir icke avgörande i båda fallen, och ett avvisande tar aldrig bort, inaktiverar eller återaktiverar en proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Hem",
     "dashboard": "Instrumentpanel",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Få $200 i gratiskrediter på https://agentrouter.org/register — inget kreditkort krävs.",
       "unorouter": "Skapa en API-nyckel på https://unorouter.ai, klistra sedan in den här som en Bearer-token.",
       "agnes": "Hämta API-nyckel på agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Gratisnivån pausad (2026) — AI/ML API är nu endast pay-as-you-go (minst $20 påfyllning); inga återkommande gratiskrediter.",
       "ai21": "$10 i testkrediter vid registrering (giltiga i 3 månader), inget kreditkort krävs",
       "alibaba": "Anslut Alibaba med en API-nyckel.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP-revision (dagar)",
     "retentionA2aEvents": "A2A-evenemang (dagar)",
     "retentionCallLogs": "Samtalsloggar (dagar)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Användningshistorik (dagar)",
     "retentionMemoryEntries": "Minnesposter (dagar)",
     "retentionXpAuditLog": "XP-granskningslogg (dagar)",

@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Starpniekserveru pūli un opencode konta līmeņa rotācija uz katru procesu uz noteiktu laiku pārtrauc atkārtoti izmantot starpniekserveri, kas tikko cieta kļūmi (noraidīta TCP pārbaude vai caur to saņemts 429); šis laiks pēc katras atkārtotas kļūmes dubultojas līdz noteiktajam maksimumam. Starpniekservera statuss netiek ierakstīts; ja visi kandidāti ir atlikti malā, izvēle paliek nemainīga. Pēc noklusējuma izslēgts: atlases secība precīzi atbilst parastajai rotācijai.",
   "featureFlagProxyPoolEgressObservationDescription": "Informācijas panelī zem starpniekserveru pūla rādīt, cik novēroto izejošo IP adrešu pēdējo 24 h laikā apkalpoja tā dalībniekus, cik savienojumu tās izmantoja un lielāko aiz vienas IP adreses novēroto skaitu. Tikai lasāms, aprēķināts no starpniekserveru žurnāla un nekad netiek izmantots maršrutēšanai. Pēc noklusējuma izslēgts: pūla redaktors paliek nemainīgs, un novērojumu maršruts atgriež null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Starpniekserveru darbspējas pārbaudē ļaut mērķa noraidītai pārbaudei (401/403/429: starpniekserveris pārsūtīja pieprasījumu, bet galamērķis noraidīja šo izejošo IP adresi) atiestatīt starpniekservera secīgo kļūmju sēriju tāpat kā apkalpotai pārbaudei. Pēc noklusējuma izslēgts: noraidījums paliek neitrāls un saglabā kļūmju sēriju. 5xx jebkurā gadījumā paliek nepārliecinošs, un noraidījums nekad neizraisa starpniekservera noņemšanu, atspējošanu vai atkārtotu aktivizēšanu.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Sākums",
     "dashboard": "Panelis",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Iegūstiet 200 USD bezmaksas kredītus https://agentrouter.org/register — kredītkarte nav nepieciešama.",
       "unorouter": "Izveidojiet API atslēgu https://unorouter.ai un pēc tam ielīmējiet to šeit kā Bearer tokenu.",
       "agnes": "Iegūstiet API atslēgu agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Bezmaksas plāns pauzēts (2026) — AI/ML API tagad ir tikai maksas pēc lietojuma (min. iemaksa 20 USD); atkārtoti bezmaksas kredīti nav pieejami.",
       "ai21": "10 USD izmēģinājuma kredīti pēc reģistrācijas (derīgi 3 mēnešus), kredītkarte nav nepieciešama",
       "alibaba": "Savienojiet Alibaba ar API atslēgu.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP audita žurnāls (dienas)",
     "retentionA2aEvents": "A2A notikumi (dienas)",
     "retentionCallLogs": "Zvanu žurnāli (dienas)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Lietojuma vēsture (dienas)",
     "retentionMemoryEntries": "Atmiņas ieraksti (dienas)",
     "retentionXpAuditLog": "XP audita žurnāls (dienas)",

@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "พูลพร็อกซีและการหมุนเวียนต่อบัญชีของ opencode จะหยุดนำพร็อกซีที่เพิ่งล้มเหลว (ปฏิเสธการตรวจสอบ TCP หรือได้รับ 429 ผ่านพร็อกซีนั้น) กลับมาให้บริการซ้ำเป็นระยะเวลาต่อโปรเซส ซึ่งจะเพิ่มเป็นสองเท่าทุกครั้งที่เกิดซ้ำจนถึงขีดจำกัด โดยจะไม่มีการบันทึกสถานะพร็อกซี และหากตัวเลือกทั้งหมดถูกพักไว้ การเลือกจะไม่เปลี่ยนแปลง ปิดไว้โดยค่าเริ่มต้น: ลำดับการเลือกจะเป็นการหมุนเวียนแบบปกติทุกประการ",
   "featureFlagProxyPoolEgressObservationDescription": "แสดงใต้พูลพร็อกซีในแดชบอร์ดว่ามี IP ขาออกที่ตรวจพบกี่รายการซึ่งให้บริการสมาชิกของพูลในช่วง 24 h ที่ผ่านมา มีการเชื่อมต่อผ่าน IP เหล่านั้นกี่ครั้ง และจำนวนสูงสุดที่พบหลัง IP เดียว ข้อมูลนี้เป็นแบบอ่านอย่างเดียว คำนวณจากบันทึกพร็อกซี และไม่เคยนำไปใช้กำหนดเส้นทาง ปิดไว้โดยค่าเริ่มต้น: ตัวแก้ไขพูลจะไม่เปลี่ยนแปลง และเส้นทางการสังเกตการณ์จะตอบกลับเป็น null",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "ในการกวาดตรวจสุขภาพพร็อกซี ให้การตรวจสอบที่ถูกเป้าหมายปฏิเสธ (401/403/429: พร็อกซีส่งต่อสำเร็จ แต่ปลายทางปฏิเสธ IP ขาออกนี้) รีเซ็ตจำนวนความล้มเหลวต่อเนื่องของพร็อกซีได้เช่นเดียวกับการตรวจสอบที่ได้รับการให้บริการ ปิดไว้โดยค่าเริ่มต้น: การปฏิเสธจะยังคงเป็นกลางและคงจำนวนความล้มเหลวต่อเนื่องไว้ 5xx ยังคงถือว่าไม่สามารถสรุปผลได้ในทั้งสองกรณี และการปฏิเสธจะไม่ลบ ปิดใช้งาน หรือเปิดใช้งานพร็อกซีอีกครั้ง",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "บ้าน",
     "dashboard": "แดชบอร์ด",
@@ -6125,6 +6126,7 @@
       "agentrouter": "รับเครดิตฟรี $200 ที่ https://agentrouter.org/register — ไม่ต้องใช้บัตรเครดิต",
       "unorouter": "สร้าง API key ที่ https://unorouter.ai จากนั้นวางที่นี่เป็น Bearer token.",
       "agnes": "รับคีย์ API ได้ที่ agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "ระงับระดับฟรีชั่วคราว (2026) — ตอนนี้ AI/ML API เป็นแบบจ่ายตามการใช้งานจริงเท่านั้น (เติมเงินขั้นต่ำ $20) ไม่มีเครดิตฟรีที่ได้รับเป็นประจำ",
       "ai21": "เครดิตทดลองใช้งาน $10 เมื่อสมัครใช้งาน (มีอายุ 3 เดือน) ไม่ต้องใช้บัตรเครดิต",
       "alibaba": "เชื่อมต่อ Alibaba ด้วยคีย์ API",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "การตรวจสอบ MCP (วัน)",
     "retentionA2aEvents": "เหตุการณ์ A2A (วัน)",
     "retentionCallLogs": "บันทึกการโทร (วัน)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "ประวัติการใช้งาน (วัน)",
     "retentionMemoryEntries": "รายการหน่วยความจำ (วัน)",
     "retentionXpAuditLog": "บันทึกการตรวจสอบ XP (วัน)",

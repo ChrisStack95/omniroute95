@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Պրոքսի փուլերը և opencode-ի՝ ըստ հաշվի ռոտացիան դադարում են կրկին տրամադրել հենց նոր ձախողված պրոքսին (մերժված TCP ստուգում կամ դրա միջոցով ստացված 429)՝ յուրաքանչյուր գործընթացի համար սահմանված ժամանակահատվածով, որը յուրաքանչյուր կրկնության դեպքում կրկնապատկվում է՝ մինչև առավելագույն սահմանաչափը։ Պրոքսիի որևէ կարգավիճակ չի գրանցվում․ երբ բոլոր թեկնածուները մի կողմ են դրված, ընտրությունը մնում է անփոփոխ։ Լռելյայն անջատված է․ ընտրության հերթականությունը ճշգրտորեն համապատասխանում է սովորական ռոտացիային։",
   "featureFlagProxyPoolEgressObservationDescription": "Վահանակում՝ պրոքսի փուլի տակ, ցույց տալ, թե վերջին 24 ժ-ի ընթացքում քանի դիտարկված ելքային IP է սպասարկել դրա անդամներին, քանի միացում է օգտագործել դրանք, և մեկ IP-ի հետևում առավելագույնը քանիսն է դիտվել։ Միայն կարդալու համար է, հաշվարկվում է պրոքսիի մատյանից և երբեք չի օգտագործվում երթուղավորման համար։ Լռելյայն անջատված է․ փուլի խմբագրիչը մնում է անփոփոխ, իսկ դիտարկման երթուղին վերադարձնում է null։",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Պրոքսիի առողջական վիճակի ստուգման ընթացքում թույլ տալ, որ թիրախի կողմից մերժված ստուգումը (401/403/429․ պրոքսին փոխանցել է հարցումը, իսկ նպատակակետը մերժել է այս ելքային IP-ն) զրոյացնի պրոքսիի հաջորդական ձախողումների շարքը՝ ինչպես սպասարկված ստուգման դեպքում։ Լռելյայն անջատված է․ մերժումը մնում է չեզոք և պահպանում է շարքը։ 5xx-ը երկու դեպքում էլ մնում է անորոշ, իսկ մերժումը երբեք չի հեռացնում, անջատում կամ վերաակտիվացնում պրոքսին։",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Գլխավոր էջ",
     "dashboard": "Կառավարման վահանակ",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Ստացեք $200 անվճար վարկային միջոցներ https://agentrouter.org/register հասցեում․ վարկային քարտ չի պահանջվում։",
       "unorouter": "Ստեղծեք API բանալի https://unorouter.ai կայքում, ապա տեղադրեք այն այստեղ որպես Bearer token։",
       "agnes": "Ստանալ API բանալի agnes-ai.com կայքում",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Անվճար սակագինը դադարեցված է (2026)․ AI/ML API-ն այժմ գործում է միայն ըստ օգտագործման վճարման սկզբունքով (նվազագույնը՝ $20 համալրում), պարբերաբար տրամադրվող անվճար վարկային միջոցներ չկան։",
       "ai21": "Գրանցվելիս տրամադրվում են $10 փորձնական վարկային միջոցներ (վավեր են 3 ամիս), վարկային քարտ չի պահանջվում",
       "alibaba": "Միացնել Alibaba-ն API բանալիով։",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP աուդիտ (օրեր)",
     "retentionA2aEvents": "A2A իրադարձություններ (օրեր)",
     "retentionCallLogs": "Զանգերի մատյաններ (օրեր)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Օգտագործման պատմություն (օրեր)",
     "retentionMemoryEntries": "Հիշողության գրառումներ (օրեր)",
     "retentionXpAuditLog": "XP աուդիտի մատյան (օրեր)",

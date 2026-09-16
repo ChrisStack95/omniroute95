@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Pinipigilan ng mga proxy pool at ng pag-ikot ng opencode sa bawat account na muling gumamit ng proxy na kabibigo lang (tinanggihan ang TCP probe, o nakatanggap ng 429 sa pamamagitan nito) sa loob ng isang panahon para sa bawat proseso na dumodoble sa bawat pag-ulit, hanggang sa itinakdang limitasyon. Walang isinusulat na status ng proxy; kapag isinantabi ang bawat kandidato, hindi nagbabago ang pagpili. Naka-off bilang default: ang pagkakasunod-sunod ng pagpili ay eksaktong gaya ng karaniwang pag-ikot.",
   "featureFlagProxyPoolEgressObservationDescription": "Ipakita sa ilalim ng isang proxy pool sa dashboard kung ilang naobserbahang egress IP ang ginamit ng mga miyembro nito sa nakalipas na 24 h, kung ilang koneksyon ang gumamit sa mga ito, at ang pinakamataas na bilang na nakita sa likod ng isang IP. Read-only, kinukuwenta mula sa proxy log, at hindi kailanman ginagamit sa pagruruta. Naka-off bilang default: hindi nagbabago ang editor ng pool at null ang isinasagot ng route ng obserbasyon.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Sa pagsusuri sa kalagayan ng proxy, hayaan ang isang probe na tinanggihan ng target (401/403/429: ipinasa ito ng proxy, ngunit tinanggihan ng destinasyon ang egress IP na ito) na i-reset ang sunod-sunod na pagkabigo ng proxy, tulad ng isang naihatid na probe. Naka-off bilang default: nananatiling neutral ang pagtanggi at hindi nito binabago ang sunod-sunod na pagkabigo. Nananatiling walang tiyak na resulta ang isang 5xx sa alinmang paraan, at ang pagtanggi ay hindi kailanman nag-aalis, nagdi-disable, o muling nag-a-activate ng proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Bahay",
     "dashboard": "Dashboard",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Kumuha ng $200 na libreng credit sa https://agentrouter.org/register — walang kinakailangang credit card.",
       "unorouter": "Gumawa ng API key sa https://unorouter.ai, pagkatapos ay i-paste ito dito bilang Bearer token.",
       "agnes": "Kumuha ng API key sa agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Naka-pause ang libreng tier (2026) — pay-as-you-go na lang ngayon ang AI/ML API (min $20 na top-up); walang paulit-ulit na libreng credit.",
       "ai21": "$10 na trial credit sa pag-signup (valid nang 3 buwan), walang kinakailangang credit card",
       "alibaba": "Ikonekta ang Alibaba gamit ang isang API key.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP Audit (mga araw)",
     "retentionA2aEvents": "A2A Events (araw)",
     "retentionCallLogs": "Mga Log ng Tawag (mga araw)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Kasaysayan ng Paggamit (mga araw)",
     "retentionMemoryEntries": "Mga Entry ng Memorya (mga araw)",
     "retentionXpAuditLog": "XP Audit Log (mga araw)",

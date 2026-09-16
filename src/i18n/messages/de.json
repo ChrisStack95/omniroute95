@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy-Pools und die kontobasierte Rotation von opencode verwenden einen Proxy, der gerade fehlgeschlagen ist (abgelehnte TCP-Prüfung oder darüber empfangener 429-Statuscode), für einen prozessbezogenen Zeitraum nicht erneut. Dieser Zeitraum verdoppelt sich bei jeder Wiederholung bis zu einer Obergrenze. Es wird kein Proxy-Status gespeichert; wenn alle Kandidaten zurückgestellt wurden, bleibt die Auswahl unverändert. Standardmäßig deaktiviert: Die Auswahlreihenfolge entspricht exakt der einfachen Rotation.",
   "featureFlagProxyPoolEgressObservationDescription": "Zeigt im Dashboard unter einem Proxy-Pool an, wie viele beobachtete Egress-IPs dessen Mitglieder in den letzten 24 h bedient haben, wie viele Verbindungen sie verwendet haben und wie viele maximal hinter einer einzelnen IP beobachtet wurden. Schreibgeschützt, aus dem Proxy-Protokoll berechnet und niemals für das Routing verwendet. Standardmäßig deaktiviert: Der Pool-Editor bleibt unverändert und die Beobachtungsroute gibt null zurück.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Ermöglicht bei der Proxy-Zustandsprüfung, dass eine vom Ziel abgelehnte Prüfung (401/403/429: Der Proxy hat die Anfrage weitergeleitet, das Ziel hat diese Egress-IP abgelehnt) die Serie aufeinanderfolgender Fehler des Proxys zurücksetzt, wie bei einer erfolgreich beantworteten Prüfung. Standardmäßig deaktiviert: Eine Ablehnung bleibt neutral und die Serie wird beibehalten. Ein 5xx-Status bleibt in beiden Fällen nicht aussagekräftig, und eine Ablehnung entfernt, deaktiviert oder reaktiviert niemals einen Proxy.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Zuhause",
     "dashboard": "Dashboard",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Erhalten Sie 200 $ Gratisguthaben unter https://agentrouter.org/register – keine Kreditkarte erforderlich.",
       "unorouter": "Erstellen Sie einen API-Schlüssel unter https://unorouter.ai und fügen Sie ihn dann hier als Bearer-Token ein.",
       "agnes": "API-Schlüssel auf agnes-ai.com abrufen",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Kostenlose Stufe pausiert (2026) – AI/ML API ist jetzt nur noch Pay-as-you-go (mind. 20 $ Aufladung); keine wiederkehrenden Gratisguthaben.",
       "ai21": "10 $ Testguthaben bei Registrierung (3 Monate gültig), keine Kreditkarte erforderlich",
       "alibaba": "Alibaba mit einem API-Schlüssel verbinden.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP-Audit (Tage)",
     "retentionA2aEvents": "A2A-Veranstaltungen (Tage)",
     "retentionCallLogs": "Anrufprotokolle (Tage)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Nutzungsverlauf (Tage)",
     "retentionMemoryEntries": "Speichereinträge (Tage)",
     "retentionXpAuditLog": "XP-Audit-Log (Tage)",

@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Пулы прокси и ротация opencode для каждой учётной записи временно исключают прокси, который только что дал сбой (отклонил проверку TCP или через него был получен ответ 429), на период в рамках процесса, удваивающийся при каждом повторе вплоть до заданного предела. Статус прокси не записывается; если отложены все кандидаты, выбор остаётся прежним. По умолчанию отключено: порядок выбора в точности соответствует обычной ротации.",
   "featureFlagProxyPoolEgressObservationDescription": "Показывать под пулом прокси на панели мониторинга, сколько наблюдаемых исходящих IP-адресов обслуживали его участников за последние 24 ч, сколько подключений их использовали и какое наибольшее число подключений приходилось на один IP-адрес. Только для чтения, вычисляется по журналу прокси и никогда не используется для маршрутизации. По умолчанию отключено: редактор пула остаётся без изменений, а маршрут наблюдений возвращает null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "При проверке работоспособности прокси позволить проверке, отклонённой целевым сервером (401/403/429: прокси передал запрос, но целевой сервер отклонил этот исходящий IP-адрес), сбрасывать счётчик последовательных сбоев прокси, как при успешно обслуженной проверке. По умолчанию отключено: отказ остаётся нейтральным и не сбрасывает счётчик. Ответ 5xx в любом случае остаётся неопределённым, а отказ никогда не удаляет, не отключает и не активирует прокси повторно.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Главная",
     "dashboard": "Панель управления",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Получите бесплатный баланс $200 на https://agentrouter.org/register — кредитная карта не требуется.",
       "unorouter": "Создайте API-ключ на https://unorouter.ai, затем вставьте его сюда в качестве токена Bearer.",
       "agnes": "Получите API-ключ на agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Бесплатный тариф приостановлен (2026) — AI/ML API теперь работает только по предоплате (минимальное пополнение $20); регулярные бесплатные кредиты отсутствуют.",
       "ai21": "Пробный баланс $10 при регистрации (действителен 3 месяца), кредитная карта не требуется",
       "alibaba": "Подключите Alibaba с помощью API-ключа.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Аудит MCP (дни)",
     "retentionA2aEvents": "События A2A (дни)",
     "retentionCallLogs": "Журналы вызовов (дни)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "История использования (дни)",
     "retentionMemoryEntries": "Записи в памяти (дни)",
     "retentionXpAuditLog": "Журнал аудита XP (дни)",

@@ -833,4 +833,16 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     requiresRestart: false,
     warningLevel: "info",
   },
+  {
+    key: "XAI_OAUTH_LIVE_MODEL_DISCOVERY",
+    label: "xAI OAuth Live Model Discovery",
+    description:
+      "Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed (unverified whether x.ai accepts an OAuth bearer at this endpoint).",
+    descriptionI18nKey: "featureFlagXaiOauthLiveModelDiscoveryDescription",
+    category: "runtime",
+    defaultValue: "false",
+    type: "boolean",
+    requiresRestart: false,
+    warningLevel: "caution",
+  },
 ];

@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Kumpulan proksi dan penggiliran opencode bagi setiap akaun akan berhenti menyediakan semula proksi yang baru sahaja gagal (menolak probe TCP atau menerima 429 melaluinya) untuk tempoh setiap proses yang berganda pada setiap kegagalan berulang, sehingga had maksimum. Tiada status proksi direkodkan; apabila setiap calon diketepikan, pilihan tidak berubah. Dimatikan secara lalai: susunan pemilihan adalah sama seperti penggiliran biasa.",
   "featureFlagProxyPoolEgressObservationDescription": "Tunjukkan, di bawah kumpulan proksi dalam papan pemuka, bilangan IP keluar yang diperhatikan telah digunakan oleh ahlinya sepanjang 24 jam yang lalu, bilangan sambungan yang menggunakannya dan bilangan terbanyak yang dilihat di sebalik satu IP. Baca sahaja, dikira daripada log proksi dan tidak pernah digunakan untuk penghalaan. Dimatikan secara lalai: editor kumpulan tidak berubah dan laluan pemerhatian memberikan null.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Dalam imbasan kesihatan proksi, benarkan probe yang ditolak oleh sasaran (401/403/429: proksi telah menyampaikan permintaan, tetapi destinasi menolak IP keluar ini) menetapkan semula rentetan kegagalan berturut-turut proksi, seperti probe yang berjaya disediakan. Dimatikan secara lalai: penolakan kekal neutral dan mengekalkan rentetan tersebut. 5xx kekal tidak muktamad dalam kedua-dua keadaan dan penolakan tidak akan mengalih keluar, menyahdayakan atau mengaktifkan semula proksi.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "Rumah",
     "dashboard": "Papan pemuka",
@@ -6125,6 +6126,7 @@
       "agentrouter": "Dapatkan kredit percuma $200 di https://agentrouter.org/register — tiada kad kredit diperlukan.",
       "unorouter": "Buat kunci API di https://unorouter.ai, kemudian tampal di sini sebagai token Bearer.",
       "agnes": "Dapatkan kunci API di agnes-ai.com",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "Peringkat percuma dijeda (2026) — AI/ML API kini bayar semasa guna sahaja (tambah nilai minimum $20); tiada kredit percuma berulang.",
       "ai21": "Kredit percubaan $10 semasa pendaftaran (sah 3 bulan), tiada kad kredit diperlukan",
       "alibaba": "Sambungkan Alibaba dengan kunci API.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "Audit MCP (hari)",
     "retentionA2aEvents": "Acara A2A (hari)",
     "retentionCallLogs": "Log Panggilan (hari)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "Sejarah Penggunaan (hari)",
     "retentionMemoryEntries": "Entri Memori (hari)",
     "retentionXpAuditLog": "Log Audit XP (hari)",

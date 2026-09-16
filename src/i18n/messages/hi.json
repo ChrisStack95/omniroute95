@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "Proxy पूल और opencode का प्रति-अकाउंट रोटेशन, हाल ही में विफल हुए Proxy (अस्वीकृत TCP प्रोब या उसके माध्यम से प्राप्त 429) को प्रति-प्रोसेस अवधि तक दोबारा उपयोग नहीं करता है। यह अवधि हर बार विफलता दोहराए जाने पर दोगुनी होती है, एक अधिकतम सीमा तक। Proxy की कोई स्थिति लिखी नहीं जाती; प्रत्येक उम्मीदवार को अलग रखे जाने पर चयन अपरिवर्तित रहता है। डिफ़ॉल्ट रूप से बंद: चयन क्रम बिल्कुल सामान्य रोटेशन जैसा रहता है।",
   "featureFlagProxyPoolEgressObservationDescription": "डैशबोर्ड में किसी Proxy पूल के अंतर्गत दिखाएँ कि पिछले 24 घंटों में कितने देखे गए एग्रेस IP ने उसके सदस्यों को सेवा दी, कितने कनेक्शनों ने उनका उपयोग किया और एक IP के पीछे अधिकतम कितने देखे गए। केवल पढ़ने योग्य, Proxy लॉग से परिकलित और रूटिंग के लिए कभी उपयोग नहीं किया जाता। डिफ़ॉल्ट रूप से बंद: पूल एडिटर अपरिवर्तित रहता है और ऑब्ज़र्वेशन रूट null लौटाता है।",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "Proxy हेल्थ स्वीप में, लक्ष्य द्वारा अस्वीकृत प्रोब (401/403/429: Proxy ने इसे रिले किया, लेकिन गंतव्य ने इस एग्रेस IP को अस्वीकार किया) को, सेवा दिए गए प्रोब की तरह, Proxy की लगातार-विफलता शृंखला रीसेट करने दें। डिफ़ॉल्ट रूप से बंद: अस्वीकृति तटस्थ रहती है और शृंखला को बनाए रखती है। 5xx दोनों ही स्थितियों में अनिर्णायक रहता है, और कोई अस्वीकृति कभी भी Proxy को हटाती, अक्षम या फिर से सक्रिय नहीं करती।",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "घर",
     "dashboard": "डैशबोर्ड",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register पर $200 के मुफ्त क्रेडिट प्राप्त करें — किसी क्रेडिट कार्ड की आवश्यकता नहीं है।",
       "unorouter": "https://unorouter.ai पर एक API कुंजी बनाएं, फिर इसे यहां Bearer टोकन के रूप में पेस्ट करें।",
       "agnes": "agnes-ai.com पर API कुंजी प्राप्त करें",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "मुफ्त टियर निलंबित (2026) — AI/ML API अब केवल पे-एज़-यू-गो है (न्यूनतम $20 टॉप-अप); कोई आवर्ती मुफ्त क्रेडिट नहीं।",
       "ai21": "साइनअप पर $10 का ट्रायल क्रेडिट (3 महीने के लिए वैध), किसी क्रेडिट कार्ड की आवश्यकता नहीं",
       "alibaba": "Alibaba को एक API कुंजी से कनेक्ट करें।",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "एमसीपी ऑडिट (दिन)",
     "retentionA2aEvents": "A2A इवेंट (दिन)",
     "retentionCallLogs": "कॉल लॉग्स (दिन)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "उपयोग इतिहास (दिन)",
     "retentionMemoryEntries": "मेमोरी प्रविष्टियाँ (दिन)",
     "retentionXpAuditLog": "XP ऑडिट लॉग (दिन)",

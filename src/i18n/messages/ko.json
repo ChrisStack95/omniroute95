@@ -996,6 +996,7 @@
   "featureFlagProxySkipRecentlyFailedDescription": "프록시 풀과 opencode의 계정별 로테이션은 방금 실패한 프록시(TCP 프로브 거부 또는 해당 프록시를 통해 429 응답 수신)를 프로세스별 유예 기간 동안 다시 제공하지 않습니다. 이 기간은 실패가 반복될 때마다 두 배로 늘어나며 상한이 있습니다. 프록시 상태는 기록되지 않으며, 모든 후보가 제외되면 선택 결과는 변경되지 않습니다. 기본적으로 꺼져 있으며, 선택 순서는 일반 로테이션과 정확히 같습니다.",
   "featureFlagProxyPoolEgressObservationDescription": "대시보드의 프록시 풀 아래에 지난 24시간 동안 해당 풀의 구성원에 사용된 것으로 관찰된 송신 IP 수, 이를 사용한 연결 수, 단일 IP에서 관찰된 최대 연결 수를 표시합니다. 읽기 전용이며 프록시 로그에서 계산되고 라우팅에는 절대 사용되지 않습니다. 기본적으로 꺼져 있으며, 풀 편집기는 변경되지 않고 관찰 라우트는 null을 반환합니다.",
   "featureFlagProxyHealthBlockedResetsStreakDescription": "프록시 상태 점검에서 대상이 거부한 프로브(401/403/429: 프록시는 전달했지만 대상이 이 송신 IP를 거부함)가 정상 처리된 프로브처럼 프록시의 연속 실패 횟수를 초기화하도록 합니다. 기본적으로 꺼져 있으며, 거부는 중립으로 유지되어 연속 실패 횟수에 영향을 주지 않습니다. 어느 경우든 5xx는 판단 불가로 유지되며, 거부로 인해 프록시가 제거, 비활성화 또는 재활성화되는 일은 없습니다.",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
   "sidebar": {
     "home": "홈",
     "dashboard": "대시보드",
@@ -6125,6 +6126,7 @@
       "agentrouter": "https://agentrouter.org/register에서 $200 무료 크레딧을 받으세요 — 신용카드가 필요하지 않습니다.",
       "unorouter": "https://unorouter.ai에서 API 키를 생성한 후, 여기에 Bearer 토큰으로 붙여넣으세요.",
       "agnes": "agnes-ai.com에서 API 키를 받으세요.",
+      "agnes-cn": "Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "무료 티어 일시 중단(2026년) — AI/ML API는 이제 종량제(최소 $20 충전)로만 제공되며, 정기적인 무료 크레딧은 제공되지 않습니다.",
       "ai21": "가입 시 $10 체험 크레딧 제공(3개월간 유효), 신용카드 필요 없음",
       "alibaba": "API 키로 Alibaba를 연결합니다.",
@@ -7764,6 +7766,7 @@
     "retentionMcpAudit": "MCP 감사(일)",
     "retentionA2aEvents": "A2A 이벤트(일)",
     "retentionCallLogs": "호출 로그(일)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "이용내역(일)",
     "retentionMemoryEntries": "메모리 항목(일)",
     "retentionXpAuditLog": "XP 감사 로그 보존 기간(일)",
