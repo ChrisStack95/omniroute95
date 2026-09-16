@@ -28,8 +28,39 @@ export type CompressionWorkerMessage =
   | { id: number; type: "result"; result: CompressionResult }
   | { id: number; type: "error"; error: string };
 
+function isPlainObject(value: object): value is Record<string, unknown> {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+// `seen` tracks only the current recursion PATH (ancestors), not every node ever visited:
+// add before descending, remove after returning. That way a real cycle (a node reachable
+// from itself) is still rejected, but two sibling branches that happen to reference the
+// SAME non-cyclic sub-object (a false positive with a globally-shared `seen` set) are not.
+export function isStrictlySerializable(value: unknown, seen = new Set<object>()): boolean {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    typeof value === "number"
+  ) {
+    return typeof value !== "number" || Number.isFinite(value);
+  }
+  if (typeof value !== "object") return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) return value.every((entry) => isStrictlySerializable(entry, seen));
+    if (!isPlainObject(value)) return false;
+    return Object.values(value).every((entry) => isStrictlySerializable(entry, seen));
+  } finally {
+    seen.delete(value);
+  }
+}
+
 const WORKER_STACK_ENGINES = new Set(["caveman", "rtk", "standard"]);
 export function isCompressionWorkerEligible(
+  body: Record<string, unknown>,
   mode: CompressionMode,
   options?: CompressionWorkerOptions
 ): boolean {
@@ -46,5 +77,5 @@ export function isCompressionWorkerEligible(
       return false;
     }
   }
-  return true;
+  return isStrictlySerializable({ body, mode, ...(options ? { options } : {}) });
 }

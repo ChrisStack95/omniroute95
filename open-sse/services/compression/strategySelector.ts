@@ -537,13 +537,16 @@ async function runCompressionAsync(
       }
     : undefined;
   const { isCompressionWorkerEligible } = await import("./compressionWorkerProtocol.ts");
-  if (isCompressionWorkerEligible(mode, workerOptions)) {
+  if (isCompressionWorkerEligible(body, mode, workerOptions)) {
     try {
       const { runCompressionInWorker } = await import("./compressionWorkerPool.ts");
       return await runCompressionInWorker(body, mode, workerOptions, options?.onEngineStep);
     } catch {
-      // Worker failed (timeout, postMessage rejection, etc.) — fall through to inline
-      // compression so the request is still compressed rather than shipped raw.
+      // Worker failed (timeout, postMessage rejection, etc.) — a timeout means the
+      // compression was too heavy for the worker's budget, so falling through to run
+      // the SAME heavy compression synchronously on the main event loop would defeat
+      // the point of offloading it. Ship the body uncompressed instead.
+      return { body, compressed: false, stats: null };
     }
   }
   if (

@@ -3,6 +3,7 @@ import { after, describe, it } from "node:test";
 import { Worker } from "node:worker_threads";
 import {
   isCompressionWorkerEligible,
+  isStrictlySerializable,
 } from "../../../open-sse/services/compression/compressionWorkerProtocol.ts";
 import {
   closeCompressionWorkerPoolForTests,
@@ -62,15 +63,15 @@ after(() => closeCompressionWorkerPoolForTests());
 
 describe("compression worker eligibility", () => {
   it("accepts only standard, rtk, and approved rtk+caveman stacks", () => {
-    assert.equal(isCompressionWorkerEligible("standard", { config }), true);
-    assert.equal(isCompressionWorkerEligible("rtk", { config }), true);
-    assert.equal(isCompressionWorkerEligible("stacked", { config }), true);
+    assert.equal(isCompressionWorkerEligible(body, "standard", { config }), true);
+    assert.equal(isCompressionWorkerEligible(body, "rtk", { config }), true);
+    assert.equal(isCompressionWorkerEligible(body, "stacked", { config }), true);
     for (const mode of ["off", "lite", "aggressive", "ultra", "omniglyph"] as const) {
-      assert.equal(isCompressionWorkerEligible(mode, { config }), false);
+      assert.equal(isCompressionWorkerEligible(body, mode, { config }), false);
     }
     for (const engine of ["llmlingua", "omniglyph", "ccr", "session-dedup", "ultra"]) {
       assert.equal(
-        isCompressionWorkerEligible("stacked", {
+        isCompressionWorkerEligible(body, "stacked", {
           config: { ...config, stackedPipeline: [{ engine }] } as CompressionConfig,
         }),
         false
@@ -78,15 +79,42 @@ describe("compression worker eligibility", () => {
     }
   });
 
-  it("does not reject bodies with undefined values or shared sub-objects", () => {
-    // undefined in optional fields — previously rejected by isStrictlySerializable
-    const bodyWithUndefined = { model: "gpt-test", messages: [], extra: undefined };
-    assert.equal(isCompressionWorkerEligible("standard"), true);
+  it("rejects functions, symbols, classes, special objects, cycles, and non-finite numbers", () => {
+    for (const value of [
+      () => undefined,
+      Symbol("x"),
+      new Date(),
+      new Map(),
+      new Set(),
+      /x/,
+      NaN,
+      Infinity,
+    ]) {
+      assert.equal(isStrictlySerializable(value), false);
+    }
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    assert.equal(isStrictlySerializable(cyclic), false);
+  });
 
-    // shared (non-cyclic) sub-object — previously misread as a cycle
+  it("#13154: does not misread a shared (non-cyclic) sub-object referenced by two sibling branches as a cycle", () => {
+    // Original bug: a single `seen` set shared across the whole recursion tree (never
+    // backtracked) meant visiting the SAME object twice via two different, non-cyclic
+    // paths (e.g. two messages both pointing at the same cached template object) was
+    // indistinguishable from a real cycle. Path-based tracking (add before descending,
+    // delete after) must treat this as eligible.
     const shared = { nested: true };
     const sharedBody = { messages: [shared, shared] };
-    assert.equal(isCompressionWorkerEligible("standard"), true);
+    assert.equal(isStrictlySerializable(sharedBody), true);
+    assert.equal(isCompressionWorkerEligible(sharedBody, "standard", { config }), true);
+  });
+
+  it("still rejects a body with a genuine cycle before it ever reaches postMessage", () => {
+    const cyclicMessage: Record<string, unknown> = { role: "user" };
+    cyclicMessage.self = cyclicMessage;
+    const cyclicBody = { messages: [cyclicMessage] };
+    assert.equal(isStrictlySerializable(cyclicBody), false);
+    assert.equal(isCompressionWorkerEligible(cyclicBody, "standard", { config }), false);
   });
 });
 
