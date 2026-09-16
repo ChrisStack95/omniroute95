@@ -8,6 +8,7 @@ import { ProxyStatusBadge } from "./ProxyStatusBadge";
 import { ProxyHealthCell } from "./ProxyHealthCell";
 import { ProxyBatchActions } from "./ProxyBatchActions";
 import { ProxyCheckboxCell } from "./ProxyCheckboxCell";
+import { PoolEgressObservation } from "./PoolEgressObservation";
 import {
   parseBulkImportText,
   type ParsedProxyEntry,
@@ -1238,6 +1239,7 @@ import {
                 <label className="text-xs text-text-muted mb-1 block">
                   {t("poolMembersLabel", { count: poolMembers.length })}
                 </label>
+                <PoolEgressObservation query={poolQuery()} />
                 {poolMembers.length === 0 ? (
                   <div className="text-sm text-text-muted px-3 py-2 rounded border border-border bg-bg-subtle">
                     {t("poolNoMembers")}

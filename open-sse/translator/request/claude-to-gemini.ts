@@ -15,6 +15,7 @@ import {
   buildChangedToolNameMap,
   buildHistoricalToolResultContext,
   mergeConsecutiveSameRoleContents,
+  ensureHistoryDoesNotOpenWithFunctionCall,
   type GeminiContent,
 } from "./openai-to-gemini/helpers.ts";
 
@@ -311,6 +312,9 @@ export function claudeToGeminiRequest(model, body, stream, credentials = null) {
   // (400 INVALID_ARGUMENT: "Request contains consecutive messages with the same role").
   // Normalize adjacent same-role messages by concatenating their parts.
   result.contents = mergeConsecutiveSameRoleContents(result.contents);
+  // Guard the one alternation violation the merge above cannot reach: history
+  // that opens with a functionCall-bearing turn instead of a user turn.
+  result.contents = ensureHistoryDoesNotOpenWithFunctionCall(result.contents);
 
   return result;
 }

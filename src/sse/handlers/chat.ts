@@ -98,7 +98,7 @@ import {
   handleNoCredentials,
   safeResolveProxy,
   safeLogEvents,
-  applyExecutorProxyToInfo,
+  mergeAppliedProxySink,
   shouldRetryStreamEarlyEof,
   isEarlyEofSiblingFailoverOn,
   withSessionHeader,
@@ -1929,7 +1929,7 @@ async function handleSingleModelChat(
       }
       // #5217: sink for the proxy the executor pins internally (e.g. OpencodeExecutor
       // rotation) so the egress log below reflects the real egress, not "direct".
-      const appliedProxySink: { proxy: unknown } = { proxy: null };
+      const appliedProxySink: { proxy: unknown; upstreamStatus?: number } = { proxy: null };
       const proxyStartTime = Date.now();
       // 4. Execute chat via core after breaker gate checks (with optional TLS tracking)
       if (telemetry) telemetry.startPhase("connect");
@@ -2000,7 +2000,7 @@ async function handleSingleModelChat(
       // #5217: reflect the proxy the executor actually applied (per-account rotation).
       void safeLogEvents({
         result,
-        proxyInfo: applyExecutorProxyToInfo(proxyInfo, appliedProxySink.proxy),
+        proxyInfo: mergeAppliedProxySink(proxyInfo, appliedProxySink),
         proxyLatency,
         provider,
         model,

@@ -703,7 +703,7 @@
     "noAnomaliesDetected": "ምንም ያልተለመደ ሁኔታ አልተገኘም",
     "apiKey": "API ቁልፍ",
     "xpLastHour": "XP (1 ሰዓት)",
-    "zScore": "Z-Score",
+    "zScore": "Z-ውጤት",
     "suspicious": "አጠራጣሪ",
     "tokensCommunityServers": "የማህበረሰብ አገልጋዮች",
     "tokensServerNamePlaceholder": "የአገልጋይ ስም",
@@ -832,7 +832,7 @@
     "wizardStep3Validate": "አረጋግጥ",
     "wizardStep4Cost": "ወጪ እና ፍጠር",
     "wizardProviderLabel": "አቅራቢ",
-    "wizardEndpointLabel": "Endpoint",
+    "wizardEndpointLabel": "መጨረሻ ነጥብ",
     "wizardModelLabel": "ሞዴል",
     "wizardInputKindJsonl": "JSONL",
     "wizardInputKindCsv": "CSV (እኛ እንቀይረዋለን)",
@@ -901,7 +901,7 @@
     "batchListRemoveCompleted": "ማስወገድ ተጠናቋል",
     "batchListTableStatus": "ሁኔታ",
     "batchListTableId": "ID",
-    "batchListTableEndpoint": "Endpoint",
+    "batchListTableEndpoint": "መጨረሻ ነጥብ",
     "batchListTableModel": "ሞዴል",
     "batchListTableProgress": "ሂደት",
     "batchListTableCreated": "የተፈጠረበት",
@@ -992,6 +992,12 @@
   "featureFlagExposeCcDiscoveryAliasesDescription": "የClaude Code ጌትዌይ ሞዴል ፍለጋ Claude ያልሆኑ ሞዴሎችን እንዲዘረዝር፣ የclaude/&lt;provider&gt;/&lt;model&gt; መስታወት መለያዎችን በ/v1/models ላይ ያስተዋውቁ። ማስጠንቀቂያ፦ በዓለም አቀፍ ደረጃ ሲነቃ ለሁሉም ደንበኞች የካታሎግ ግቤቶችን በእጥፍ ያደርጋል።",
   "featureFlagNoThinkingAliasEnabledDescription": "ለno-think/&lt;provider&gt;/&lt;model&gt; ጌትዌይ ተለዋጭ ስሞች ዋና ማብሪያ/ማጥፊያ። ሲበራ (ነባሪ)፦ /v1/models ለእያንዳንዱ ብቁ የማሰብ ችሎታ ያለው Claude ሞዴል የማያስብ ልዩነትን ያስተዋውቃል፤ እንዲሁም በጥያቄ የተላከ no-think/ መለያ የማመዛዘን ባህሪው ታፍኖ ወደ እውነተኛው ሞዴል ይመለሳል። ሲጠፋ፦ ምንም ልዩነቶች አይተዋወቁም፣ እና no-think/ መለያ እንደ ማንኛውም ሌላ ያልታወቀ የሞዴል መለያ ይቆጠራል። ይህ ሲበራም የእያንዳንዱ ሞዴል ModelSpec.noThinkingAlias የመርጦ መግባት/መውጣት ቅንብር እንደተገበረ ይቆያል።",
   "featureFlagChatVirtualLanesEnabledDescription": "ለአቅራቢ ማሰራጨት በተከራይ ደረጃ የሚላመዱ ምናባዊ የመቀበያ መስመሮችን ያንቁ (#9654)፦ የአንድ ተከራይ ድንገተኛ ጭማሪ ከእንግዲህ በሌላው ላይ 503 ስህተት አያስከትልም። የOMNIROUTE_CHAT_VIRTUAL_LANES የአካባቢ ተለዋዋጭ ከዚህ የዳሽቦርድ ማሻሻያ ቅድሚያ ይኖረዋል፤ ለውጦች አገልጋዩ ዳግም ሲጀመር ተግባራዊ ይሆናሉ።",
+  "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "የዳሽቦርድ አቅራቢ ገጾች፦ ነፃ ባጁን አቅራቢው በሚያከብራቸው ምልክቶች ላይ ብቻ ያሳዩ — የማሳያ ስም ግምታዊ ደንብን፣ ቡሊያን ያልሆኑ የነፃ መስኮችን እና ሰነድ የተደረገለት ነፃ ደረጃ በሌላቸው የተመዘገቡ አቅራቢዎች ላይ ያሉ :free ቅጥያዎችን ያስወግዳል። ማጥፋት ታሪካዊውን የባጅ ደንብ ይጠብቃል።",
+  "featureFlagProxySkipRecentlyFailedDescription": "የፕሮክሲ ፑሎች እና የ opencode የየመለያው ዙር ምርጫ፣ አሁን ያልተሳካን ፕሮክሲ (ውድቅ የተደረገ TCP ሙከራ ወይም በእሱ በኩል የተቀበለ 429) በድጋሚ እንዳያቀርቡ ያደርጋሉ፤ ይህም በእያንዳንዱ ድግግሞሽ እስከ ከፍተኛው ገደብ ድረስ በእጥፍ ለሚጨምር የየሂደቱ ጊዜ ነው። ምንም የፕሮክሲ ሁኔታ አይጻፍም፤ እያንዳንዱ እጩ ወደ ጎን ሲቀመጥ ምርጫው አይለወጥም። በነባሪ ጠፍቷል፦ የምርጫው ቅደም ተከተል ከተለመደው ዙር ምርጫ ጋር በትክክል አንድ ነው።",
+  "featureFlagProxyPoolEgressObservationDescription": "በዳሽቦርዱ ውስጥ ከፕሮክሲ ፑል ሥር፣ ባለፉት 24 ሰዓታት ምን ያህል የታዩ የመውጫ IPዎች አባላቱን እንዳገለገሉ፣ ምን ያህል ግንኙነቶች እንደተጠቀሙባቸው እና ከአንድ IP ጀርባ የታየውን ከፍተኛ ቁጥር አሳይ። ለንባብ ብቻ ነው፣ ከፕሮክሲ ሎጉ ይሰላል፣ ለማዞሪያም ፈጽሞ ጥቅም ላይ አይውልም። በነባሪ ጠፍቷል፦ የፑሉ አርታዒ አይለወጥም፣ የምልከታ መስመሩም null ይመልሳል።",
+  "featureFlagProxyHealthBlockedResetsStreakDescription": "በፕሮክሲ ጤና ፍተሻ ውስጥ፣ ዒላማው ውድቅ ያደረገው ሙከራ (401/403/429፦ ፕሮክሲው አስተላልፏል፣ መዳረሻው ግን ይህን የመውጫ IP ውድቅ አድርጓል) ልክ እንደተሳካ ሙከራ የፕሮክሲውን ተከታታይ የውድቀት ቆጠራ ዳግም እንዲጀምር ፍቀድ። በነባሪ ጠፍቷል፦ ውድቅ መደረጉ ገለልተኛ ሆኖ ይቆያል እና ቆጠራውን እንዳለ ያቆያል። 5xx በሁለቱም ሁኔታ የማያረጋግጥ ሆኖ ይቆያል፣ እና ውድቅ መደረግ ፕሮክሲን ፈጽሞ አያስወግድም፣ አያሰናክልም ወይም ዳግም አያነቃም።",
+  "featureFlagXaiOauthLiveModelDiscoveryDescription": "__MISSING__:Fetch the live xAI model catalog for xai-oauth connections from https://api.x.ai/v1/models using the OAuth bearer token, instead of the frozen static seed. Off by default: xai-oauth keeps serving the static seed unchanged. On any resolution error, discovery falls back to the seed.",
+  "featureFlagDbHealthcheckStartupDeferredEnabledDescription": "__MISSING__:Run the startup database integrity/health check after the server starts accepting requests instead of blocking startup until it completes. Off by default: startup blocks on the check exactly like before this change, so a corrupt database is still caught before the first request is served.",
   "sidebar": {
     "home": "መነሻ",
     "dashboard": "ዳሽቦርድ",
@@ -1025,7 +1031,7 @@
     "embeddedServices": "የተካተቱ አገልግሎቶች",
     "embeddedServicesSubtitle": "አማራጭ አካባቢያዊ አገልግሎቶች",
     "logs": "ምዝግቦች",
-    "webhooks": "Webhooks",
+    "webhooks": "የድር መንጠቆዎች",
     "webhooksSubtitle": "ስለ ክስተቶች ማሳወቂያ ያግኙ",
     "logExport": "ምዝግብ ወደ ውጭ መላክ",
     "logExportSubtitle": "የጥሪ ምዝግቦችን ወደ ውጭ ይላኩ",
@@ -1271,7 +1277,7 @@
     "systemGroup": "ስርዓት",
     "costsOverview": "አጠቃላይ እይታ",
     "costsOverviewSubtitle": "የተጠቃለለ የወጪ ትንተና",
-    "agentBridge": "Agent Bridge",
+    "agentBridge": "የወኪል ድልድይ",
     "agentBridgeSubtitle": "የIDE ወኪል ትራፊክን ጣልቃ ገብቶ ያዝ",
     "trafficInspector": "የትራፊክ መርማሪ",
     "trafficInspectorSubtitle": "ከመተግበሪያዎችዎ የሚመጣውን የጥያቄ እና የምላሽ ትራፊክ ይመርምሩ",
@@ -1314,7 +1320,7 @@
     "noResults": "ምንም ውጤት የለም"
   },
   "webhooks": {
-    "title": "Webhooks",
+    "title": "የድር መንጠቆዎች",
     "description": "ለስርዓት ክስተቶች የHTTP መልሶ ጥሪዎችን ያዋቅሩ።",
     "configuredWebhooks": "የተዋቀሩ Webhooks",
     "configuredWebhooksDesc": "የማድረሻ መጨረሻ ነጥቦችን፣ የተመዘገቡ ክስተቶችን፣ ሁኔታን እና የሙከራ ልከቶችን ያስተዳድሩ።",
@@ -1418,30 +1424,30 @@
       "invalidUrl": "ልክ ያልሆነ የURL ቅርጸት"
     },
     "custom": {
-      "endpointUrl": "Endpoint URL",
+      "endpointUrl": "የመጨረሻ ነጥብ URL",
       "endpointUrlPlaceholder": "https://api.yourdomain.com/webhook",
       "secretKey": "ሚስጥራዊ ቁልፍ",
       "secretKeyPlaceholder": "ሚስጥራዊ ቁልፍ ያስገቡ ወይም በራስ-ሰር እንዲፈጠር ባዶውን ይተዉት",
       "secretKeyHint": "ለማረጋገጫ የpayload ራስጌውን ለመፈረም ያገለግላል።"
     },
     "discord": {
-      "webhookUrl": "Discord Webhook URL",
+      "webhookUrl": "የDiscord የድር መንጠቆ URL",
       "webhookUrlPlaceholder": "https://discord.com/api/webhooks/...",
       "webhookUrlHint": "ከDiscord ቻናልዎ የውህደት ቅንብሮች የተቀዳው webhook URL።",
       "tutorial": "Discord webhook እንዴት እንደሚፈጠር፦"
     },
     "slack": {
-      "webhookUrl": "Slack Webhook URL",
+      "webhookUrl": "የSlack የድር መንጠቆ URL",
       "webhookUrlPlaceholder": "https://hooks.slack.com/services/...",
       "webhookUrlHint": "ከSlack Incoming Webhooks ውህደትዎ የተቀዳው webhook URL።",
       "tutorial": "Slack webhook እንዴት እንደሚፈጠር፦"
     },
     "telegram": {
-      "botToken": "Telegram Bot Token",
+      "botToken": "የTelegram ቦት ቶከን",
       "botTokenPlaceholder": "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ",
       "botTokenHint": "ቦትዎን ሲፈጥሩ ከ@BotFather የተቀበሉት HTTP API token።",
       "chatId": "Telegram Chat ID / ቻናል",
-      "chatIdPlaceholder": "-100123456789 or @channelname",
+      "chatIdPlaceholder": "-100123456789 ወይም @channelname",
       "chatIdHint": "የውይይቱ/ቻናሉ ልዩ የቁጥር መለያ ወይም ይፋዊ የተጠቃሚ ስም።",
       "tutorial": "Telegram webhook እንዴት እንደሚዋቀር፦"
     }
@@ -1811,7 +1817,7 @@
     "topologyLegendRecent": "የቅርብ ጊዜ",
     "topologyLegendError": "ስህተት",
     "oauthLabel": "OAuth",
-    "apiKeyLabel": "API Key",
+    "apiKeyLabel": "የAPI ቁልፍ",
     "requestsShort": "{count} ጥያቄዎች",
     "providerModelsTitle": "{provider} - ሞዴሎች",
     "copiedModel": "ተቀድቷል፦ {model}",
@@ -3984,7 +3990,7 @@
     "modelsCount": "{count, plural, one {# ሞዴል} other {# ሞዴሎች}}",
     "sectionTitle": "የውህደት በይነገጽ",
     "sectionDescription": "ከOpenAI ጋር ተኳሃኝ የሆኑ APIs እና የአሠራር ፕሮቶኮል የመጨረሻ ነጥቦች",
-    "tabApis": "APIs",
+    "tabApis": "APIዎች",
     "tabProtocols": "ፕሮቶኮሎች",
     "tabsAria": "የመጨረሻ ነጥብ ክፍሎች",
     "protocolsTitle": "ፕሮቶኮሎች",
@@ -4045,7 +4051,7 @@
     "tailscaleUrlNotice": "የTailscale .ts.net አድራሻዎን ይጠቀማል። ለመጀመሪያ ጊዜ ሲጠቀሙ መግባት እና የFunnel ፈቃድ ሊያስፈልግ ይችላል።",
     "tailscaleTitle": "Tailscale Funnel",
     "tailscaleNeedsLoginHint": "ይህን ማሽን በTailscale ያረጋግጡ፣ ከዚያም Funnelን ያንቁ።",
-    "tailscaleBinaryPath": "Binary: {path}",
+    "tailscaleBinaryPath": "ሁለትዮሽ፦ {path}",
     "tailscaleLastError": "የመጨረሻው ስህተት፦ {error}",
     "tailscaleInstallTitle": "Tailscaleን ጫን",
     "tailscaleInstallIntro": "Tailscaleን በዚህ ማሽን ላይ ይጭናል እና OmniRoute Funnelን እንዲያነቃ ያዘጋጃል።",
@@ -4123,19 +4129,19 @@
     "vscodeAliasDescriptionError": "በዚህ ክፍለ ጊዜ የCLI ቁልፎችን መጫን ስላልተቻለ ጊዜያዊ ምልክት የያዙ URLs እየታዩ ነው።",
     "vscodeAliasDescriptionLoading": "የCLI ቁልፎች በመጫን ላይ ናቸው። ቁልፍ እስኪገኝ ድረስ ጊዜያዊ ምልክት የያዙ URLs ይታያሉ።",
     "vscodeAliasDescriptionPlaceholder": "ጊዜያዊ ምልክት የያዙ URLs እየታዩ ነው። TOKENን ለመተካት በCLI Tools ውስጥ የAPI ቁልፍ ይፍጠሩ ወይም ያግብሩ።",
-    "vscodeAliasManage": "CLI Tools",
+    "vscodeAliasManage": "የCLI መሣሪያዎች",
     "vscodeAliasBaseLabel": "VS Code መሠረታዊ",
     "vscodeAliasModelsLabel": "VS Code ሞዴሎች",
     "vscodeAliasChatLabel": "VS Code ውይይት",
     "localServer": "አካባቢያዊ አገልጋይ",
-    "cloudOmniroute": "Cloud OmniRoute",
+    "cloudOmniroute": "የደመና OmniRoute",
     "copyUrl": "URL ቅዳ",
     "badgeLoopbackTooltip": "ይህ መዳረሻ በአካባቢው ብቻ ሊደረስበት ይችላል (loopback ብቻ)",
     "badgeAlwaysProtectedTooltip": "ይህ መዳረሻ ሁልጊዜ የተጠበቀ ሲሆን ፈቃድ ይጠይቃል",
     "badgeInternalTooltip": "ይህ ውስጣዊ የስርዓት መዳረሻ ነው",
     "tierAll": "ሁሉም",
     "tierAuth": "ማንነቱ የተረጋገጠ",
-    "tierLoopback": "Loopback",
+    "tierLoopback": "ሉፕባክ",
     "tierAlwaysProtected": "ሁልጊዜ የተጠበቀ",
     "tierPublic": "ይፋዊ",
     "hideInternal": "ውስጣዊውን ደብቅ",
@@ -4172,7 +4178,7 @@
     "obsidianDisable": "ያሰናክሉ",
     "obsidianConfigureMobile": "Obsidian ሞባይልን ያዋቅሩ",
     "obsidianMobileInstructions": "በObsidian ሞባይል ውስጥ፦ ቅንብሮች → ማመሳሰል → WebDAV → የሚከተለውን ያስገቡ፦",
-    "obsidianWebdavUrl": "WebDAV URL",
+    "obsidianWebdavUrl": "የWebDAV URL",
     "obsidianUsername": "የተጠቃሚ ስም",
     "obsidianPassword": "የይለፍ ቃል",
     "obsidianTailscaleHint": "ከሞባይል የሚገናኙ ከሆነ በlocalhost ምትክ የTailscale IPዎን ይጠቀሙ። ሁለቱም መሣሪያዎች በተመሳሳይ Tailscale አውታረ መረብ ላይ መሆን አለባቸው።",
@@ -4603,7 +4609,7 @@
     "enabledSkills": "ነቅቷል",
     "totalExecutions": "አፈጻጸሞች",
     "successRate": "የስኬት መጠን",
-    "marketplaceTab": "Marketplace",
+    "marketplaceTab": "የመተግበሪያዎች ገበያ",
     "applyFilters": "ማጣሪያዎችን ተግብር",
     "popularDefaultsLabel": "ለተመረጠው አቅራቢ በነባሪነት ታዋቂ፦",
     "onMode": "በርቷል",
@@ -4646,7 +4652,7 @@
     "uptime": "የሥራ ጊዜ",
     "memory": "ማህደረ ትውስታ",
     "memoryRss": "ማህደረ ትውስታ (RSS)",
-    "heap": "Heap",
+    "heap": "ሂፕ",
     "cpu": "CPU",
     "database": "የውሂብ ጎታ",
     "version": "ስሪት",
@@ -5206,7 +5212,7 @@
     "selectProvider": "አቅራቢ ይምረጡ",
     "selectedProvider": "የተመረጠ አቅራቢ",
     "authMethod": "የማረጋገጫ ዘዴ",
-    "apiKeyLabel": "API Key",
+    "apiKeyLabel": "API ቁልፍ",
     "apiKeyRequired": "API Key ያስፈልጋል",
     "selectProviderRequired": "እባክዎ አቅራቢ ይምረጡ",
     "enterApiKey": "የእርስዎን API Key ያስገቡ",
@@ -5800,7 +5806,7 @@
     "ccCompatibleLabel": "ከCC ጋር ተኳሃኝ",
     "ccCompatibleModelsDescription": "ከCC ጋር ተኳሃኝ ማስተላለፊያዎች የሞዴል ዝርዝርን አያቀርቡም። ማስተላለፊያዎ የሚቀበላቸውን የClaude ሞዴል መለያዎች ያክሉ።",
     "ccCompatibleNameHint": "ለዚህ ለClaude Code ብቻ የሚያገለግል ማስተላለፊያ የማሳያ ስም።",
-    "ccCompatibleNamePlaceholder": "CC Relay Production",
+    "ccCompatibleNamePlaceholder": "CC Relay ፕሮዳክሽን",
     "ccCompatiblePrefixHint": "እንደ prefix/model-id ባሉ የሞዴል ተለዋጭ ስሞች ውስጥ ይጠቀማል።",
     "ccCompatiblePrefixPlaceholder": "cc",
     "ccCompatibleValidationHint": "ይህን አቅራቢ ለClaude Code ደንበኞች ብቻ ለሚያገለግሉ ማስተላለፊያዎች ይጠቀሙ። OmniRoute እነዚያ ማስተላለፊያዎች እንዲቀበሉት ማንኛውንም ገቢ ጥያቄ ከClaude Code ጋር ወደሚስማማ የሽቦ ቅርጸት ይቀይራል። Claude Code CLIን ብቻ መጠቀም ከፈለጉ ወይም ይህ የማስተላለፊያ ዓይነት ምን ማለት እንደሆነ እርግጠኛ ካልሆኑ፣ በምትኩ መደበኛ ከAnthropic ጋር ተኳሃኝ አቅራቢ ይጠቀሙ።",
@@ -5862,7 +5868,7 @@
     "antigravityClientProfileCli": "CLI",
     "codexFastTierActiveChip": "Codex Fast ደረጃ ንቁ ነው",
     "tierFast": "ፈጣን",
-    "antigravityProjectIdLabel": "Google Cloud Project ID",
+    "antigravityProjectIdLabel": "Google Cloud የፕሮጀክት መታወቂያ",
     "antigravityProjectIdPlaceholder": "my-gcp-project-id",
     "grokWebCookiePlaceholder": "Grok Web ኩኪ ቦታ ያዥ",
     "herokuBaseUrlHint": "Heroku መሠረታዊ URL ፍንጭ",
@@ -6121,6 +6127,7 @@
       "agentrouter": "በhttps://agentrouter.org/register የ$200 ነፃ ክሬዲት ያግኙ — የክሬዲት ካርድ አያስፈልግም።",
       "unorouter": "በhttps://unorouter.ai የAPI ቁልፍ ይፍጠሩ፣ ከዚያም እዚህ እንደ Bearer token ይለጥፉት።",
       "agnes": "የAPI ቁልፍን ከagnes-ai.com ያግኙ",
+      "agnes-cn": "__MISSING__:Connect Agnes AI (China) with an API key issued for api.agnes-ai.cn. Keys from apihub.agnes-ai.com will not work.",
       "aimlapi": "ነፃው ደረጃ ቆሟል (2026) — AI/ML API አሁን በአጠቃቀም መጠን ብቻ የሚከፈል ነው (ቢያንስ $20 መሙላት)፤ ተደጋጋሚ ነፃ ክሬዲት የለም።",
       "ai21": "ሲመዘገቡ $10 የሙከራ ክሬዲት (ለ3 ወራት የሚሰራ)፣ የክሬዲት ካርድ አያስፈልግም",
       "alibaba": "Alibabaን በAPI ቁልፍ ያገናኙ።",
@@ -6363,15 +6370,15 @@
     "checkWebToken": "ቶከኑን አረጋግጥ",
     "huggingchatLabel": "HuggingChat (ነፃ)",
     "huggingchatDesc": "በhuggingface.co/chat በኩል ነፃ የLLM ውይይት",
-    "poeWebLabel": "Poe Web",
+    "poeWebLabel": "Poe ድር",
     "poeWebDesc": "በpoe.com በኩል የብዙ ሞዴሎች ውይይት",
-    "veniceWebLabel": "Venice Web",
+    "veniceWebLabel": "Venice ድር",
     "veniceWebDesc": "በግላዊነት ላይ ያተኮረ የAI ውይይት",
-    "v0VercelWebLabel": "v0 Vercel Web",
+    "v0VercelWebLabel": "v0 Vercel ድር",
     "v0VercelWebDesc": "በv0.dev በኩል የAI ኮድ ማመንጨት",
-    "kimiWebLabel": "Kimi Web",
+    "kimiWebLabel": "Kimi ድር",
     "kimiWebDesc": "በwww.kimi.com በኩል የMoonshot AI የተጠቃሚዎች ውይይት (ዓለም አቀፍ፣ Connect-RPC API)",
-    "doubaoWebLabel": "Dola Web",
+    "doubaoWebLabel": "Dola ድር",
     "doubaoWebDesc": "በdola.com በኩል የByteDance AI ውይይት",
     "overrideBaseUrlAdvanced": "የላቀ፦ መሠረታዊ URLን ተካ",
     "overrideBaseUrlHint": "የላቀ፦ ይህን አብሮ የተካተተ አቅራቢ ወደ ብጁ መጨረሻ ነጥብ ያመልክቱ። ነባሪውን ለመጠቀም ባዶውን ይተዉት።",
@@ -6452,7 +6459,7 @@
     "failedUpdateCodexServiceMode": "የCodex አገልግሎት ሁነታን ማዘመን አልተሳካም",
     "filterByMedia": "ሚዲያ",
     "freeBadge": "ነጻ",
-    "kimiCodeApiKeyLabel": "Kimi Code API Key",
+    "kimiCodeApiKeyLabel": "Kimi Code API ቁልፍ",
     "modelTestFailed": "የሞዴል ሙከራው አልተሳካም",
     "modelTestNetworkError": "ሞዴሉን ሲፈተን የአውታረ መረብ ስህተት ተከስቷል",
     "networkError": "የአውታረ መረብ ስህተት",
@@ -6745,11 +6752,11 @@
     "themeSystem": "ስርዓት",
     "endpointTunnelVisibility": "የEndpoint ቱነል ታይነት",
     "endpointTunnelVisibilityDesc": "የቱነሉን ሁኔታ ሳይቀይሩ የቱነል መቆጣጠሪያዎችን ከEndpoint ገጽ ደብቅ።",
-    "showCloudflareTunnel": "Cloudflare Quick Tunnel",
+    "showCloudflareTunnel": "Cloudflare ፈጣን ቱነል",
     "showCloudflareTunnelDesc": "የCloudflare Quick Tunnel መቆጣጠሪያዎችን በEndpoint ገጽ ላይ አሳይ።",
     "showTailscaleFunnel": "Tailscale Funnel",
     "showTailscaleFunnelDesc": "የTailscale Funnel መቆጣጠሪያዎችን በEndpoint ገጽ ላይ አሳይ።",
-    "showNgrokTunnel": "ngrok Tunnel",
+    "showNgrokTunnel": "ngrok ቱነል",
     "showNgrokTunnelDesc": "የngrok Tunnel መቆጣጠሪያዎችን በEndpoint ገጽ ላይ አሳይ።",
     "sidebarVisibility": "የጎን አሞሌ ንጥሎችን ደብቅ",
     "sidebarVisibilityDesc": "ምንም ባህሪያትን ሳያሰናክሉ የእይታ መጨናነቅን ለመቀነስ ማንኛውንም የጎን አሞሌ የአሰሳ ግቤት ደብቅ",
@@ -7074,7 +7081,7 @@
     "stickyLimitDesc": "ዓለም አቀፉ የመለያ አማራጭ Round Robin ሲጠቀም፣ ከመቀየሩ በፊት በእያንዳንዱ መለያ የሚደረጉ ጥሪዎች",
     "routingStrategyTitle": "የማስተላለፊያ ስልት",
     "routingStrategySubtitle": "ከ9router ጋር አዛምድ፦ የመለያ Round Robin፣ የቋሚነት ገደቦች እና የጥምረት ማዞር",
-    "accountRoundRobin": "Round Robin",
+    "accountRoundRobin": "ተራ በተራ",
     "accountRoundRobinDesc": "ጭነቱን ለማከፋፈል በመለያዎች መካከል በተራ ዙር",
     "comboRoundRobin": "የጥምረት Round Robin",
     "comboRoundRobinDesc": "ሁልጊዜ ከመጀመሪያው ከመጀመር ይልቅ በጥምረት ኢላማዎች መካከል በተራ ዙር",
@@ -7139,7 +7146,7 @@
     "ipModeWhitelist": "ነጭ ዝርዝር",
     "ipModeWhitelistPriority": "የነጭ ዝርዝር ቅድሚያ",
     "addIpAddress": "IP አድራሻ ጨምር",
-    "ipAddressPlaceholder": "192.168.1.0/24 or 10.0.*.*",
+    "ipAddressPlaceholder": "192.168.1.0/24 ወይም 10.0.*.*",
     "block": "+ አግድ",
     "allow": "+ ፍቀድ",
     "blocked": "የታገዱ ({count})",
@@ -7760,6 +7767,7 @@
     "retentionMcpAudit": "የMCP ኦዲት (ቀናት)",
     "retentionA2aEvents": "የA2A ክስተቶች (ቀናት)",
     "retentionCallLogs": "የጥሪ ምዝግቦች (ቀናት)",
+    "retentionConversationTurnNodes": "Conversation turn nodes (days)",
     "retentionUsageHistory": "የአጠቃቀም ታሪክ (ቀናት)",
     "retentionMemoryEntries": "የማህደረ ትውስታ ግቤቶች (ቀናት)",
     "retentionXpAuditLog": "የXP ኦዲት ምዝግብ (ቀናት)",
@@ -8347,9 +8355,9 @@
     "oneproxyClearAllConfirm": "ሁሉንም የ1proxy ፕሮክሲዎች ይጽዱ?",
     "memorySkillsSkillsmpDescription": "ከገበያው ላይ ክህሎቶችን ለማግኘትና ለመጫን ከSkillsMP ጋር ይገናኙ።",
     "memorySkillsActiveProviderDescription": "የክህሎቶች ገጹ ለፍለጋና ለመጫን የሚጠቀምበትን አቅራቢ ይምረጡ።",
-    "memorySkillsSkillsmpProviderTitle": "SkillsMP Marketplace",
+    "memorySkillsSkillsmpProviderTitle": "SkillsMP የገበያ ቦታ",
     "memorySkillsSkillsmpProviderDescription": "ማንነት ማረጋገጥ የሚፈልግ የገበያ ቦታ (የSkillsMP API ቁልፍዎን ይጠቀማል)።",
-    "memorySkillsSkillsshProviderTitle": "skills.sh Directory",
+    "memorySkillsSkillsshProviderTitle": "skills.sh ማውጫ",
     "memorySkillsSkillsshProviderDescription": "ይፋዊ ማውጫ አቅራቢ (የAPI ቁልፍ አያስፈልግም)።",
     "routingCcBridgeCatalogName": "ከAnthropic ጋር ተኳሃኝ የCC ድልድይ",
     "routingClaudeProviderName": "Claude (OAuth)",
@@ -9339,7 +9347,7 @@
     "evaluateStepDescription": "ምላሾች ከሚጠበቁት መስፈርቶች ጋር ይነጻጸራሉ። የምላሽ መዘግየት መለኪያዎችን እና ዝርዝር ግብረመልስን ጨምሮ የእያንዳንዱን ኬዝ ማለፍ/አለማለፍ ይመልከቱ።",
     "evalsStrategyContainsLabel": "ይዟል",
     "evalsStrategyExactLabel": "ትክክለኛ ማዛመድ",
-    "evalsStrategyRegexLabel": "Regex",
+    "evalsStrategyRegexLabel": "መደበኛ አገላለጽ",
     "evalsStrategyCustomLabel": "ብጁ አመክንዮ",
     "evalsStrategyContainsDescription": "የLLM ውጤቱ የሚጠበቀውን ንዑስ ሕብረቁምፊ መያዙን ይፈትሻል።",
     "evalsStrategyExactDescription": "የLLM ውጤቱ ከሚጠበቀው እሴት ጋር በትክክል መዛመዱን ይፈትሻል።",
@@ -9996,7 +10004,7 @@
     "documentation": "ሰነዶች",
     "npm": "NPM",
     "legal": "ሕጋዊ",
-    "mitLicense": "MIT License",
+    "mitLicense": "MIT ፈቃድ",
     "footerTagline": "ለAI ማመንጨት የተዋሐደ የመዳረሻ ነጥብ። የAI አቅራቢዎችዎን በቀላሉ ያገናኙ፣ ያዘዋውሩ እና ያስተዳድሩ።",
     "copyright": "© {year} OmniRoute። መብቶች ሁሉ የተጠበቁ ናቸው።",
     "flowToolClaudeCode": "Claude Code",
@@ -10298,7 +10306,7 @@
     "policyLastUpdatedDate": "ፌብሩዋሪ 13፣ 2026",
     "listSeparator": "-",
     "questionsVisit": "ጥያቄዎች አሉዎት? የእኛን ይጎብኙ",
-    "githubRepository": "GitHub repository",
+    "githubRepository": "GitHub ማከማቻ",
     "privacySection1Title": "1. በአካባቢያዊ አሠራር ላይ ያተኮረ ንድፈ ሕንፃ",
     "privacySection1Text": "OmniRoute በአካባቢያዊ አሠራር ላይ ያተኮረ መተግበሪያ ሆኖ ተነድፏል። ሁሉም የውሂብ ሂደትና ማከማቻ ሙሉ በሙሉ በእርስዎ ማሽን ላይ ይከናወናል። መረጃዎን የሚሰበስብ ማዕከላዊ ሰርቨር የለም።",
     "privacySection2Title": "2. የምናከማቸው ውሂቦች",
@@ -10698,7 +10706,7 @@
     "password": "የይለፍ ቃል",
     "passwordPlaceholder": "የይለፍ ቃል",
     "connected": "ተገናኝቷል",
-    "ip": "IP:",
+    "ip": "IP፦",
     "connectionFailed": "ግንኙነቱ አልተሳካም",
     "testConnection": "ግንኙነትን ይፈትሹ",
     "clear": "አጽዳ",
@@ -10915,7 +10923,7 @@
     "assignmentsCount": "{count} ምደባዎች",
     "noData": "—",
     "testSuccess": "✓ {ip}",
-    "testLatency": "{latency}ms",
+    "testLatency": "{latency}ሚሴ",
     "testFailure": "✗ {error}",
     "repair": "ጠግን",
     "relayAuthMissing": "ማረጋገጫ ይጎድላል",
@@ -10964,6 +10972,9 @@
     "strategyLatency": "በመዘግየት የተመቻቸ",
     "poolMembersLabel": "የፑል አባላት ({count})",
     "poolNoMembers": "እስካሁን በዚህ ፑል ውስጥ ምንም ፕሮክሲ የለም።",
+    "poolEgressObservation": "{connections, plural, one {# ግንኙነት} other {# ግንኙነቶች}} {exits, plural, one {# መውጫን} other {# መውጫዎችን}} ተጠቅመዋል · በአንድ መውጫ ላይ እስከ {max} · የመጨረሻዎቹ {hours} ሰዓታት",
+    "poolEgressObservationEmpty": "ባለፉት {hours} ሰዓታት ውስጥ ምንም ትራፊክ አልታየም",
+    "poolEgressObservationHint": "በተወሰነው የጊዜ ክልል ውስጥ ከፕሮክሲ ምዝግብ የተቆጠሩት፦ ለዚህ ፑል አባላት የታዩ የተለያዩ የወጪ IPዎች እና እነሱን የተጠቀሙ OmniRoute ግንኙነቶች። \"በአንድ መውጫ ላይ\" ማለት በተወሰነው የጊዜ ክልል ውስጥ ማለት ነው፤ በተመሳሳይ ጊዜ ማለት አይደለም። የእያንዳንዱ IP የ429 እገዳ የሚያቆመው የተመሳሳይ የአቅራቢ ቤተሰብ ግንኙነቶችን ብቻ ነው።",
     "poolRemove": "አስወግድ",
     "poolRemoveFailed": "ፕሮክሲውን ከፑሉ ማስወገድ አልተሳካም",
     "poolAddLabel": "ፕሮክሲ ጨምር",
@@ -11121,11 +11132,11 @@
     "jsonMode": "JSON ሁነታ",
     "jsonModeDescription": "response_format: json_schema እንዲሆን ያስገድዳል",
     "schemaName": "የSchema ስም",
-    "jsonSchema": "JSON schema",
+    "jsonSchema": "JSON መርሃ ግብር",
     "jsonSchemaEditor": "የJSON schema አርታዒ",
     "schemaValidated": "Schema ተረጋግጧል",
     "validateSchema": "Schemaን አረጋግጥ",
-    "seed": "Seed",
+    "seed": "መነሻ እሴት",
     "stopSequences": "የማቆሚያ ቅደም ተከተሎች",
     "stopSequencesPlaceholder": "ለምሳሌ \"\\n\\n\" ወይም \"END\"",
     "autoProvider": "ራስ-ሰር",
@@ -11237,7 +11248,7 @@
     "searchResultFallback": "ውጤት {number}",
     "noKeysFound": "ምንም የAPI ቁልፎች አልተገኙም። በቁልፎች ክፍል ውስጥ አንድ ያክሉ።",
     "exampleLabel": "ምሳሌ",
-    "latency": "{ms}ms",
+    "latency": "{ms}ሚሴ",
     "statsLine": "{ms}ms · {tokensIn} ገቢ / {tokensOut} ወጪ ቶከኖች",
     "defaultKey": "(ነባሪ)",
     "clear": "አጽዳ",
@@ -11418,7 +11429,9 @@
       "correlationIdValue": "የትስስር መታወቂያ፦ {id}",
       "detailedPayloadInfo": "ለአዳዲስ ጥያቄዎች ባለአራት-ደረጃ የደንበኛ/አቅራቢ ውሂብ እይታን ከፈለጉ፣ መጀመሪያ ዝርዝር ምዝግብን ያንቁ።",
       "copyAll": "ሁሉንም ቅዳ",
-      "copiedAll": "ሁሉም ተቀድቷል"
+      "copiedAll": "ሁሉም ተቀድቷል",
+      "rawViewOff": "__MISSING__:Raw view: off",
+      "rawViewOn": "__MISSING__:Raw view: on"
     }
   },
   "proxyLogger": {
@@ -11443,9 +11456,9 @@
     "allLevels": "ሁሉም ደረጃዎች",
     "allProviders": "ሁሉም አቅራቢዎች",
     "total": "ጠቅላላ",
-    "ok": "OK",
-    "err": "ERR",
-    "timeoutShort": "TMO",
+    "ok": "እሺ",
+    "err": "ስህተት",
+    "timeoutShort": "ጊዜው አልፏል",
     "direct": "ቀጥታ",
     "newest": "አዲሱ ቀድሞ",
     "oldest": "አሮጌው ቀድሞ",
@@ -11477,7 +11490,7 @@
     "droid": "Droid",
     "codex": "Codex",
     "claude": "Claude",
-    "kilo": "Kilo"
+    "kilo": "ኪሎ"
   },
   "runtime": {
     "title": "የአሂድ ጊዜ",
@@ -11672,7 +11685,7 @@
     "endpointsCollapse": "ሰብስብ",
     "endpointsExpand": "ዘርጋ",
     "endpointsAnthropicNote": "Anthropic-ቤተኛ",
-    "endpointsResponsesNote": "OpenAI Responses — codex/github",
+    "endpointsResponsesNote": "OpenAI ምላሾች — codex/github",
     "endpointsWsNote": "WebSocket — codex ብቻ",
     "betaText": "የኮታ ድርሻ ይሠራል፣ ነገር ግን ስህተቶች ሊኖሩ ይችላሉ። አንድ አግኝተዋል? እባክዎ ሪፖርት ያድርጉት።",
     "betaReportLink": "ችግር ሪፖርት አድርግ",
@@ -11729,7 +11742,7 @@
     "verified": "የተረጋገጠ",
     "install": "ጫን",
     "installedFromMarketplace": "Plugin {name} ተጭኗል!",
-    "hooks": "Hooks"
+    "hooks": "ማያያዣዎች"
   },
   "quotaPlans": {
     "title": "ዕቅዶች እና ኮታዎች",
@@ -12165,7 +12178,7 @@
   "cliCommon": {
     "concept": {
       "code": {
-        "title": "CLI Code",
+        "title": "የCLI ኮድ",
         "phrase": "ወደ OmniRoute የሚያመለክቷቸው የኮድ መሣሪያዎች",
         "flow": "እርስዎ → CLI Code → OmniRoute → አቅራቢ",
         "seeOther": "ይመልከቱ →"
@@ -12370,11 +12383,11 @@
         "description": "የስርዓት ምትኬዎችን ያስጀምሩ፣ ከምትኬ ፋይሎች ወደነበረበት ይመልሱ እና የSQLite የውሂብ ጎታ የሕይወት ዑደትን ያስተዳድሩ። ወደ ውጭ መላክን፣ ማስመጣትን እና ጭማሪያዊ የቅጽበተ ገጽ ዕይታ ስልቶችን ይደግፋል።"
       },
       "omni-webhooks": {
-        "name": "Webhooks",
+        "name": "ዌብሁኮች",
         "description": "የwebhook endpointsን ይመዝግቡ፣ ይዘርዝሩ፣ ይሞክሩ እና ያስወግዱ። የክስተት ምዝገባዎችን (request.completed, request.failed, quota.exceeded, ወዘተ) ያዋቅሩ እና የማድረስ ዳግም ሙከራዎችን ያስተዳድሩ።"
       },
       "omni-mcp": {
-        "name": "MCP Server",
+        "name": "MCP አገልጋይ",
         "description": "ከOmniRoute MCP server (110 መሣሪያዎች፣ 3 መጓጓዣዎች፦ SSE/stdio/HTTP) ጋር ይገናኙ። በ33 የፈቃድ ወሰኖች ውስጥ የማዘዋወር፣ የመሸጎጫ፣ የመጭመቅ፣ የማስታወሻ፣ የክህሎት፣ የአቅራቢ እና የኦዲት መሣሪያዎችን ይሸፍናል።"
       },
       "omni-agents-a2a": {
@@ -12516,7 +12529,7 @@
         "storage": {
           "label": "ማከማቻ",
           "agent": "ተለዋዋጭ ካታሎግ (/api/agent-skills) → SKILL.md በGitHub ላይ",
-          "omni": "SQLite (SkillsMP / skills.sh / local)"
+          "omni": "SQLite (SkillsMP / skills.sh / አካባቢያዊ)"
         },
         "tagline": {
           "label": "መፈክር",
@@ -12984,6 +12997,12 @@
       "STREAM_RECOVERY_MIDSTREAM_ENABLED": {
         "description": "ባይቶች ወደ ደንበኛው ከደረሱ በኋላም የዥረት መልሶ ማግኘት ምላሹን እንደገና እንዲጠይቅ እና እንዲያያይዘው ፍቀድ።"
       },
+      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
+        "description": "በዥረት መሃል የሚደረግ ቀጣይነት ለመሣሪያ ጥሪ ደህንነቱ የተጠበቀ ይሁን፦ የመሣሪያ ጥሪ ከተላከ በኋላ (አሁንም በሂደት ላይ ቢሆንም ወይም ቀድሞውኑ ቢጠናቀቅም) የተቋረጠ ዥረትን ፈጽሞ አትቀጥል፤ እንዲሁም ሙሉውን የድጋሚ ሙከራ ገደብ ከመጠቀም ይልቅ አንድ ባዶ ቀጣይነት ካጋጠመ በኋላ አቁም።"
+      },
+      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
+        "description": "ዥረት ምንም ጠቃሚ ፍሬም ሳያወጣ ሲዘጋ እና የተገደበው የተመሳሳይ ግንኙነት ዳግም ሙከራ ሲያልቅ፣ ወደ ተመሳሳይ ደረጃ ያለው ሌላ ግንኙነት አንድ ጊዜ ቀይር። ጥቅም ላይ ሊውል የሚችል ሌላ ግንኙነት ከሌለ፣ የመጀመሪያው የearly-EOF ስህተት ይመለሳል። ጠፍቷል፦ ከዳግም ሙከራው በኋላ early-EOF የመጨረሻ ስህተት ሆኖ ይቆያል።"
+      },
       "MODEL_CATALOG_INCLUDE_NAMES": {
         "description": "በ/v1/models ምላሾች ውስጥ ለእይታ ምቹ የስም መስኮችን አካትት። የሞዴል ID-ዎችን ብቻ ለሚቀበሉ ደንበኞች ይህን አሰናክል።"
       },
@@ -13022,18 +13041,12 @@
         "description": "ሞዴሉ በደንበኛው ሊጠቀምበት የሚችል ምላሽ እስኪመልስ ድረስ በአገልጋዩ የሚተዳደሩ ተከታታይ ያልሆኑ የመሣሪያ ጥሪዎችን ቀጥል።"
       },
       "RETRY_AFTER_PROVENANCE_ENABLED": {
-        "description": "__MISSING__:On aggregated 429/503 unavailable responses, omit Retry-After when no concrete future retry time is known instead of sending a synthetic 1s, add error.retry_after_provenance, and read prose retry hints on combo drain paths.",
-        "label": "__MISSING__:Retry-After Provenance"
+        "label": "የRetry-After ምንጭ",
+        "description": "በተዋሃዱ የ429/503 አይገኝም ምላሾች ላይ፣ የተወሰነ የወደፊት ድጋሚ ሙከራ ጊዜ ካልታወቀ ሰው ሠራሽ 1 ሰከንድ ከመላክ ይልቅ Retry-Afterን አትጨምር፤ error.retry_after_provenanceን ጨምር፣ እና በcombo drain መንገዶች ላይ በጽሑፍ የተገለጹ የድጋሚ ሙከራ ፍንጮችን አንብብ።"
       },
       "PROTECTED_PRIORITY_INFRA_502_ENABLED": {
-        "description": "__MISSING__:Answer 502 instead of 503 when a quota-only-fallback priority target stops the combo for a cause that is provably not quota: an open provider circuit breaker or a predictive latency skip.",
-        "label": "__MISSING__:Protected-Priority Infra Stops as 502"
-      },
-      "STREAM_RECOVERY_TOOLCALL_ORDER_FIX": {
-        "description": "__MISSING__:Make mid-stream continuation tool-call safe: never resume a cut stream after a tool call was sent (still in progress or already finished), and stop after one empty continuation instead of using the whole retry budget."
-      },
-      "STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED": {
-        "description": "__MISSING__:Fail over once to a sibling connection when a stream closes before emitting any useful frame and the bounded same-connection retry is spent. With no usable sibling, the original early-EOF error is returned. Off: early-EOF stays terminal after the retry."
+        "label": "የተጠበቀ ቅድሚያ ያላቸው የመሠረተ ልማት ማቆሚያዎች እንደ 502",
+        "description": "በኮታ ብቻ የመጠባበቂያ አማራጭ የሆነ ቅድሚያ ያለው ዒላማ፣ ምክንያቱ ኮታ አለመሆኑ በእርግጠኝነት ሊረጋገጥ ለሚችል ሁኔታ—ክፍት የአቅራቢ circuit breaker ወይም ትንበያዊ የመዘግየት መዝለል—comboውን ሲያቆም፣ ከ503 ይልቅ 502 መልስ።"
       }
     }
   },
@@ -13647,6 +13660,7 @@
   },
   "featureFlagCapabilityFilterEnabledDescription": "የታለመው ሞዴል አስፈላጊ ችሎታዎች (ምስል፣ መሣሪያዎች፣ የተዋቀረ ውጤት፣ የአውድ መስኮት) ሲጎድሉት፣ ጥያቄዎች ከመላካቸው በፊት ውድቅ አድርግ። ይህ የጥምር-ንብርብር ተኳኋኝነት ማጣሪያን የሚያልፉ ቀጥተኛ የአንድ-አቅራቢ ጥያቄዎችን ይጠብቃል።",
   "featureFlagDisableContextWindowChecksDescription": "ለቀጥተኛ የአንድ-ሞዴል ጥያቄዎች የOmniRouteን አካባቢያዊ የአውድ-መስኮት እና ከፍተኛ-የግቤት-ቶከን ማረጋገጫ ዝለል። የላይኛው ደረጃ አቅራቢዎች እውነተኛ ገደቦቻቸውን አሁንም ያስፈጽማሉ። የጥያቄ መጭመቅ እና የውጤት-ቶከን ገደቦች እንደነቁ ይቆያሉ።",
+  "featureFlagSearchStatsHideDeletedConnectionsDescription": "የፍለጋ ስታቲስቲክስ እና የቅርብ ጊዜ ፍለጋዎች አሁንም ንቁ ግንኙነት ያላቸውን አቅራቢዎች ብቻ ይቆጥራሉ (እንደ duckduckgo-free ያሉ ቁልፍ የማይፈልጉ አቅራቢዎች ሁልጊዜ ይቆጠራሉ)። ማጥፋት እያንዳንዱን የተቀመጠ የፍለጋ ረድፍ ከአቅራቢ መታወቂያ ጋር ያቆየዋል።",
   "publicSystem": {
     "notFound": {
       "title": "ገጹ አልተገኘም",
@@ -13970,7 +13984,7 @@
     "runners": "አስኪያጆች",
     "tasks": "ተግባራት",
     "colName": "ስም",
-    "colClis": "CLIs",
+    "colClis": "CLIዎች",
     "colStatus": "ሁኔታ",
     "colTask": "ተግባር",
     "colMode": "ሁነታ",
@@ -14043,9 +14057,9 @@
     "filterSources": "ምንጮች",
     "filterProviders": "አቅራቢዎች",
     "clearFilters": "ማጣሪያዎችን አጽዳ",
-    "sourceCloudAgent": "Cloud Agent",
+    "sourceCloudAgent": "የደመና ወኪል",
     "sourceA2A": "A2A",
-    "sourceConductor": "Conductor",
+    "sourceConductor": "አስተባባሪ",
     "sourceStale": "ከ{since} ጀምሮ ያልታደሰ",
     "sourceOffline": "ከመስመር ውጭ",
     "sourceCollapse": "ሰብስብ",
@@ -14157,7 +14171,5 @@
     "partnerLinkNote": "የአጋር አገናኝ",
     "dismissAriaLabel": "ዝጋ"
   },
-  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "በ/v1/models ካታሎግ ውስጥ የአስተሳሰብ ደረጃ ተለዋጮችን (ለምሳሌ -low, -medium, -high) ማመንጨትን አሰናክል።",
-  "featureFlagSearchStatsHideDeletedConnectionsDescription": "__MISSING__:Search stats and recent searches only count providers that still have a live connection (keyless providers such as duckduckgo-free always count). Off keeps every retained search row with a provider id.",
-  "featureFlagFreeBadgeRequiresProviderFreeTierDescription": "__MISSING__:Dashboard provider pages: show the Free badge only on signals the provider honors — drops the display-name heuristic, non-boolean free fields and :free suffixes on registered providers without a documented free tier. Off keeps the historical badge rule."
+  "featureFlagOmnirouteDisableThinkingLevelVariantsDescription": "በ/v1/models ካታሎግ ውስጥ የአስተሳሰብ ደረጃ ተለዋጮችን (ለምሳሌ -low, -medium, -high) ማመንጨትን አሰናክል።"
 }
