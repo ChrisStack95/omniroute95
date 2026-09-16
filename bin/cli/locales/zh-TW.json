@@ -254,6 +254,7 @@
     "max_restarts": "30 秒內的最大崩潰重啟次數（預設：2）",
     "tray": "顯示系統托盤圖示（僅桌面，選擇加入）",
     "no_tray": "停用系統托盤圖示",
+    "ready_timeout": "就緒探測逾時（毫秒）（也可用 OMNIROUTE_READY_TIMEOUT_MS，預設 60000）",
     "tls_cert": "用於提供 HTTPS 服務的 TLS 憑證（PEM）路徑（也可用 OMNIROUTE_TLS_CERT）",
     "tls_key": "用於提供 HTTPS 服務的 TLS 私鑰（PEM）路徑（也可用 OMNIROUTE_TLS_KEY）"
   },
@@ -345,6 +346,16 @@
     "running": "MCP 伺服器正在執行（{transport}）",
     "stopped": "MCP 伺服器已停止。",
     "restarted": "MCP 伺服器已重啟。",
+    "stoppedHint": "執行 `omniroute mcp enable` 以啟用它。",
+    "enabled": "MCP 伺服器已啟用。",
+    "disabled": "MCP 伺服器已停用。",
+    "enable": {
+      "description": "啟用 MCP 伺服器",
+      "transport": "要使用的傳輸方式：stdio|sse|streamable-http"
+    },
+    "disable": {
+      "description": "停用 MCP 伺服器"
+    },
     "call": {
       "description": "直接呼叫 MCP 工具",
       "args": "JSON 引數物件（內聯）",
