@@ -38,7 +38,7 @@ export const APIKEY_PROVIDERS_FRONTIER = {
     textIcon: "PN",
     website: "https://pioneer.ai",
     notice: {
-      text: "Pioneer AI by Fastino Labs. Use API key auth with a pio_sk_... key. Only open-tier models (Qwen3, Llama, Gemma, SmolLM) work directly — gated models (Claude/GPT/Gemini) require prior fine-tuning via the Pioneer platform.",
+      text: "Pioneer AI by Fastino Labs. Use API key auth with a pio_sk_... key. Only open-tier models (Qwen3, Llama, Gemma, SmolLM) work directly — gated models (Claude/GPT/Gemini) require prior fine-tuning via the Pioneer platform. No free tier — paid plans start with $40 of platform credits.",
       apiKeyUrl: "https://agent.pioneer.ai/settings/api-keys",
       signupUrl: "https://agent.pioneer.ai/auth",
     },
