@@ -1,4 +1,5 @@
 {
+  "_rebaseline_2026_09_16_13191_tokenmarket_gateway": "PR #13191 (FitBBC) own growth: src/shared/constants/providers/apikey/gateways.ts 1502->1517 (+15 = the tokenmarket APIKEY_PROVIDERS_GATEWAYS catalog entry — declarative data only: id/alias/name/icon/color/website plus authHint, no logic and no new branching). Same god-file no-split rationale as every prior gateways.ts rebaseline (#13024/#13025 greenpt+eurouter, #11786 seekai, #10987 logfare, #10668 tabitoken, #10531 freebuff, #11631 1min.ai): the file header declares it pure data merged by apikey/index.ts via spread and it is already split into 6 family files under apikey/, so splitting a catalog for one entry would violate the semantic-families rule. Covered by tests/unit/tokenmarket-provider.test.ts (3/3).",
   "_rebaseline_2026_09_15_13602_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1214. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13580_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1202. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_13_13581_pool_egress_observation": "PR #13581 own growth: src/app/(dashboard)/dashboard/settings/components/ProxyRegistryManager.tsx 1475->1477 (+2 = the PoolEgressObservation import and its one-line mount under the pool members label). The observation itself lives outside the frozen file, all under cap: PoolEgressObservation.tsx, the dedicated GET /api/settings/proxies/pool/egress-observation route, src/lib/proxyPoolEgressObservation.ts and getPoolEgressObservation in src/lib/db/proxyLogs.ts. Only the mount point is irreducible. Covered by tests/unit/proxy-pool-egress-observation.test.ts, tests/unit/proxy-pool-egress-observation-route.test.ts and tests/unit/ui/PoolEgressObservation.test.tsx.",
@@ -488,7 +489,7 @@
     "src/lib/tailscaleTunnel.ts": 1208,
     "src/lib/tokenHealthCheck.ts": 1218,
     "src/shared/components/RequestLoggerV2.tsx": 1718,
-    "src/shared/constants/providers/apikey/gateways.ts": 1502,
+    "src/shared/constants/providers/apikey/gateways.ts": 1517,
     "src/shared/services/cliRuntime.ts": 1296,
     "src/sse/handlers/chat.ts": 2490,
     "src/sse/services/auth.ts": 3556,
