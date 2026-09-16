@@ -4,6 +4,8 @@
 
 ### ✨ New Features
 
+- **feat(dashboard):** expose combo wall-clock timeout (`comboTimeoutMs`) next to Target timeout in the combo editor Advanced panel and Combo defaults. Empty keeps the 10-minute hang-stop; a positive value replaces it for that combo. The runtime already honored the key via schema passthrough — this makes it a first-class schema field and a dashboard option.
+
 - **feat(dashboard):** adaptive context-budget dial on the compression settings panel — mode (`off` / `floor` / `replace-autotrigger`) and policy (`reserve-output` / `percentage` / `absolute`) persist via `PUT /api/settings/compression` `contextBudget`. Completes the dashboard half of #7005 (API + DB already shipped in #7183).
 - **feat(sse): STRICT_ZERO_COST** — opt-in, off-by-default `freeAccessPolicy: "strict"` setting
   that hard-verifies every auto-combo candidate against live quota state and per-connection

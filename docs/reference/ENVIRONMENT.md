@@ -814,6 +814,12 @@ Combo target attempts inherit the resolved upstream request timeout (`FETCH_TIME
 combo defaults, or provider override only to make combo fallback faster; values above the
 current upstream timeout are capped to the upstream timeout.
 
+`comboTimeoutMs` is a separate whole-combo wall-clock budget across failover targets.
+Leave it unset or `0` to keep unlimited iteration (the 10-minute
+`COMBO_LOOP_SAFETY_TIMEOUT_MS` hang-stop still applies). A positive value replaces that
+safety net for the combo. Keep `comboTimeoutMs` longer than `targetTimeoutMs` so failover
+still has time after a slow first target.
+
 ### Circuit Breaker Thresholds
 
 Provider-level circuit breaker tuning. Defaults reflect the scaled values used since v3.6 for 500+ connections.
