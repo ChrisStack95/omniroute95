@@ -12,6 +12,7 @@ import {
   normalizeAnthropicHeaderVariants,
 } from "../config/anthropicHeaders.ts";
 import { applyContextEditingToBody } from "../config/contextEditing.ts";
+import { createCopilotIdentityFallback } from "./copilotIdentityFallback.ts";
 import {
   findOffendingField,
   detectUnsupportedParam,
@@ -30,7 +31,11 @@ import {
   addParamToBlocklist,
   isAutoLearnGloballyEnabled,
 } from "@/lib/db/paramFilters";
-import { applyFingerprint, isCliCompatEnabled, stripInternalBodyFields } from "../config/cliFingerprints.ts";
+import {
+  applyFingerprint,
+  isCliCompatEnabled,
+  stripInternalBodyFields,
+} from "../config/cliFingerprints.ts";
 import { supportsClaudeMaxEffort, supportsXHighEffort } from "../config/providerModels.ts";
 import { getThinkingBudgetConfig, ThinkingMode } from "../services/thinkingBudget.ts";
 import {
@@ -316,7 +321,6 @@ export type ExecutorExecuteResult =
       transformedBody?: unknown;
       transport?: string;
     };
-
 export class BaseExecutor {
   provider: string;
   config: ProviderConfig;
@@ -820,24 +824,17 @@ export class BaseExecutor {
       }
     }
 
-    // Set by the Context Editing 400-fallback below: once an upstream rejects the
-    // `context_management` param, suppress its re-injection on every later
-    // retry/fallback URL (each iteration rebuilds a fresh `transformedBody`).
+    // Context Editing 400-fallback below: suppresses `context_management` re-injection
+    // on later retry/fallback URLs once an upstream rejects it.
     let contextEditingDisabled = false;
-    // Tracks which request fields have already been stripped via the generic 400
-    // field-downgrade below, so each known field is stripped at most once across
-    // all fallback URLs (bounded retry loop).
+    // Fields already stripped by the generic 400 field-downgrade below (once each,
+    // across all fallback URLs — bounded retry loop).
     const strippedFields = new Set<string>();
-    // Set by the thinking_budget 400 clamp-and-retry below: the upstream's
-    // advertised max (parsed from the error) is applied to every later
-    // retry/fallback URL so they don't re-hit the same 400. The clamp itself
-    // fires at most once per URL (guarded inline) so a persistent 400 cannot
-    // loop. The learned cap is also recorded process-wide via
-    // recordLearnedThinkingCap so future requests skip the 400 entirely.
+    // thinking_budget 400 clamp-and-retry below: upstream's learned max applied to
+    // later retry URLs (bounded per URL); also recorded via recordLearnedThinkingCap.
     let thinkingBudgetClampedMax: number | null = null;
-    // Set by the reasoning_effort 4xx clamp-and-retry below — guards the same
-    // "fires at most once per URL" invariant as thinkingBudgetClampedMax above.
-    let reasoningEffortClamped = false;
+    let reasoningEffortClamped = false; // reasoning_effort 4xx clamp-and-retry below.
+    const applyCopilotIdentityFallback = createCopilotIdentityFallback(this.provider, log);
 
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const requestCredentials = withForcedResponsesUpstream(
@@ -1460,12 +1457,9 @@ export class BaseExecutor {
           body: bodyString,
         };
 
-        // OpenRouter `:free`-variant local window (#6842): record every real
-        // dispatch attempt (failed attempts still consume a request slot per
-        // OpenRouter's own accounting) and self-correct the local counters
-        // from the upstream `X-RateLimit-*` headers on the response. Scoped
-        // to `:free` models only — no-op (and no extra work) for every other
-        // OpenRouter request or provider.
+        // OpenRouter `:free`-variant local window (#6842): record every dispatch
+        // attempt and self-correct local counters from `X-RateLimit-*` headers.
+        // Scoped to `:free` models only — no-op for every other request/provider.
         const openrouterFreeWindowAccountKey =
           this.provider === "openrouter" &&
           isFreeVariantModel(model) &&
@@ -1476,9 +1470,7 @@ export class BaseExecutor {
           recordFreeWindowAttempt(openrouterFreeWindowAccountKey);
         }
 
-        // WAF burst guard: agentrouter.org's content filter becomes more
-        // aggressive after rapid requests. Enforce a small inter-request gap
-        // to avoid tripping it. See open-sse/services/wafRateLimit.ts.
+        // WAF burst guard for agentrouter.org's content filter — see wafRateLimit.ts.
         if (this.provider === "agentrouter") {
           await gateOutboundRequest(`agentrouter:${url}`);
         }
@@ -1488,6 +1480,14 @@ export class BaseExecutor {
         if (openrouterFreeWindowAccountKey) {
           correctFromRateLimitHeaders(openrouterFreeWindowAccountKey, response.headers);
         }
+
+        ({ response, finalHeaders } = await applyCopilotIdentityFallback({
+          response,
+          url,
+          fetchOptions,
+          clientHeaders,
+          fetchWithStartTimeout,
+        }));
 
         // Context Editing 400-fallback for Claude-compatible relays.
         if (
