@@ -1,4 +1,5 @@
 {
+  "_rebaseline_2026_09_15_13643_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/executors/codex.ts->1528. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13609_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/services/accountFallback.ts->2507. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13602_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1214. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13580_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1202. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
@@ -450,7 +451,7 @@
     "open-sse/executors/antigravity.ts": 1665,
     "open-sse/executors/base.ts": 1753,
     "open-sse/executors/chatgpt-web.ts": 5056,
-    "open-sse/executors/codex.ts": 1505,
+    "open-sse/executors/codex.ts": 1528,
     "open-sse/executors/cursor.ts": 1759,
     "open-sse/executors/muse-spark-web.ts": 1405,
     "open-sse/handlers/chatCore.ts": 6146,
