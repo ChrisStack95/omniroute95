@@ -334,32 +334,25 @@ const nextConfig = {
     // build warnings.  Externalizing silences them without changing behaviour.
     "sql.js",
     // tiktoken's node build reads tiktoken_bg.wasm via __dirname-relative
-    // fs.readFileSync at import time. When bundled, the wasm asset is not
-    // traced into the server chunk and page-data collection for any route
-    // importing the vendored ChatGPT Web tokenizer fails with
-    // "Missing tiktoken_bg.wasm". Externalizing keeps the require at runtime
-    // where node_modules/tiktoken/tiktoken_bg.wasm resolves normally.
+    // fs.readFileSync at import time. When bundled (webpack or Turbopack), the
+    // wasm asset is not traced into the server chunk / the ESM entry's module
+    // graph omits the runtime asset, and page-data collection for any route
+    // importing the vendored ChatGPT Web tokenizer (e.g. /api/providers) fails
+    // with "Missing tiktoken_bg.wasm". Externalizing keeps Node's CommonJS
+    // require at runtime, where node_modules/tiktoken/tiktoken_bg.wasm
+    // resolves normally.
     "tiktoken",
     // sqlite-vec ships a native vec0.so loaded at runtime via createRequire().
     // Turbopack otherwise tries to bundle the .so and fails with "Unknown module
     // type"; externalizing it keeps the require at runtime (like better-sqlite3).
     // See issue #3066.
     "sqlite-vec",
-    // tiktoken resolves tiktoken_bg.wasm at runtime via fs.readFileSync relative
-    // to __dirname; when bundled, that lookup fails ("Missing tiktoken_bg.wasm")
-    // and 500s every route that touches codex-chatgpt-web token estimation
-    // (e.g. /api/providers). Externalizing keeps the require at runtime.
-    "tiktoken",
     "node-machine-id",
     "keytar",
     "wreq-js",
     "zod",
     "@ngrok/ngrok",
     "@huggingface/transformers",
-    // The ESM entry imports tiktoken_bg.wasm as a module. Turbopack can compile
-    // that graph but omits the runtime asset, making provider routes fail during
-    // module evaluation. Keep Node's CommonJS loader and colocated WASM intact.
-    "tiktoken",
     // copilot-m365-web.ts imports 'ws' as a client-side WebSocket. When bundled,
     // ws cannot resolve its 'bufferutil' native addon (frame masking) and throws
     // TypeError: b.mask is not a function on the first outgoing frame, causing
