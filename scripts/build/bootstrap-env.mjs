@@ -73,6 +73,8 @@ function isNativeSqliteLoadError(error) {
     message.includes("ERR_DLOPEN_FAILED") ||
     message.includes("Could not locate the bindings file") ||
     message.includes("Cannot find module 'better-sqlite3'") ||
+    message.includes("is not a function") ||
+    message.includes("is not a constructor") ||
     code === "ERR_DLOPEN_FAILED" ||
     code === "MODULE_NOT_FOUND"
   );

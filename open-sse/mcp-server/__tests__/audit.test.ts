@@ -140,4 +140,56 @@ describe("MCP audit shutdown", () => {
       audit.__setBetterSqliteLoaderForTests(null);
     }
   });
+
+  it("falls back to node:sqlite when better-sqlite3 export is not a function", async () => {
+    const [maj, min] = process.versions.node.split(".").map(Number);
+    if (maj < 22 || (maj === 22 && min < 5)) {
+      return;
+    }
+
+    const mockNodeDb = {
+      prepare: vi.fn(() => createStatementMock()),
+      exec: vi.fn(),
+      close: vi.fn(),
+    };
+    const DatabaseSync = vi.fn(function DatabaseSync() {
+      return mockNodeDb;
+    });
+    vi.doMock("node:sqlite", () => ({ DatabaseSync }));
+
+    const audit = await import("../audit.ts");
+    // Webpack/standalone stub: require("better-sqlite3") returns a non-callable
+    // object, so `new (mod.default || mod)(path)` throws "a is not a function".
+    audit.__setBetterSqliteLoaderForTests(() => ({ default: { notAConstructor: true } }));
+
+    try {
+      await audit.logToolCall("omniroute_get_health", { ok: true }, { ok: true }, 4, true);
+      expect(DatabaseSync).toHaveBeenCalledWith(dbFile);
+      expect(mockNodeDb.prepare).toHaveBeenCalled();
+    } finally {
+      audit.closeAuditDb();
+      audit.__setBetterSqliteLoaderForTests(null);
+    }
+  });
+
+  it("caches a failed audit connection so dashboard polls do not reconnect", async () => {
+    const connectErr = new Error("permission denied");
+    const audit = await import("../audit.ts");
+    audit.__setBetterSqliteLoaderForTests(() => {
+      throw connectErr;
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await audit.queryAuditEntries({ limit: 1 });
+      await audit.queryAuditEntries({ limit: 1 });
+      const connectLogs = errorSpy.mock.calls.filter((args) =>
+        String(args[0]).includes("Failed to connect to database")
+      );
+      expect(connectLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+      audit.__setBetterSqliteLoaderForTests(null);
+    }
+  });
 });

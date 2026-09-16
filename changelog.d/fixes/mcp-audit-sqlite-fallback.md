@@ -1,0 +1,1 @@
+- **fix(mcp):** MCP audit treats a non-callable better-sqlite3 export (`a is not a function`) as a native load failure, falls back to `node:sqlite`, and caches a failed open so dashboard polls stop reprinting. Docker now refuses to ship without `better_sqlite3.node`.
