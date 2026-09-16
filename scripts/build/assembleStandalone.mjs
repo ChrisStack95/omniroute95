@@ -230,6 +230,15 @@ const EXTRA_MODULE_ENTRIES = [
     dest: ["responses-ws-proxy.mjs"],
   },
   {
+    // server-ws.mjs imports ./httpClientAbortGuard.mjs. In the repo that path is
+    // the scripts/dev shim re-exporting the shared implementation, but the
+    // assembled bundle has no src/ tree, so ship the real self-contained
+    // implementation (no relative imports of its own) under the same file name.
+    label: "http client abort guard (server-ws.mjs dependency)",
+    src: ["src", "shared", "utils", "httpClientAbortGuard.mjs"],
+    dest: ["httpClientAbortGuard.mjs"],
+  },
+  {
     label: "ChatGPT Web Codex MCP tunnel entrypoint",
     src: ["bin", "chatgpt-web-codex-mcp.mjs"],
     dest: ["bin", "chatgpt-web-codex-mcp.mjs"],
@@ -586,8 +595,8 @@ function stampServiceWorkerBuildId(resolvedOutDir) {
     process.env.OMNIROUTE_SW_BUILD_ID || process.env.SOURCE_VERSION || String(Date.now());
   let sw = fsSync.readFileSync(swDest, "utf8");
   sw = sw.replace(
-    /^const CACHE_NAME = "omniroute-pwa-v2";$/m,
-    `const CACHE_NAME = "omniroute-pwa-v2-${buildId}"; // build ${buildId}`
+    /^const CACHE_NAME = "omniroute-pwa-v3";$/m,
+    `const CACHE_NAME = "omniroute-pwa-v3-${buildId}"; // build ${buildId}`
   );
   fsSync.writeFileSync(swDest, sw);
 }
