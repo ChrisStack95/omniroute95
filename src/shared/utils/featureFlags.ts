@@ -289,6 +289,23 @@ export function isMistralAmbiguous401SoftLockoutEnabled(): boolean {
   }
 }
 
+/**
+ * OpenCode classified-429 early stop (#13657). Opt-in: when off, every 429 rotates to the
+ * next account exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeRateLimited429EarlyStopEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_RATE_LIMITED_429_EARLY_STOP");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_RATE_LIMITED_429_EARLY_STOP, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
 export function isServerOwnedToolLoopEnabled(
   reader: (key: string) => boolean = isFeatureFlagEnabled
 ): boolean {

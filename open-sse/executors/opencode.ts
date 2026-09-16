@@ -53,7 +53,9 @@ import {
   isProxySkipRecentlyFailedEnabled,
   isOpencodeUserBlockedRotationEnabled,
   isOpencodeTransientFailoverBackoffEnabled,
+  isOpencodeRateLimited429EarlyStopEnabled,
 } from "@/shared/utils/featureFlags";
+import { classifyUpstream429 } from "./opencodeRateLimited.ts";
 
 /**
  * The main OpenCode Zen host, shared by the `opencode` and `opencode-zen`
@@ -791,6 +793,19 @@ export class OpencodeExecutor extends BaseExecutor {
           const setAsideMs = skipRecentlyFailed
             ? noteProxyRefusal(proxyEgressKey(account.proxy), "ip_quota_429")
             : null;
+          // Opt-in (#13657): a 429 that names a real rate limit stops the wave and
+          // the real upstream 429 is returned untouched (body, Retry-After, quota
+          // headers), so provider error rules still apply. Flag off → rotate.
+          if (
+            isOpencodeRateLimited429EarlyStopEnabled() &&
+            (await classifyUpstream429(result.response)) === "rate_limited"
+          ) {
+            log?.warn?.(
+              "OPENCODE",
+              `${cid}rate-limited 429 on account ${masked}, stopping the account wave`
+            );
+            return result;
+          }
           log?.warn?.(
             "OPENCODE",
             `${cid}Rate limited (429) on account ${masked}` +
