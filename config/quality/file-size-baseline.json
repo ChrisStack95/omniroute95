@@ -1,4 +1,5 @@
 {
+  "_rebaseline_2026_09_15_13609_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): open-sse/services/accountFallback.ts->2507. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13602_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1214. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_15_13580_combined_growth": "Combined growth of the 2026-09-15 maxmad64bis uplift batch (each PR rebaselined its own growth; the merged sum is larger): src/sse/handlers/chatHelpers.ts->1202. Every hunk is flag-gated or a verified fix covered by that PR's tests; see the batch report.",
   "_rebaseline_2026_09_13_13581_pool_egress_observation": "PR #13581 own growth: src/app/(dashboard)/dashboard/settings/components/ProxyRegistryManager.tsx 1475->1477 (+2 = the PoolEgressObservation import and its one-line mount under the pool members label). The observation itself lives outside the frozen file, all under cap: PoolEgressObservation.tsx, the dedicated GET /api/settings/proxies/pool/egress-observation route, src/lib/proxyPoolEgressObservation.ts and getPoolEgressObservation in src/lib/db/proxyLogs.ts. Only the mount point is irreducible. Covered by tests/unit/proxy-pool-egress-observation.test.ts, tests/unit/proxy-pool-egress-observation-route.test.ts and tests/unit/ui/PoolEgressObservation.test.tsx.",
@@ -456,7 +457,7 @@
     "open-sse/handlers/search.ts": 1789,
     "open-sse/mcp-server/schemas/tools.ts": 1621,
     "open-sse/mcp-server/server.ts": 1572,
-    "open-sse/services/accountFallback.ts": 2501,
+    "open-sse/services/accountFallback.ts": 2507,
     "open-sse/services/adobeFireflyBrowserLogin.ts": 1401,
     "open-sse/services/combo.ts": 4080,
     "open-sse/services/combo/executeTargetAttempt.ts": 1228,
