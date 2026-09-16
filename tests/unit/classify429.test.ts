@@ -52,6 +52,14 @@ test("classify429: auth-layer synthetic 'have exhausted their quota' returns 'qu
   assert.equal(classify429({ status: 429, body: { error: { message: body } } }), "quota_exhausted");
 });
 
+// New test for the phrasing introduced in the recent comment
+test("classify429: detects 'exhausted all your credits' phrasing", () => {
+  const body1 = "You have exhausted all your credits. Please upgrade your plan.";
+  const body2 = "We have exhausted all your credits due to usage limits.";
+  assert.equal(classify429({ status: 429, body: body1 }), "quota_exhausted");
+  assert.equal(classify429({ status: 429, body: body2 }), "quota_exhausted");
+});
+
 test("classify429: Google RESOURCE_EXHAUSTED with a billing-period reset is quota exhausted", () => {
   const body = "Resource has been exhausted (e.g. check quota). (reset after 24h)";
   assert.equal(looksLikeQuotaExhausted(body), true);
