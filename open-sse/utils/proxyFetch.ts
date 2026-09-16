@@ -13,7 +13,8 @@ import {
   proxyConfigToUrl,
   proxyUrlForLogs,
 } from "./proxyDispatcher.ts";
-import tlsClient, { type TlsFetchOptions } from "./tlsClient.ts";
+import tlsClient, { type TlsFetchOptions, guardTlsFirstByte } from "./tlsClient.ts";
+import { withUpstreamStatusCapture } from "./upstreamStatusCapture.ts";
 import { isProxyReachable } from "@/lib/proxyHealth";
 import {
   isControlPlaneProxyDirectFallbackEnabled,
@@ -84,12 +85,33 @@ function isTlsFingerprintEnabled() {
   return process.env.ENABLE_TLS_FINGERPRINT === "true";
 }
 
+function isGroqTlsFingerprintHost(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "api.groq.com" || host.endsWith(".groq.com");
+  } catch {
+    return /(?:^|[./])api\.groq\.com(?:[:/?]|$)/i.test(String(url));
+  }
+}
+
+function isGroqTlsFingerprintProvider(
+  provider: string | null | undefined
+): boolean {
+  const normalized = provider?.trim().toLowerCase();
+  return normalized === "groq";
+}
+
 function tlsFingerprintProviderAllowed(
   provider: string | null | undefined,
-  proxied: boolean
+  proxied: boolean,
+  url?: string | null
 ): boolean {
+  if (isGroqTlsFingerprintProvider(provider) || isGroqTlsFingerprintHost(url)) {
+    return false;
+  }
   const configured = process.env.TLS_FINGERPRINT_PROVIDERS?.trim();
-  // Preserve the legacy direct-only opt-in. The new proxied transport requires
+  // Preserve legacy direct-only opt-in. The new proxied transport requires
   // an explicit allowlist so enabling TLS cannot silently change proxy traffic.
   if (!configured) return !proxied;
   if (!provider) return false;
@@ -188,7 +210,7 @@ type TlsFingerprintStore = {
  * the egress logger read the innermost applied proxy (the last writer wins, which
  * is the executor's per-account proxy).
  */
-export type AppliedProxySink = { proxy: unknown };
+export type AppliedProxySink = { proxy: unknown; upstreamStatus?: number };
 const appliedProxyContext = new AsyncLocalStorage<AppliedProxySink>();
 
 /**
@@ -753,7 +775,7 @@ export async function runWithProxyContextOrDirect(proxyConfig, fn) {
   return runWithProxyContext(proxyConfig, fn, { directFallbackOnUnreachable: true });
 }
 
-async function patchedFetch(
+async function patchedFetchUnrecorded(
   input: RequestInfo | URL,
   options: FetchWithDispatcherOptions = {},
   deps: ProxyFetchDeps = {}
@@ -792,7 +814,7 @@ async function patchedFetch(
     if (
       isTlsFingerprintEnabled() &&
       activeTlsClient.available &&
-      tlsFingerprintProviderAllowed(tlsStore?.provider, false) &&
+      tlsFingerprintProviderAllowed(tlsStore?.provider, false, targetUrl) &&
       isTlsRequestEligible(input, options)
     ) {
       try {
@@ -807,7 +829,7 @@ async function patchedFetch(
           ...tlsProfileForProvider(tlsStore?.provider),
         });
         if (tlsStore) tlsStore.used = true;
-        return response;
+        return await guardTlsFirstByte(response);
       } catch (error) {
         if (isCallerAbort(error, getEffectiveSignal(input, options))) throw error;
         const sessionHadCookies =
@@ -1084,7 +1106,7 @@ async function patchedFetch(
     typeof tlsStore?.sessionScope === "string" &&
     tlsStore.sessionScope.trim().length > 0 &&
     activeTlsClient.available &&
-    tlsFingerprintProviderAllowed(tlsStore?.provider, true) &&
+    tlsFingerprintProviderAllowed(tlsStore?.provider, true, targetUrl) &&
     isTlsRequestEligible(input, options) &&
     isWreqProxySupported(proxyUrl)
   ) {
@@ -1100,7 +1122,7 @@ async function patchedFetch(
         ...tlsProfileForProvider(tlsStore?.provider),
       });
       if (tlsStore) tlsStore.used = true;
-      return response;
+      return await guardTlsFirstByte(response);
     } catch (error) {
       if (isCallerAbort(error, getEffectiveSignal(input, options))) throw error;
       const sessionHadCookies =
@@ -1178,6 +1200,9 @@ async function patchedFetch(
   }
   throw lastProxyError;
 }
+
+const getAppliedProxySink = () => appliedProxyContext.getStore();
+const patchedFetch = withUpstreamStatusCapture(patchedFetchUnrecorded, getAppliedProxySink);
 
 /**
  * Named export for proxyFetch — identical to the patched globalThis.fetch but

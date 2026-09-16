@@ -227,7 +227,7 @@ export function openaiResponsesToOpenAIRequest(
     const itemType = toString(item.type) || (item.role ? "message" : "");
 
     if (itemType === "message") {
-      const role = toString(item.role);
+      const role = toString(item.role) === "agent_message" ? "assistant" : toString(item.role);
 
       if (role !== "assistant") {
         if (currentAssistantMsg) {
@@ -484,6 +484,13 @@ export function openaiResponsesToOpenAIRequest(
       continue;
     }
 
+    // Defense in depth for Responses/subagent fallback: agent_message is
+    // Responses-only. Normalization should already have rewritten or dropped it;
+    // never throw a 5xx-looking unsupported-feature error if a shape slips through.
+    if (itemType === "agent_message" || toString(item.role) === "agent_message") {
+      continue;
+    }
+
     throw unsupportedFeature(
       `Unsupported Responses API feature: input item type '${itemType || "missing"}' cannot be represented in Chat Completions`
     );
@@ -709,6 +716,12 @@ export function openaiResponsesToOpenAIRequest(
       result.tool_choice = { type: "function", function: { name: tc.name } };
     } else if (tcType === "local_shell") {
       result.tool_choice = { type: "function", function: { name: "shell" } };
+    } else if (tcType === "custom" && tc.name !== undefined) {
+      // #13122: forced custom/freeform tool_choice (Codex CLI's wire_api="responses"
+      // sends this to force functions__exec-style tools). Custom tools are already
+      // normalized into a Chat { input: string } function schema above, so forcing that
+      // same declared name via Chat's tool_choice selects it correctly.
+      result.tool_choice = { type: "function", function: { name: tc.name } };
     } else if (tcType === "allowed_tools") {
       const mode = toString(tc.mode);
       if (mode !== "auto" && mode !== "required") {
@@ -773,7 +786,10 @@ export function openaiResponsesToOpenAIRequest(
   // ("When using tool_choice, tools must be set"). Contradictory choices like "required"
   // or forced functions are preserved so the upstream error remains visible.
   const finalChatTools = Array.isArray(result.tools) ? result.tools : [];
-  if (finalChatTools.length === 0 && (result.tool_choice === "auto" || result.tool_choice === "none")) {
+  if (
+    finalChatTools.length === 0 &&
+    (result.tool_choice === "auto" || result.tool_choice === "none")
+  ) {
     delete result.tool_choice;
   }
 
