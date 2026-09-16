@@ -338,6 +338,31 @@ describe("stacked Lite precedence (global config vs explicit step)", () => {
     const messages = result.body.messages as Array<{ content: string }>;
     assert.match(messages[0].content, /\.\.\.\[truncated\]$/);
   });
+
+  it("an out-of-range step maxToolLength does not hide a valid global cap", () => {
+    const previous = process.env.OMNIROUTE_LITE_MAX_TOOL_LENGTH;
+    process.env.OMNIROUTE_LITE_MAX_TOOL_LENGTH = "400";
+    try {
+      const longTool = "x".repeat(3000);
+      const result = applyCompression(
+        { messages: [{ role: "tool", content: longTool }] },
+        "stacked",
+        {
+          config: {
+            ...baseConfig,
+            lite: { compressToolResults: true, maxToolLength: 8000 },
+            stackedPipeline: [{ engine: "lite", config: { maxToolLength: 10 } }],
+          },
+        }
+      );
+      const messages = result.body.messages as Array<{ content: string }>;
+      assert.equal(messages[0].content, longTool);
+      assert.ok(!result.stats?.techniquesUsed.includes("tool-compress"));
+    } finally {
+      if (previous === undefined) delete process.env.OMNIROUTE_LITE_MAX_TOOL_LENGTH;
+      else process.env.OMNIROUTE_LITE_MAX_TOOL_LENGTH = previous;
+    }
+  });
 });
 
 describe("applyLiteCompression", () => {

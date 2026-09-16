@@ -102,6 +102,13 @@ describe("#8056 headroom minRows persistence", () => {
     assert.equal(result.success, false);
   });
 
+  it("schema accepts null Lite maxToolLength to clear a stored cap", () => {
+    const result = compressionSettingsUpdateSchema.safeParse({
+      lite: { compressToolResults: true, maxToolLength: null },
+    });
+    assert.equal(result.success, true, JSON.stringify(result.error?.issues));
+  });
+
   it("schema accepts headroom.minRows=5", () => {
     const result = compressionSettingsUpdateSchema.safeParse({
       headroom: { minRows: 5 },

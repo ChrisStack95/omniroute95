@@ -210,22 +210,23 @@ export function EngineConfigPage({ engineId }: { engineId: string }) {
     // Strip the `enabled` key — engine on/off is the panel's responsibility.
     const { enabled: _ignored, ...formDetail } = configState;
     void _ignored;
-    const liteMaxToolLength =
-      typeof formDetail.maxToolLength === "number" &&
-      Number.isFinite(formDetail.maxToolLength)
-        ? Math.floor(formDetail.maxToolLength)
-        : undefined;
-    const detail =
-      engineId === "lite"
-        ? {
-            compressToolResults: formDetail.compressToolResults !== false,
-            ...(liteMaxToolLength !== undefined &&
-            liteMaxToolLength >= 256 &&
-            liteMaxToolLength <= 1_000_000
-              ? { maxToolLength: liteMaxToolLength }
-              : {}),
-          }
-        : formDetail;
+    let detail: Record<string, unknown> = formDetail;
+    if (engineId === "lite") {
+      const raw = formDetail.maxToolLength;
+      const compressToolResults = formDetail.compressToolResults !== false;
+      if (!Object.prototype.hasOwnProperty.call(formDetail, "maxToolLength")) {
+        detail = { compressToolResults };
+      } else if (typeof raw === "number" && Number.isFinite(raw)) {
+        const n = Math.floor(raw);
+        if (n < 256 || n > 1_000_000) {
+          setSaveError(t("saveFailed"));
+          return;
+        }
+        detail = { compressToolResults, maxToolLength: n };
+      } else {
+        detail = { compressToolResults, maxToolLength: null };
+      }
+    }
     setSaving(true);
     setSaveError(null);
     try {

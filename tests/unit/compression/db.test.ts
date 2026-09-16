@@ -93,6 +93,34 @@ describe("updateCompressionSettings", () => {
     assert.equal(settings.lite?.maxToolLength, 8000);
   });
 
+  it("keeps a stored Lite maxToolLength when a later write only toggles truncation", async () => {
+    await updateCompressionSettings({
+      lite: { compressToolResults: true, maxToolLength: 8000 },
+    });
+    core.resetDbInstance();
+    await updateCompressionSettings({ lite: { compressToolResults: false } });
+    core.resetDbInstance();
+
+    const settings = await getCompressionSettings();
+    assert.equal(settings.lite?.compressToolResults, false);
+    assert.equal(settings.lite?.maxToolLength, 8000);
+  });
+
+  it("clears a stored Lite maxToolLength when the write sends null", async () => {
+    await updateCompressionSettings({
+      lite: { compressToolResults: true, maxToolLength: 8000 },
+    });
+    core.resetDbInstance();
+    await updateCompressionSettings({
+      lite: { compressToolResults: true, maxToolLength: null },
+    } as Parameters<typeof updateCompressionSettings>[0]);
+    core.resetDbInstance();
+
+    const settings = await getCompressionSettings();
+    assert.equal(settings.lite?.compressToolResults, true);
+    assert.equal(settings.lite?.maxToolLength, undefined);
+  });
+
   it("updates defaultMode", async () => {
     await updateCompressionSettings({ defaultMode: "lite" } as any);
     const settings = await getCompressionSettings();

@@ -35,11 +35,15 @@ function envInt(name: string, fallback: number): number {
   return n;
 }
 
+/** True when a value can be used as a Lite tool-result cap (not merely `typeof number`). */
+export function isUsableLiteMaxToolLength(value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  const n = Math.floor(value);
+  return n >= MIN_MAX_TOOL_LENGTH && n <= MAX_MAX_TOOL_LENGTH;
+}
+
 export function resolveLiteMaxToolLength(maxToolLength?: number): number {
-  if (typeof maxToolLength === "number" && Number.isFinite(maxToolLength)) {
-    const n = Math.floor(maxToolLength);
-    if (n >= MIN_MAX_TOOL_LENGTH && n <= MAX_MAX_TOOL_LENGTH) return n;
-  }
+  if (isUsableLiteMaxToolLength(maxToolLength)) return Math.floor(maxToolLength);
   return envInt("OMNIROUTE_LITE_MAX_TOOL_LENGTH", DEFAULT_MAX_TOOL_LENGTH);
 }
 
