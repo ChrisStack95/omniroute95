@@ -786,15 +786,14 @@ export async function getCompressionSettings(): Promise<CompressionConfig> {
         break;
       case "engines":
         storedEngines = parseStoredEnginesMap(parsed);
-        // #13456: when the parsed engines row yields no valid toggles (e.g. the
-        // row was stored as a BLOB or an empty object), log a warning so operators
-        // can diagnose why their panel-configured engines map is being silently
-        // replaced by the legacy fallback path.
-        if (storedEngines === null) {
+        // #13456: only warn when the row itself isn't a usable object — a valid object
+        // that simply yields zero toggles (e.g. `{}`, an operator deliberately disabling
+        // every engine) is legitimate config, not a parse failure, and must not warn.
+        if (storedEngines === null && (!parsed || typeof parsed !== "object")) {
           console.warn(
-            `[COMPRESSION] 'engines' settings row is present but unreadable ` +
-              `or contains no valid engine toggles; falling back to legacy ` +
-              `settings. Re-save the engines map from the Storage panel to fix.`
+            `[COMPRESSION] 'engines' settings row is present but unreadable; ` +
+              `falling back to legacy settings. Re-save the engines map from the ` +
+              `Storage panel to fix.`
           );
         }
         break;
