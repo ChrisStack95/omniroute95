@@ -769,14 +769,10 @@ test("getProviderCredentials refuses a forced pin outside allowedConnections ins
   // policy-allowed pool keeps its constraint — resolution yields no credential instead
   // of silently continuing on another connection. The policy-blocked connection must
   // never be selected, and the allowed one must not be picked behind the caller's back.
-  // #13879 made this path return the key-policy diagnostic instead of a bare null —
-  // the same shape the terminal-state path already used (expiredStatus/expiredCount,
-  // #12441) — so chat can answer 403 "excluded by this key's allowlist" rather than
-  // the generic "No active credentials". Assert the constraint itself rather than the
-  // sentinel's identity: nothing usable comes back, and neither connection leaks.
-  assert.equal((selected as Record<string, unknown> | null)?.apiKey, undefined);
-  assert.equal((selected as Record<string, unknown> | null)?.accessToken, undefined);
-  assert.equal((selected as Record<string, unknown> | null)?.connectionId, undefined);
+  // #13879 returns the key-policy diagnostic here instead of a bare null — the shape
+  // the terminal-state path has used since #12441 — so chat answers 403 rather than
+  // the generic "No active credentials". deepEqual pins it exactly, which is what
+  // #12080 needs: no apiKey/accessToken/connectionId, and neither connection leaks.
   assert.deepEqual(selected, { blockedByKeyPolicy: true, blockedCount: 1 });
 });
 
