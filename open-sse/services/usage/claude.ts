@@ -41,6 +41,15 @@ export function getClaudePlanLabel(...candidates: Array<string | null | undefine
   return null;
 }
 
+function scopedLimitName(scope: JsonRecord): string | null {
+  const model = toRecord(scope.model);
+  const candidates = [model.display_name, model.id, scope.surface];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim().toLowerCase();
+  }
+  return null;
+}
+
 /**
  * Claude Usage - Try to fetch from Anthropic API
  */
@@ -123,6 +132,21 @@ export async function getClaudeUsage(accessToken?: string) {
           const modelName = MODEL_DISPLAY_NAMES[codename] || codename;
           quotas[`weekly ${modelName} (7d)`] = createQuotaObject(valueRecord);
         }
+      }
+
+      // Newer responses carry per-model weekly caps in `limits[]` as
+      // `{ kind: "weekly_scoped", percent, resets_at, scope: { model: { display_name } } }`
+      // while every `seven_day_<codename>` key is null, so without this loop a
+      // scoped limit (e.g. Fable at 69% with the shared weekly at 39%) is invisible.
+      const scopedLimits = Array.isArray(data.limits) ? data.limits : [];
+      for (const entry of scopedLimits) {
+        const limit = toRecord(entry);
+        if (limit.kind !== "weekly_scoped") continue;
+        const scopeName = scopedLimitName(toRecord(limit.scope));
+        if (!scopeName || safePercentage(limit.percent) === undefined) continue;
+        const key = `weekly ${scopeName} (7d)`;
+        if (quotas[key]) continue;
+        quotas[key] = createQuotaObject({ utilization: limit.percent, resets_at: limit.resets_at });
       }
 
       const bootstrap = await bootstrapPromise;
