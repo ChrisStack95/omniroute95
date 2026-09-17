@@ -11405,6 +11405,7 @@
       "output": "Utdata",
       "totalOut": "Total Ut: {value}",
       "reasoning": "Resonemang: {value}",
+      "reasoningObserved": "{value} · {chars} tecken observerade",
       "requestedModel": "Begärd Modell",
       "requestProtocol": "Req Protokoll",
       "cacheSource": "Cache Källa",

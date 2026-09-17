@@ -11405,6 +11405,7 @@
       "output": "Ieșire",
       "totalOut": "Total Ieșire: {value}",
       "reasoning": "Raționament: {value}",
+      "reasoningObserved": "{value} · {chars} caractere observate",
       "requestedModel": "Model Solicitat",
       "requestProtocol": "Protocol Req",
       "cacheSource": "Sursă Cache",

@@ -11405,6 +11405,7 @@
       "output": "आउटपुट",
       "totalOut": "कुल बाहर: {value}",
       "reasoning": "कारण: {value}",
+      "reasoningObserved": "{value} · {chars} वर्ण देखे गए",
       "requestedModel": "अनुरोधित मॉडल",
       "requestProtocol": "अनुरोध प्रोटोकॉल",
       "cacheSource": "कैश स्रोत",

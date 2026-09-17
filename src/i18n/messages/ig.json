@@ -11405,6 +11405,7 @@
       "output": "Mmepụta",
       "totalOut": "Mkpokọta Ọpụpụ: {value}",
       "reasoning": "Ntụgharị Uche: {value}",
+      "reasoningObserved": "{value} · a hụrụ mkpụrụedemede {chars}",
       "requestedModel": "Ụdị A Rịọrọ",
       "requestProtocol": "Protokol Arịrịọ",
       "cacheSource": "Isi Mmalite Cache",

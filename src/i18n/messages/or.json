@@ -11405,6 +11405,7 @@
       "output": "ଆଉଟପୁଟ୍",
       "totalOut": "ମୋଟ ଆଉଟପୁଟ୍: {value}",
       "reasoning": "ତର୍କ: {value}",
+      "reasoningObserved": "{value} · {chars} ଅକ୍ଷର ଦେଖାଗଲା",
       "requestedModel": "ଅନୁରୋଧ କରାଯାଇଥିବା ମଡେଲ୍",
       "requestProtocol": "ଅନୁରୋଧ ପ୍ରୋଟୋକଲ୍",
       "cacheSource": "କ୍ୟାଶ୍ ଉତ୍ସ",

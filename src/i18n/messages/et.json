@@ -11405,6 +11405,7 @@
       "output": "Väljund",
       "totalOut": "Väljund kokku: {value}",
       "reasoning": "Arutluskäik: {value}",
+      "reasoningObserved": "{value} · täheldatud {chars} märki",
       "requestedModel": "Taotletud mudel",
       "requestProtocol": "Päringu protokoll",
       "cacheSource": "Vahemälu allikas",

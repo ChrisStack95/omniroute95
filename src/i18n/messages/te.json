@@ -11405,6 +11405,7 @@
       "output": "అవుట్‌పుట్",
       "totalOut": "మొత్తం అవుట్: {value}",
       "reasoning": "కారణం: {value}",
+      "reasoningObserved": "{value} · {chars} అక్షరాలు గమనించబడ్డాయి",
       "requestedModel": "అభ్యర్థించిన మోడల్",
       "requestProtocol": "రిక్వెస్ట్ ప్రోటోకాల్",
       "cacheSource": "క్యాష్ మూలం",

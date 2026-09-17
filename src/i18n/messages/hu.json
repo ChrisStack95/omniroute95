@@ -11405,6 +11405,7 @@
       "output": "Kimenet",
       "totalOut": "Összes Kiadás: {value}",
       "reasoning": "Indoklás: {value}",
+      "reasoningObserved": "{value} · {chars} karakter észlelve",
       "requestedModel": "Kért Modell",
       "requestProtocol": "Követelmény Protokoll",
       "cacheSource": "Gyorsítótár Forrás",

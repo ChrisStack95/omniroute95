@@ -11405,6 +11405,7 @@
       "output": "輸出",
       "totalOut": "總支出: {value}",
       "reasoning": "推理：{value}",
+      "reasoningObserved": "{value} · 觀測到 {chars} 個字元",
       "requestedModel": "請求的模型",
       "requestProtocol": "需求協議",
       "cacheSource": "快取來源",

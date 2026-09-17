@@ -11405,6 +11405,7 @@
       "output": "ទិន្នន័យចេញ",
       "totalOut": "សរុបចេញ៖ {value}",
       "reasoning": "ការវែកញែក៖ {value}",
+      "reasoningObserved": "{value} · បានសង្កេតឃើញ {chars} តួអក្សរ",
       "requestedModel": "ម៉ូដែលដែលបានស្នើ",
       "requestProtocol": "ពិធីការសំណើ",
       "cacheSource": "ប្រភពឃ្លាំងសម្ងាត់",

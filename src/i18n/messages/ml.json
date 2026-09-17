@@ -11405,6 +11405,7 @@
       "output": "ഔട്ട്പുട്ട്",
       "totalOut": "ആകെ ഔട്ട്പുട്ട്: {value}",
       "reasoning": "റീസണിംഗ്: {value}",
+      "reasoningObserved": "{value} · {chars} പ്രതീകങ്ങൾ കണ്ടെത്തി",
       "requestedModel": "അഭ്യർത്ഥിച്ച മോഡൽ",
       "requestProtocol": "അഭ്യർത്ഥന പ്രോട്ടോക്കോൾ",
       "cacheSource": "കാഷ് ഉറവിടം",

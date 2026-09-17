@@ -11405,6 +11405,7 @@
       "output": "Fitarwa",
       "totalOut": "Jimillar Fitarwa: {value}",
       "reasoning": "Tunani: {value}",
+      "reasoningObserved": "{value} · an lura da haruffa {chars}",
       "requestedModel": "Samfurin da Aka Buƙata",
       "requestProtocol": "Ka’idar Buƙata",
       "cacheSource": "Tushen Ma’ajiya",

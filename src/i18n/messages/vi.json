@@ -11405,6 +11405,7 @@
       "output": "Đầu ra",
       "totalOut": "Tổng đầu ra: {value}",
       "reasoning": "Suy luận: {value}",
+      "reasoningObserved": "{value} · quan sát được {chars} ký tự",
       "requestedModel": "Mô hình được yêu cầu",
       "requestProtocol": "Giao thức yêu cầu",
       "cacheSource": "Nguồn cache",

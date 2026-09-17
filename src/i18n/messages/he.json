@@ -11405,6 +11405,7 @@
       "output": "פלט",
       "totalOut": "סך הכל יוצא: {value}",
       "reasoning": "הנמקה: {value}",
+      "reasoningObserved": "{value} · נצפו {chars} תווים",
       "requestedModel": "מודל שביקשת",
       "requestProtocol": "פרוטוקול Req",
       "cacheSource": "מקור מטמון",

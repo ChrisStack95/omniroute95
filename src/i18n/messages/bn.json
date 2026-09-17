@@ -11405,6 +11405,7 @@
       "output": "আউটপুট",
       "totalOut": "মোট আউট: {value}",
       "reasoning": "কারণ: {value}",
+      "reasoningObserved": "{value} · {chars}টি অক্ষর পর্যবেক্ষিত",
       "requestedModel": "অনুরোধ করা মডেল",
       "requestProtocol": "রেক প্রোটোকল",
       "cacheSource": "ক্যাশ সোর্স",

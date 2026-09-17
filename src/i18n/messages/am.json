@@ -11405,6 +11405,7 @@
       "output": "ውጤት",
       "totalOut": "ጠቅላላ ውጤት፦ {value}",
       "reasoning": "ምክንያታዊ ትንተና፦ {value}",
+      "reasoningObserved": "{value} · {chars} ቁምፊዎች ተስተውለዋል",
       "requestedModel": "የተጠየቀው ሞዴል",
       "requestProtocol": "የጥያቄ ፕሮቶኮል",
       "cacheSource": "የመሸጎጫ ምንጭ",

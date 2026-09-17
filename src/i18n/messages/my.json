@@ -11405,6 +11405,7 @@
       "output": "အထွက်",
       "totalOut": "စုစုပေါင်းအထွက်: {value}",
       "reasoning": "ဆင်ခြင်မှု: {value}",
+      "reasoningObserved": "{value} · စာလုံး {chars} လုံး တွေ့ရှိသည်",
       "requestedModel": "တောင်းဆိုထားသော မော်ဒယ်",
       "requestProtocol": "တောင်းဆိုမှု ပရိုတိုကော",
       "cacheSource": "Cache ရင်းမြစ်",

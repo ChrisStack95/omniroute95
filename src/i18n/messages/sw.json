@@ -11405,6 +11405,7 @@
       "output": "Matokeo",
       "totalOut": "Jumla Ya Kutoka: {value}",
       "reasoning": "Sababu: {value}",
+      "reasoningObserved": "{value} · herufi {chars} zimeonekana",
       "requestedModel": "Mfano Uliyoombwa",
       "requestProtocol": "Itifaki ya Req",
       "cacheSource": "Chanzo cha Kumbukumbu",

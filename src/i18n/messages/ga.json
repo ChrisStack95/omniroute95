@@ -11405,6 +11405,7 @@
       "output": "Aschur",
       "totalOut": "Iomlán amach: {value}",
       "reasoning": "Réasúnaíocht: {value}",
+      "reasoningObserved": "{value} · {chars} carachtar breathnaithe",
       "requestedModel": "Samhail iarrtha",
       "requestProtocol": "Prótacal iarratais",
       "cacheSource": "Foinse Taisce",

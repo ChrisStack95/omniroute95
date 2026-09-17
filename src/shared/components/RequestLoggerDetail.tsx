@@ -9,7 +9,7 @@ import {
   getProtocolColor,
 } from "@/shared/constants/colors";
 import { formatDuration, formatApiKeyLabel, maskAccount } from "@/shared/utils/formatting";
-import { formatErrorForDisplay } from "@/shared/utils/formatting";
+import { formatErrorForDisplay, formatReasoningStat } from "@/shared/utils/formatting";
 import { useTheme } from "@/shared/hooks/useTheme";
 import {
   useTimestampTitles,
@@ -533,6 +533,7 @@ export default function RequestLoggerDetail({
     cacheRead: detail?.tokens?.cacheRead ?? log.tokens?.cacheRead,
     cacheWrite: detail?.tokens?.cacheWrite ?? log.tokens?.cacheWrite,
     reasoning: detail?.tokens?.reasoning ?? log.tokens?.reasoning,
+    reasoningChars: detail?.reasoningChars ?? log.reasoningChars,
     compressed: detail?.tokens?.compressed ?? log.tokens?.compressed,
   };
 
@@ -781,7 +782,7 @@ export default function RequestLoggerDetail({
                     {t("totalOut", { value: formatTokenValue(tokenStats.totalOut) })}
                   </span>
                   <span className="px-2 py-0.5 rounded bg-violet-500/20 text-violet-700 dark:text-violet-400 text-xs font-bold">
-                    {t("reasoning", { value: formatTokenValue(tokenStats.reasoning) })}
+                    {t("reasoning", { value: formatReasoningStat(tokenStats, t) })}
                   </span>
                 </div>
               </div>

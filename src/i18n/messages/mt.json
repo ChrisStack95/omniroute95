@@ -11405,6 +11405,7 @@
       "output": "Ħruġ",
       "totalOut": "Ħruġ totali: {value}",
       "reasoning": "Raġunament: {value}",
+      "reasoningObserved": "{value} · {chars} karattru osservati",
       "requestedModel": "Mudell mitlub",
       "requestProtocol": "Protokoll tat-talba",
       "cacheSource": "Sors tal-cache",

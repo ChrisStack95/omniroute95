@@ -11405,6 +11405,7 @@
       "output": "خروجی",
       "totalOut": "مجموع خروجی: {value}",
       "reasoning": "استدلال: {value}",
+      "reasoningObserved": "{value} · {chars} نویسه مشاهده شد",
       "requestedModel": "مدل درخواست شده",
       "requestProtocol": "پروتکل Req",
       "cacheSource": "کش منبع",

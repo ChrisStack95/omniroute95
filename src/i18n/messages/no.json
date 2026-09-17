@@ -11405,6 +11405,7 @@
       "output": "Utdata",
       "totalOut": "Total Ut: {value}",
       "reasoning": "Begrunnelse: {value}",
+      "reasoningObserved": "{value} · {chars} tegn observert",
       "requestedModel": "Forespurt Modell",
       "requestProtocol": "Req Protokoll",
       "cacheSource": "Cache Kilde",

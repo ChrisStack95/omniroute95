@@ -11405,6 +11405,7 @@
       "output": "Išvestis",
       "totalOut": "Iš viso išvesta: {value}",
       "reasoning": "Samprotavimas: {value}",
+      "reasoningObserved": "{value} · pastebėta simbolių: {chars}",
       "requestedModel": "Prašomas modelis",
       "requestProtocol": "Užklausos protokolas",
       "cacheSource": "Talpyklos šaltinis",

@@ -11405,6 +11405,7 @@
       "output": "Udgivelse",
       "totalOut": "Total Udbetaling: {value}",
       "reasoning": "Begrundelse: {value}",
+      "reasoningObserved": "{value} · {chars} tegn observeret",
       "requestedModel": "Anmodet Model",
       "requestProtocol": "Req Protokol",
       "cacheSource": "Cache Kilde",

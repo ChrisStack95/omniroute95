@@ -11405,6 +11405,7 @@
       "output": "ප්රතිදානය",
       "totalOut": "මුළු ප්රතිදානය: {value}",
       "reasoning": "තර්කනය: {value}",
+      "reasoningObserved": "{value} · අක්ෂර {chars}ක් නිරීක්ෂණය විය",
       "requestedModel": "ඉල්ලා ඇති මාදිලිය",
       "requestProtocol": "ඉල්ලීම් ප්රොටෝකෝලය",
       "cacheSource": "කෑෂ් මූලාශ්රය",

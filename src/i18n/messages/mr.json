@@ -11405,6 +11405,7 @@
       "output": "आउटपुट",
       "totalOut": "एकूण बाहेर: {value}",
       "reasoning": "तर्क: {value}",
+      "reasoningObserved": "{value} · {chars} अक्षरे आढळली",
       "requestedModel": "विनंती केलेला मॉडेल",
       "requestProtocol": "आवश्यक प्रोटोकॉल",
       "cacheSource": "कॅश स्रोत",

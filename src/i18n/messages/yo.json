@@ -11405,6 +11405,7 @@
       "output": "Àbájáde",
       "totalOut": "Àpapọ̀ Tó Jáde: {value}",
       "reasoning": "Ìrònú: {value}",
+      "reasoningObserved": "{value} · a ṣàkíyèsí àwọn lẹ́tà {chars}",
       "requestedModel": "Mọ́dẹ́lì Tí A Béèrè",
       "requestProtocol": "Ìlànà Ìbéèrè",
       "cacheSource": "Orísun Cache",

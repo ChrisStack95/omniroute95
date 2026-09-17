@@ -11405,6 +11405,7 @@
       "output": "ಔಟ್ಪುಟ್",
       "totalOut": "ಒಟ್ಟು ಔಟ್ಪುಟ್: {value}",
       "reasoning": "ತಾರ್ಕಿಕ ವಿಶ್ಲೇಷಣೆ: {value}",
+      "reasoningObserved": "{value} · {chars} ಅಕ್ಷರಗಳು ಕಂಡುಬಂದಿವೆ",
       "requestedModel": "ವಿನಂತಿಸಿದ ಮಾದರಿ",
       "requestProtocol": "ವಿನಂತಿ ಪ್ರೋಟೋಕಾಲ್",
       "cacheSource": "ಕ್ಯಾಶ್ ಮೂಲ",

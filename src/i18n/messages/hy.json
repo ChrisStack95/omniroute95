@@ -11405,6 +11405,7 @@
       "output": "Ելք",
       "totalOut": "Ընդհանուր ելք՝ {value}",
       "reasoning": "Դատողություն՝ {value}",
+      "reasoningObserved": "{value} · դիտարկվել է {chars} նիշ",
       "requestedModel": "Հարցված մոդել",
       "requestProtocol": "Հարցման արձանագրություն",
       "cacheSource": "Քեշի աղբյուր",

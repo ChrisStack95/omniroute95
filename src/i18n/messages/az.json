@@ -11405,6 +11405,7 @@
       "output": "Çıxış",
       "totalOut": "Ümumi Çıxış: {value}",
       "reasoning": "Müqayisə: {value}",
+      "reasoningObserved": "{value} · {chars} simvol müşahidə edildi",
       "requestedModel": "Tələb Olunan Model",
       "requestProtocol": "Req Protokolu",
       "cacheSource": "Keş Mənbəyi",
