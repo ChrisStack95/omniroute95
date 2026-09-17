@@ -5450,7 +5450,7 @@ export async function handleChatCore({
       // this check runs after translation + sanitization + tool-call execution to catch
       // cases where a provider returns a structurally valid raw body that translates into
       // choices:[] or output:[] with no usable content (Responses API shape included).
-      const malformedTranslatedReason = detectMalformedNonStream(translatedResponse);
+      const malformedTranslatedReason = detectMalformedNonStream(translatedResponse, provider);
       if (malformedTranslatedReason) {
         const totalLatency = Date.now() - startTime;
         const rawBytes = (() => {
