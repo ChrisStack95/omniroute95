@@ -117,4 +117,22 @@ describe("API Key Connection Groups and Search", () => {
       true
     );
   });
+
+  it("handles empty or null connections and selections gracefully", () => {
+    const rawConnections: unknown = null;
+    const rawSelections: unknown = undefined;
+
+    const safeConns = Array.isArray(rawConnections) ? rawConnections : [];
+    const safeSelected = Array.isArray(rawSelections) ? rawSelections : [];
+
+    assert.equal(safeConns.length, 0);
+    assert.equal(safeSelected.length, 0);
+
+    const fallbackName = (conn: { id?: unknown; name?: string }) =>
+      conn.name || (typeof conn.id === "string" ? conn.id.slice(0, 8) : "connection");
+
+    assert.equal(fallbackName({ id: "12345678-90ab", name: "" }), "12345678");
+    assert.equal(fallbackName({ id: null, name: "" }), "connection");
+    assert.equal(fallbackName({ id: undefined }), "connection");
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { getProviderDisplayName } from "@/lib/display/names";
 import { Input } from "@/shared/components";
@@ -60,6 +60,15 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
 }: ProviderConnectionPermissionListProps) {
   const tc = useTranslations("common");
 
+  const safeConnections = useMemo(
+    () => (Array.isArray(connections) ? connections : []),
+    [connections]
+  );
+  const safeSelectedConnections = useMemo(
+    () => (Array.isArray(selectedConnections) ? selectedConnections : []),
+    [selectedConnections]
+  );
+
   const [internalSearch, setInternalSearch] = useState("");
   const [collapsedInSearch, setCollapsedInSearch] = useState<Set<string>>(() => new Set());
 
@@ -82,7 +91,7 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
   // Group all connections by provider
   const allConnectionsByProvider = useMemo(() => {
     const grouped = new Map<string, ProviderConnection[]>();
-    for (const conn of connections) {
+    for (const conn of safeConnections) {
       const p = conn.provider || "Other";
       const list = grouped.get(p);
       if (list) {
@@ -92,7 +101,7 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
       }
     }
     return grouped;
-  }, [connections]);
+  }, [safeConnections]);
 
   // Filter groups according to search
   const filteredGroups = useMemo(() => {
@@ -119,10 +128,10 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
 
   // Expand providers that have active selections by default
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(() => {
-    if (selectedConnections.length > 0) {
-      const selectedSet = new Set(selectedConnections);
+    if (safeSelectedConnections.length > 0) {
+      const selectedSet = new Set(safeSelectedConnections);
       const withSelections = new Set<string>();
-      for (const conn of connections) {
+      for (const conn of safeConnections) {
         if (selectedSet.has(conn.id)) {
           withSelections.add(conn.provider || "Other");
         }
@@ -165,13 +174,13 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
         externalOnToggleConnection(id);
         return;
       }
-      if (selectedConnections.includes(id)) {
-        onSelectionChange(selectedConnections.filter((c) => c !== id));
+      if (safeSelectedConnections.includes(id)) {
+        onSelectionChange(safeSelectedConnections.filter((c) => c !== id));
       } else {
-        onSelectionChange([...selectedConnections, id]);
+        onSelectionChange([...safeSelectedConnections, id]);
       }
     },
-    [externalOnToggleConnection, selectedConnections, onSelectionChange]
+    [externalOnToggleConnection, safeSelectedConnections, onSelectionChange]
   );
 
   const handleToggleAllInProvider = useCallback(
@@ -180,15 +189,15 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
       const targetConns = isSearching ? visibleConns : allProviderConns;
       const targetIds = targetConns.map((c) => c.id);
       const allTargetSelected =
-        targetIds.length > 0 && targetIds.every((id) => selectedConnections.includes(id));
+        targetIds.length > 0 && targetIds.every((id) => safeSelectedConnections.includes(id));
 
       if (allTargetSelected) {
-        onSelectionChange(selectedConnections.filter((id) => !targetIds.includes(id)));
+        onSelectionChange(safeSelectedConnections.filter((id) => !targetIds.includes(id)));
       } else {
-        onSelectionChange([...new Set([...selectedConnections, ...targetIds])]);
+        onSelectionChange([...new Set([...safeSelectedConnections, ...targetIds])]);
       }
     },
-    [allConnectionsByProvider, isSearching, selectedConnections, onSelectionChange]
+    [allConnectionsByProvider, isSearching, safeSelectedConnections, onSelectionChange]
   );
 
   return (
@@ -222,7 +231,7 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
             const allProviderConns = allConnectionsByProvider.get(provider) ?? conns;
             const totalCount = allProviderConns.length;
             const selectedInProvider = allProviderConns.filter((c) =>
-              selectedConnections.includes(c.id)
+              safeSelectedConnections.includes(c.id)
             ).length;
             const allSelected = totalCount > 0 && selectedInProvider === totalCount;
             const someSelected = selectedInProvider > 0 && selectedInProvider < totalCount;
@@ -276,7 +285,7 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
                 {isExpanded && (
                   <div className="px-3 pb-2 pl-9 space-y-1">
                     {conns.map((conn) => {
-                      const isSelected = selectedConnections.includes(conn.id);
+                      const isSelected = safeSelectedConnections.includes(conn.id);
                       return (
                         <button
                           key={conn.id}
@@ -300,7 +309,8 @@ export const ProviderConnectionPermissionList = memo(function ProviderConnection
                             )}
                           </div>
                           <span className="truncate flex-1 font-mono text-[11px]" title={conn.id}>
-                            {conn.name || conn.id.slice(0, 8)}
+                            {conn.name ||
+                              (typeof conn.id === "string" ? conn.id.slice(0, 8) : "connection")}
                           </span>
                           {!conn.isActive && (
                             <span className="text-[9px] text-red-400 shrink-0">
