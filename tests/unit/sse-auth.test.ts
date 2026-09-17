@@ -769,7 +769,15 @@ test("getProviderCredentials refuses a forced pin outside allowedConnections ins
   // policy-allowed pool keeps its constraint — resolution yields no credential instead
   // of silently continuing on another connection. The policy-blocked connection must
   // never be selected, and the allowed one must not be picked behind the caller's back.
-  assert.equal(selected, null);
+  // #13879 made this path return the key-policy diagnostic instead of a bare null —
+  // the same shape the terminal-state path already used (expiredStatus/expiredCount,
+  // #12441) — so chat can answer 403 "excluded by this key's allowlist" rather than
+  // the generic "No active credentials". Assert the constraint itself rather than the
+  // sentinel's identity: nothing usable comes back, and neither connection leaks.
+  assert.equal((selected as Record<string, unknown> | null)?.apiKey, undefined);
+  assert.equal((selected as Record<string, unknown> | null)?.accessToken, undefined);
+  assert.equal((selected as Record<string, unknown> | null)?.connectionId, undefined);
+  assert.deepEqual(selected, { blockedByKeyPolicy: true, blockedCount: 1 });
 });
 
 test("getProviderCredentials retains rate-limited accounts when allowSuppressedConnections is enabled", async () => {

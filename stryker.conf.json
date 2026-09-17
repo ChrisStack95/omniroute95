@@ -469,7 +469,10 @@
       "tests/unit/issue-11912-opencode-roundrobin-collapse.test.ts",
       "tests/unit/opencode-400-model-unavailable.test.ts",
       "tests/unit/strong-credential-token-linear-scan.test.ts",
-      "tests/unit/provider-401-ambiguous-runtime.test.ts"
+      "tests/unit/provider-401-ambiguous-runtime.test.ts",
+      "tests/unit/13601-header-drop-count-surfaced.test.ts",
+      "tests/unit/combo-identical-error-streak.test.ts",
+      "tests/unit/semantic-cache-no-truncated-writes.test.ts"
     ],
     "nodeArgs": [
       "--import",

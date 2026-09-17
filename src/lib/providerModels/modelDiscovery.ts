@@ -4,6 +4,7 @@ import {
   replaceSyncedAvailableModelsForConnection,
   type SyncedAvailableModel,
 } from "@/lib/db/models";
+import type { VertexModelMetadataProvenance } from "@/lib/providerModels/vertexModelMetadata";
 import { CANONICAL_EFFORT_VALUES } from "@/shared/reasoning/effortStandardization";
 import { isObsoleteKiroModelAlias } from "@omniroute/open-sse/services/kiroModels.ts";
 import { filterSelectableModels } from "@omniroute/open-sse/services/modelLifecycle.ts";
@@ -352,8 +353,11 @@ export function normalizeDiscoveredModels(
       ...(typeof inputTokenLimit === "number" ? { inputTokenLimit } : {}),
       ...(isVertexProvider && typeof contextWindow === "number" ? { contextWindow } : {}),
       ...(typeof outputTokenLimit === "number" ? { outputTokenLimit } : {}),
+      // The narrowed `object` is not assignable to VertexModelMetadataProvenance; the
+      // read path (src/lib/db/models/synced.ts) casts the same field the same way, so
+      // keep both sides of the round-trip identical rather than only one of them typed.
       ...(record.metadataProvenance && typeof record.metadataProvenance === "object"
-        ? { metadataProvenance: record.metadataProvenance }
+        ? { metadataProvenance: record.metadataProvenance as VertexModelMetadataProvenance }
         : {}),
       ...(typeof record.description === "string" ? { description: record.description } : {}),
       ...(typeof record.supportsThinking === "boolean"
