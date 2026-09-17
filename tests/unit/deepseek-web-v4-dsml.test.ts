@@ -139,3 +139,24 @@ test("deepseek-web: recovers from hallucinated trailing </parameter> closing tag
   const args = JSON.parse(res.toolCalls[0].function.arguments);
   assert.equal(args.command, "docker ps");
 });
+
+test("deepseek-web: strips trailing parameter metadata tags and leftover debris after tool calls", () => {
+  const raw = `Baik — saya telusuri telegram MCP. Saya baca file sumbernya langsung dengan Python native (kanal yang paling andal), plus tail log stderr MCP.
+
+<tool><parameter name="code">import json, re, os
+from hermes_tools import terminal
+print("hello")</parameter>
+</tool><parameter name="arguments">{"name":"execute_code"}
+</tool>`;
+
+  const res = parseDeepSeekToolCalls(raw, "call_debris", sampleTools);
+  assert.equal(
+    res.content,
+    "Baik — saya telusuri telegram MCP. Saya baca file sumbernya langsung dengan Python native (kanal yang paling andal), plus tail log stderr MCP."
+  );
+  assert.ok(Array.isArray(res.toolCalls));
+  assert.equal(res.toolCalls.length, 1);
+  assert.equal(res.toolCalls[0].function.name, "execute_code");
+  assert.ok(!res.content.includes("parameter"));
+  assert.ok(!res.content.includes("arguments"));
+});
