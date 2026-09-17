@@ -529,5 +529,14 @@ export function parseDeepSeekToolCalls(
     ...tokens.filter((t) => !within(t)).map((t) => ({ start: t.start, end: t.end })),
   ];
 
-  return { content: stripRanges(text, ranges), toolCalls };
+  let content = stripRanges(text, ranges);
+  if (toolCalls.length > 0) {
+    content = content
+      .replace(/<parameter\b[^>]*>[\s\S]*?(?:<\/parameter>|$)/gi, "")
+      .replace(/<\/?(?:parameter|invoke|tool|calls|tool_calls|function_calls)\b[^>]*>/gi, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  return { content, toolCalls };
 }
