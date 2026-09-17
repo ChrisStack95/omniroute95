@@ -197,6 +197,14 @@ function collectMissingEnglishDirectTranslationKeys() {
       const key = match[3].replace(/\\(['"\\])/g, "$1");
       const fullKey = binding.namespace ? `${binding.namespace}.${key}` : key;
       if (typeof lookupMessage(en, fullKey) === "string") continue;
+      // Dynamic suffix (`t("prefix." + value)`, #13555 routing editor): the
+      // literal is a group prefix, not a leaf key — require the prefix to
+      // resolve to a message group instead of flagging the trailing dot.
+      if (/^\s*\+\s*[\w$]/.test(source.slice((match.index ?? 0) + match[0].length))) {
+        const groupKey = fullKey.replace(/\.$/, "");
+        const group = lookupMessage(en, groupKey);
+        if (group && typeof group === "object") continue;
+      }
 
       const relative = path.relative(process.cwd(), file);
       const line = raw.slice(0, match.index).split(/\r?\n/).length;
