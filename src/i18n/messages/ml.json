@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "ദൈർഘ്യമേറിയ ടൂൾ ഫലങ്ങൾ മുൻകൂട്ടി വെട്ടിച്ചുരുക്കുക",
-        "description": "ലഘു കംപ്രഷൻ സമയത്ത് 2,000 പ്രതീകങ്ങളിൽ കൂടുതലുള്ള ടൂൾ ഫലങ്ങൾ വെട്ടിച്ചുരുക്കുന്നു. കോൺടെക്സ്റ്റ് മോഡലിന്റെ ബജറ്റ് കവിയുമ്പോൾ അടിയന്തര ഓവർഫ്ലോ പരിരക്ഷ ഉള്ളടക്കം വീണ്ടും വെട്ടിക്കുറച്ചേക്കാം."
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

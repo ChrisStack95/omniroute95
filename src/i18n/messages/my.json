@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "ရှည်လျားသော tool ရလဒ်များကို ကြိုတင်ဖြတ်တောက်ပါ",
-        "description": "ပေါ့ပါးသော ချုံ့ခြင်းအတွင်း စာလုံးရေ 2,000 ကျော်သည့် tool ရလဒ်များကို ဖြတ်တောက်သည်။ ဆက်စပ်အကြောင်းအရာသည် မော်ဒယ်၏ သတ်မှတ်ပမာဏကို ကျော်လွန်ပါက အရေးပေါ် လျှံထွက်မှုကာကွယ်ရေးက အကြောင်းအရာကို ဆက်လက်ဖြတ်တောက်နိုင်သည်။"
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

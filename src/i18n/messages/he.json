@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "בצורה פרואקטיבית לקצר תוצאות כלי ארוכות",
-        "description": "מקטין את תוצאות הכלים מעל 2,000 תווים במהלך דחיסת Lite. הגנה על עודף חירום עשויה עדיין לקצץ תוכן כאשר ההקשר חורג מתקציב המודל."
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

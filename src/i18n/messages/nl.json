@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "Proactief lange toolresultaten inkorten",
-        "description": "Truncateert toolresultaten boven de 2.000 tekens tijdens Lite-compressie. Noodoverloopbescherming kan nog steeds inhoud inkorten wanneer de context het modelbudget overschrijdt."
+        "description": "Kort lange toolresultaten in tijdens Lite-compressie. De limiet wordt gezet door het veld Maximale toolresultaatlengte (of OMNIROUTE_LITE_MAX_TOOL_LENGTH als het veld leeg is). Noodoverloopbescherming kan nog steeds inhoud inkorten wanneer de context het modelbudget overschrijdt."
+      },
+      "maxToolLength": {
+        "label": "Maximale toolresultaatlengte",
+        "description": "Tekenlimiet voor proactief inkorten. Standaard 2000. Overschrijf met OMNIROUTE_LITE_MAX_TOOL_LENGTH als het veld leeg is."
       }
     },
     "engineFields": {

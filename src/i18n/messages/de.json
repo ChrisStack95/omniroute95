@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "Proaktiv lange Tool-Ergebnisse kürzen",
-        "description": "Trimmt die Toolergebnisse über 2.000 Zeichen während der Lite-Kompression. Der Notüberlauf-Schutz kann den Inhalt weiterhin kürzen, wenn der Kontext das Modellbudget überschreitet."
+        "description": "Kürzt lange Tool-Ergebnisse während der Lite-Kompression. Die Obergrenze setzt das Feld „Maximale Tool-Ergebnis-Länge“ (oder OMNIROUTE_LITE_MAX_TOOL_LENGTH, wenn das Feld leer ist). Der Notüberlauf-Schutz kann den Inhalt weiter kürzen, wenn der Kontext das Modellbudget überschreitet."
+      },
+      "maxToolLength": {
+        "label": "Maximale Tool-Ergebnis-Länge",
+        "description": "Zeichenobergrenze für die vorausschauende Kürzung von Tool-Ergebnissen. Standard 2000. Überschreiben mit OMNIROUTE_LITE_MAX_TOOL_LENGTH, wenn das Feld leer ist."
       }
     },
     "engineFields": {

@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "پیشگی طور پر طویل ٹول کے نتائج کو کاٹ دیں",
-        "description": "Lite کمپریشن کے دوران 2,000 کرداروں سے زیادہ کے ٹول کے نتائج کو کاٹ دیتا ہے۔ ایمرجنسی اوورفلو پروٹیکشن اب بھی مواد کو کم کر سکتا ہے جب سیاق و سباق ماڈل کے بجٹ سے تجاوز کر جائے۔"
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

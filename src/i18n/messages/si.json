@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "දිගු මෙවලම් ප්රතිඵල කල්තියා කප්පාදු කරන්න",
-        "description": "Lite සම්පීඩනය අතරතුර අක්ෂර 2,000 ඉක්මවන මෙවලම් ප්රතිඵල කප්පාදු කරයි. සන්දර්භය ආකෘතියේ සීමාව ඉක්මවන විට හදිසි අතිප්රවාහ ආරක්ෂණය මඟින් තවදුරටත් අන්තර්ගතය කප්පාදු කළ හැක."
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {

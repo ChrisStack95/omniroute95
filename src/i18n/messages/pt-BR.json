@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "Truncar proativamente resultados longos de ferramentas",
-        "description": "Trunca os resultados da ferramenta com mais de 2.000 caracteres durante a compressão Lite. A proteção de transbordo de emergência ainda pode cortar o conteúdo quando o contexto excede o orçamento do modelo."
+        "description": "Trunca resultados longos de ferramenta durante a compressão Lite. O limite é definido pelo campo Comprimento máximo do resultado da ferramenta (ou OMNIROUTE_LITE_MAX_TOOL_LENGTH se estiver vazio). A proteção de transbordo de emergência ainda pode recortar conteúdo quando o contexto excede o orçamento do modelo."
+      },
+      "maxToolLength": {
+        "label": "Comprimento máximo do resultado da ferramenta",
+        "description": "Limite de caracteres para o recorte proativo. Padrão 2000. Substitua com OMNIROUTE_LITE_MAX_TOOL_LENGTH se o campo estiver vazio."
       }
     },
     "engineFields": {

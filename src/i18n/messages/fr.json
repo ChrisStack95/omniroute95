@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "Tronquer proactivement les longs résultats d'outils",
-        "description": "Tronque les résultats des outils à plus de 2 000 caractères lors de la compression Lite. La protection d'urgence contre les débordements peut toujours réduire le contenu lorsque le contexte dépasse le budget du modèle."
+        "description": "Tronque les longs résultats d'outils pendant la compression Lite. Le plafond est défini par le champ Longueur maximale des résultats d'outil (ou OMNIROUTE_LITE_MAX_TOOL_LENGTH s'il n'est pas renseigné). La protection d'urgence contre le débordement peut encore couper le contenu lorsque le contexte dépasse le budget du modèle."
+      },
+      "maxToolLength": {
+        "label": "Longueur maximale des résultats d'outil",
+        "description": "Plafond de caractères pour la troncature proactive des résultats d'outil. Défaut 2000. Surcharge via OMNIROUTE_LITE_MAX_TOOL_LENGTH si le champ est vide."
       }
     },
     "engineFields": {

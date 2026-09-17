@@ -8596,7 +8596,11 @@
       },
       "compressToolResults": {
         "label": "लामा उपकरण नतिजाहरू सक्रिय रूपमा काट्नुहोस्",
-        "description": "हल्का सङ्कुचनका क्रममा 2,000 वर्णभन्दा लामा उपकरण नतिजाहरू काट्छ। कन्टेक्स्टले मोडेलको बजेट नाघ्दा आपत्कालीन ओभरफ्लो सुरक्षाले अझै पनि सामग्री काट्न सक्छ।"
+        "description": "Truncates long tool results during Lite compression. The Maximum tool-result length field (or OMNIROUTE_LITE_MAX_TOOL_LENGTH when that field is unset) sets the cap. Emergency overflow protection may still trim content when the context exceeds the model budget."
+      },
+      "maxToolLength": {
+        "label": "Maximum tool-result length",
+        "description": "Character cap for proactive tool-result truncation. Default 2000. Override with OMNIROUTE_LITE_MAX_TOOL_LENGTH when this field is unset."
       }
     },
     "engineFields": {
