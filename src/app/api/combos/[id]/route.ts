@@ -137,6 +137,27 @@ export async function PUT(request, { params }) {
           }),
         }
       : normalizedUpdate;
+
+    if (body.overrideAllowedProviders === true) {
+      delete body.overrideAllowedProviders;
+      if (body.models && body.allowedProviders === undefined) {
+        const stepProviders = (
+          body.models as Array<{ providerId?: string; provider?: string; model?: string }>
+        )
+          .map(
+            (m) =>
+              m.providerId ||
+              m.provider ||
+              (typeof m.model === "string" && m.model.includes("/") ? m.model.split("/")[0] : "")
+          )
+          .filter((p): p is string => Boolean(p));
+        const currentProviders = Array.isArray(currentCombo.allowedProviders)
+          ? currentCombo.allowedProviders
+          : [];
+        body.allowedProviders = Array.from(new Set([...currentProviders, ...stepProviders]));
+      }
+    }
+
     const nextComboState = {
       ...currentCombo,
       ...body,

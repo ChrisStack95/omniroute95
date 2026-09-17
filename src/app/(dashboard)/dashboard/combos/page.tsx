@@ -189,7 +189,8 @@ const STRATEGY_GUIDANCE_FALLBACK = {
   "quota-weighted": {
     when: "Use when several accounts of the same model have quota snapshots and concurrent traffic should land on accounts that still have leftover.",
     avoid: "Avoid when most accounts have no quota snapshots.",
-    example: "Example: 10 Antigravity Gemini accounts with different 5h/weekly resets; skip empty ones and pick among the rest in proportion to leftover.",
+    example:
+      "Example: 10 Antigravity Gemini accounts with different 5h/weekly resets; skip empty ones and pick among the rest in proportion to leftover.",
   },
 };
 
@@ -391,7 +392,8 @@ const STRATEGY_RECOMMENDATIONS_FALLBACK = {
   },
   "quota-weighted": {
     title: "Quota-weighted account spread",
-    description: "Drops exhausted accounts, keeps a 1% soft floor, then picks the first target in proportion to leftover divided by in-flight load. Existing conversations stay pinned.",
+    description:
+      "Drops exhausted accounts, keeps a 1% soft floor, then picks the first target in proportion to leftover divided by in-flight load. Existing conversations stay pinned.",
     tips: [
       "Keep session stickiness on (the default). New conversations spread by leftover and in-flight load; an existing conversation stays on its account until that account is empty, then rebinds.",
       "Needs per-account quota snapshots. Missing snapshots stay eligible but only at the reset-aware missing-quota score (0.5).",
@@ -3039,6 +3041,28 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, combo
       models,
       strategy,
     };
+
+    // When editing an existing combo from the dashboard form, synchronize allowedProviders
+    // and clear legacy family restrictions so adding steps across providers never triggers COMBO_008
+    if (isEdit) {
+      const stepProviders = models
+        .map(
+          (m: { providerId?: string; model?: string }) =>
+            m.providerId ||
+            (typeof m.model === "string" && m.model.includes("/") ? m.model.split("/")[0] : "")
+        )
+        .filter((p: string): p is string => Boolean(p));
+      const existingProviders = Array.isArray(combo?.allowedProviders)
+        ? combo.allowedProviders
+        : [];
+      if (existingProviders.length > 0) {
+        saveData.allowedProviders = Array.from(new Set([...existingProviders, ...stepProviders]));
+      }
+      if (Array.isArray(combo?.allowedModelFamilies) && combo.allowedModelFamilies.length > 0) {
+        saveData.allowedModelFamilies = null;
+      }
+      saveData.overrideAllowedProviders = true;
+    }
 
     // Per-combo description (#5005). Free-text, optional, persisted in combo data.
     if (description.trim()) {
