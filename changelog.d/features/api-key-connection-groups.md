@@ -1,0 +1,1 @@
+- feat(api-manager): collapsible and searchable connection groups with provider select-all in permissions modal

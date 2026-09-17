@@ -33,6 +33,7 @@ import { BypassProviderQuotaToggle } from "./components/BypassProviderQuotaToggl
 import { ApiKeyCompressionToggle } from "./components/ApiKeyCompressionToggle";
 import { AllowedCombosSection } from "./components/AllowedCombosSection";
 import ProviderModelPermissionList from "./components/ProviderModelPermissionList";
+import ProviderConnectionPermissionList from "./components/ProviderConnectionPermissionList";
 import RoutingEntryLink from "@/shared/components/routing/RoutingEntryLink";
 import { ALL_COMBOS_ACCESS_RULE } from "@/shared/constants/comboAccess";
 
@@ -1945,18 +1946,6 @@ const PermissionsModal = memo(function PermissionsModal({
     [allowAllCombos]
   );
 
-  const handleToggleConnection = useCallback(
-    (connectionId: string) => {
-      if (allowAllConnections) return;
-      setSelectedConnections((prev) =>
-        prev.includes(connectionId)
-          ? prev.filter((c) => c !== connectionId)
-          : [...prev, connectionId]
-      );
-    },
-    [allowAllConnections]
-  );
-
   const handleToggleEndpoint = useCallback(
     (categoryId: string) => {
       if (allowAllEndpoints) return;
@@ -2967,58 +2956,11 @@ const PermissionsModal = memo(function PermissionsModal({
                   : t("restrictedToConnections", { count: selectedConnections.length })}
             </p>
             {!allowAllConnections && (
-              <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                {Object.entries(
-                  allConnections.reduce<Record<string, ProviderConnection[]>>((acc, conn) => {
-                    const p = conn.provider || "Other";
-                    if (!acc[p]) acc[p] = [];
-                    acc[p].push(conn);
-                    return acc;
-                  }, {})
-                )
-                  .sort(([a], [b]) => compareTr(a, b))
-                  .map(([provider, conns]) => (
-                    <div key={provider}>
-                      <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider px-1 py-0.5">
-                        {provider}
-                      </p>
-                      {conns.map((conn) => {
-                        const isSelected = selectedConnections.includes(conn.id);
-                        return (
-                          <button
-                            key={conn.id}
-                            onClick={() => handleToggleConnection(conn.id)}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-all ${
-                              isSelected
-                                ? "bg-primary/10 text-primary"
-                                : "text-text-muted hover:bg-surface/50 hover:text-text-main"
-                            }`}
-                          >
-                            <div
-                              className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                isSelected ? "bg-primary border-primary" : "border-border"
-                              }`}
-                            >
-                              {isSelected && (
-                                <span className="material-symbols-outlined text-white text-[10px]">
-                                  check
-                                </span>
-                              )}
-                            </div>
-                            <span className="truncate flex-1">
-                              {conn.name || conn.id.slice(0, 8)}
-                            </span>
-                            {!conn.isActive && (
-                              <span className="text-[9px] text-red-400 shrink-0">
-                                {tc("inactive")}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-              </div>
+              <ProviderConnectionPermissionList
+                connections={allConnections}
+                selectedConnections={selectedConnections}
+                onSelectionChange={setSelectedConnections}
+              />
             )}
           </div>
         )}
