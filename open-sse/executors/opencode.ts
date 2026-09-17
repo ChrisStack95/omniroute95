@@ -28,13 +28,19 @@ import {
   isEmptyUpstreamRejection,
   extractChatcmplId,
 } from "./accountRotation.ts";
-import { isOpencodeGeoBlocked, proxyKeyOf } from "./opencodeGeoBlock.ts";
+import { isOpencodeGeoBlocked, proxyKeyOf, isOpencodeUserBlocked } from "./opencodeGeoBlock.ts";
 import {
   guardResponsesStall,
   isResponsesFirstByteTimeout,
   resolveResponsesStallWindowMs,
 } from "./opencodeResponsesStall.ts";
-import { isRetriableUpstreamFailure } from "./opencodeTransientFailure.ts";
+import { discardResponseBody } from "./opencodeResponseBody.ts";
+import {
+  isRetriableUpstreamFailure,
+  releaseResponseBody,
+  sleepAbortable,
+  transientRetryDelayMs,
+} from "./opencodeTransientFailure.ts";
 import {
   hasProxyRefusals,
   isProxyAvoided,
@@ -45,7 +51,11 @@ import {
 import {
   isNetworkRotationSharedEgressGuardEnabled,
   isProxySkipRecentlyFailedEnabled,
+  isOpencodeUserBlockedRotationEnabled,
+  isOpencodeTransientFailoverBackoffEnabled,
+  isOpencodeRateLimited429EarlyStopEnabled,
 } from "@/shared/utils/featureFlags";
+import { classifyUpstream429 } from "./opencodeRateLimited.ts";
 
 /**
  * The main OpenCode Zen host, shared by the `opencode` and `opencode-zen`
@@ -309,6 +319,10 @@ export class OpencodeExecutor extends BaseExecutor {
   // pickRotatableAccount(), which needs a plain `{ nextAccountIdx }` shape —
   // TS's private-member nominal check rejects `this` there otherwise.
   nextAccountIdx = 0;
+  // Sleep used by the opt-in transient failover pause (#13615). Not `private`:
+  // tests swap in a recording fake instead of waiting on real timers.
+  transientPauseSleep: (ms: number, signal?: AbortSignal | null) => Promise<boolean> =
+    sleepAbortable;
 
   constructor(provider: string) {
     super(provider, PROVIDERS[provider] || PROVIDERS.openai);
@@ -616,6 +630,15 @@ export class OpencodeExecutor extends BaseExecutor {
       let directTried = false;
       // Stalls before the first Responses byte: one rotation, then fail fast.
       let stalledAttempts = 0;
+      // A response an opt-in branch rotated away from. It stays lastResult (and
+      // intact) until a newer attempt replaces it, then its body is cancelled.
+      let abandonedResponse: Response | null = null;
+      // OPENCODE_USER_BLOCKED_ROTATION: rotations spent on user_blocked refusals (max 1).
+      let userBlockedRotations = 0;
+      // Consecutive transient failures (5xx / empty 400) and the pause time spent on
+      // them this request — only acted on when OPENCODE_TRANSIENT_FAILOVER_BACKOFF is on.
+      let transientStreak = 0;
+      let transientPausedMs = 0;
 
       for (let attempt = 0; attempt < this.accounts.length + emptyRejectionBudget; attempt++) {
         const isProxiedCandidate = (a: OpencodeAccountState): boolean => {
@@ -669,6 +692,19 @@ export class OpencodeExecutor extends BaseExecutor {
           continue;
         }
 
+        // Opt-in (#13615): after repeated transient failures, release the failed body
+        // and wait (bounded) before the next account; a client abort stops the loop.
+        const pauseMs = transientRetryDelayMs(transientStreak, transientPausedMs);
+        if (pauseMs > 0 && lastResult !== null && isOpencodeTransientFailoverBackoffEnabled()) {
+          lastResult = { ...lastResult, response: releaseResponseBody(lastResult.response) };
+          transientPausedMs += pauseMs;
+          log?.info?.(
+            "OPENCODE",
+            `${cid}${transientStreak} transient failures, pausing ${pauseMs}ms`
+          );
+          if (!(await this.transientPauseSleep(pauseMs, input.signal))) break;
+        }
+
         // #5217 (Gap 2): promoted debug→info so the per-request account/proxy
         // rotation selection is visible in the Console log view at the default
         // APP_LOG_LEVEL=info (users could not see which account/proxy was used).
@@ -712,6 +748,7 @@ export class OpencodeExecutor extends BaseExecutor {
             if (!rotate) throw err;
             continue;
           }
+          transientStreak = 0;
           // A network exception (timeout, connection refused/reset) is only
           // account-scoped when this account has its OWN egress (a configured
           // proxy) — that's the case a dead/unreachable proxy justifies rotating
@@ -742,7 +779,11 @@ export class OpencodeExecutor extends BaseExecutor {
           );
           continue;
         }
+        discardResponseBody(abandonedResponse);
+        abandonedResponse = null;
         lastResult = result;
+        const priorTransientStreak = transientStreak;
+        transientStreak = 0;
 
         const status = result.response.status;
         if (status === 429) {
@@ -752,6 +793,19 @@ export class OpencodeExecutor extends BaseExecutor {
           const setAsideMs = skipRecentlyFailed
             ? noteProxyRefusal(proxyEgressKey(account.proxy), "ip_quota_429")
             : null;
+          // Opt-in (#13657): a 429 that names a real rate limit stops the wave and
+          // the real upstream 429 is returned untouched (body, Retry-After, quota
+          // headers), so provider error rules still apply. Flag off → rotate.
+          if (
+            isOpencodeRateLimited429EarlyStopEnabled() &&
+            (await classifyUpstream429(result.response)) === "rate_limited"
+          ) {
+            log?.warn?.(
+              "OPENCODE",
+              `${cid}rate-limited 429 on account ${masked}, stopping the account wave`
+            );
+            return result;
+          }
           log?.warn?.(
             "OPENCODE",
             `${cid}Rate limited (429) on account ${masked}` +
@@ -765,6 +819,7 @@ export class OpencodeExecutor extends BaseExecutor {
           const key = proxyKeyOf(account.proxy);
           if (key !== null) geoTriedProxyKeys.add(key);
           else directTried = true;
+          transientStreak = priorTransientStreak + 1;
           log?.warn?.(
             "OPENCODE",
             `${cid}transient upstream ${status} on account ${masked} (proxy ${key ?? "direct"}), rotating to next…`
@@ -799,6 +854,29 @@ export class OpencodeExecutor extends BaseExecutor {
             if (this.accounts.length === 1) return result;
             continue;
           }
+          // Opt-in (#13498): an upstream user_blocked refusal (403 or 451, same
+          // predicate) cools the refused account down, joins the tried-set and
+          // rotates at most once per request. Never a success mark. Flag off →
+          // falls through to the unchanged path below.
+          if (
+            bodyText !== null &&
+            isOpencodeUserBlocked(status, bodyText) &&
+            isOpencodeUserBlockedRotationEnabled()
+          ) {
+            const key = proxyKeyOf(account.proxy);
+            if (key !== null) geoTriedProxyKeys.add(key);
+            else directTried = true;
+            this.markCooldown(account);
+            const rotate = userBlockedRotations === 0 && this.accounts.length > 1;
+            log?.warn?.(
+              "OPENCODE",
+              `${cid}user_blocked ${status} on account ${masked} (proxy ${key ?? "direct"}), ${rotate ? "rotating to next account once…" : "returning the refusal"}`
+            );
+            if (!rotate) return result;
+            userBlockedRotations++;
+            abandonedResponse = result.response;
+            continue;
+          }
         }
 
         // Empty upstream rejection (malformed 400: no error field, no real
@@ -817,6 +895,7 @@ export class OpencodeExecutor extends BaseExecutor {
           }
           if (bodyText !== null && isRetriableUpstreamFailure(400, bodyText)) {
             const chatcmplId = extractChatcmplId(bodyText);
+            transientStreak = priorTransientStreak + 1;
             log?.warn?.(
               "OPENCODE",
               `${cid}upstream empty rejection on account ${masked} (${chatcmplId}), rotating to next…`

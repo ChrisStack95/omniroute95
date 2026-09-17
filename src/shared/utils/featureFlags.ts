@@ -238,6 +238,74 @@ export function isOpencodeResponsesStallRotationEnabled(): boolean {
   }
 }
 
+/**
+ * OpenCode user_blocked 403/451 bounded rotation (#13498). Opt-in: when off, the refusal is
+ * returned unchanged exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeUserBlockedRotationEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_USER_BLOCKED_ROTATION");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_USER_BLOCKED_ROTATION, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * OpenCode transient-failure failover pause (#13615). Opt-in: when off, failover to the next
+ * account stays immediate exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeTransientFailoverBackoffEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_TRANSIENT_FAILOVER_BACKOFF");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_TRANSIENT_FAILOVER_BACKOFF, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * Mistral bare-401 bounded soft lockout (#13609). Opt-in: when off, a bare Mistral 401 parks
+ * the connection as expired exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isMistralAmbiguous401SoftLockoutEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve MISTRAL_AMBIGUOUS_401_SOFT_LOCKOUT, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * OpenCode classified-429 early stop (#13657). Opt-in: when off, every 429 rotates to the
+ * next account exactly as before.
+ * Fail closed: an unreadable flag store keeps the pre-flag behavior (disabled).
+ */
+export function isOpencodeRateLimited429EarlyStopEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("OPENCODE_RATE_LIMITED_429_EARLY_STOP");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve OPENCODE_RATE_LIMITED_429_EARLY_STOP, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
 export function isServerOwnedToolLoopEnabled(
   reader: (key: string) => boolean = isFeatureFlagEnabled
 ): boolean {
@@ -246,6 +314,24 @@ export function isServerOwnedToolLoopEnabled(
   } catch (error) {
     console.error(
       "[featureFlags] Failed to resolve SERVER_OWNED_TOOL_LOOP_ENABLED, defaulting to disabled:",
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/**
+ * DB startup health check deferral (#13717). Opt-in: off keeps the pre-existing
+ * behavior of blocking getDbInstance() on the startup integrity check, so a
+ * corrupt database is still caught before the server serves its first request.
+ * Fail closed: an unreadable flag store keeps the pre-flag (blocking) behavior.
+ */
+export function isDbHealthcheckStartupDeferredEnabled(): boolean {
+  try {
+    return isFeatureFlagEnabled("DB_HEALTHCHECK_STARTUP_DEFERRED_ENABLED");
+  } catch (error) {
+    console.error(
+      "[featureFlags] Failed to resolve DB_HEALTHCHECK_STARTUP_DEFERRED_ENABLED, defaulting to disabled:",
       error instanceof Error ? error.message : error
     );
     return false;
