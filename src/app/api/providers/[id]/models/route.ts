@@ -1577,7 +1577,7 @@ export async function GET(
       return buildApiDiscoveryResponse(models);
     }
 
-    if (provider === "antigravity" || provider === "agy") {
+    if (provider === "antigravity") {
       const cachedResponse = maybeReturnCachedDiscovery();
       if (cachedResponse) return cachedResponse;
 
@@ -1605,8 +1605,7 @@ export async function GET(
         accessToken,
         connectionId,
         proxy,
-        connection.providerSpecificData,
-        provider
+        connection.providerSpecificData
       );
       if (remoteModels.length > 0) {
         return buildApiDiscoveryResponse(remoteModels);
