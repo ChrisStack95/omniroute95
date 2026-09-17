@@ -11405,6 +11405,7 @@
       "output": "આઉટપુટ",
       "totalOut": "કુલ બહાર: {value}",
       "reasoning": "કારણ: {value}",
+      "reasoningObserved": "{value} · {chars} અક્ષરો જોવા મળ્યા",
       "requestedModel": "વિનંતી કરેલ મોડેલ",
       "requestProtocol": "આવશ્યક પ્રોટોકોલ",
       "cacheSource": "કેશ સોર્સ",

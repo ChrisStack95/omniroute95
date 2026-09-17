@@ -11405,6 +11405,7 @@
       "output": "Výstup",
       "totalOut": "Celkem ven: {value}",
       "reasoning": "Důvod: {value}",
+      "reasoningObserved": "{value} · zjištěno {chars} znaků",
       "requestedModel": "Požadovaný model",
       "requestProtocol": "Protokol požadavku",
       "cacheSource": "Cache Zdroj",

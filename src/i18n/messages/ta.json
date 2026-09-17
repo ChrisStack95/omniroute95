@@ -11405,6 +11405,7 @@
       "output": "வெளியீடு",
       "totalOut": "மொத்த வெளியீடு: {value}",
       "reasoning": "காரணம்: {value}",
+      "reasoningObserved": "{value} · {chars} எழுத்துகள் கண்டறியப்பட்டன",
       "requestedModel": "கோரிய மாடல்",
       "requestProtocol": "அவசியம் நெறிமுறை",
       "cacheSource": "கேஷ் மூலத்திடம்",

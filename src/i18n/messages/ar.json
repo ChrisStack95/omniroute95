@@ -11405,6 +11405,7 @@
       "output": "مخرج",
       "totalOut": "الإجمالي الخارج: {value}",
       "reasoning": "التفكير: {value}",
+      "reasoningObserved": "{value} · تم رصد {chars} حرفًا",
       "requestedModel": "النموذج المطلوب",
       "requestProtocol": "بروتوكول المتطلبات",
       "cacheSource": "مصدر التخزين المؤقت",

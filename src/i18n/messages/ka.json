@@ -11405,6 +11405,7 @@
       "output": "გამოტანა",
       "totalOut": "სულ გამოტანილი: {value}",
       "reasoning": "მსჯელობა: {value}",
+      "reasoningObserved": "{value} · დაფიქსირდა {chars} სიმბოლო",
       "requestedModel": "მოთხოვნილი მოდელი",
       "requestProtocol": "მოთხოვნის პროტოკოლი",
       "cacheSource": "ქეშის წყარო",

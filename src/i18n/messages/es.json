@@ -11405,6 +11405,7 @@
       "output": "Salida",
       "totalOut": "Total Salida: {value}",
       "reasoning": "Razonamiento: {value}",
+      "reasoningObserved": "{value} · {chars} caracteres observados",
       "requestedModel": "Modelo Solicitado",
       "requestProtocol": "Protocolo Req",
       "cacheSource": "Fuente de Caché",

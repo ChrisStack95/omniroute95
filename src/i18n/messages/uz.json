@@ -11405,6 +11405,7 @@
       "output": "Chiqish",
       "totalOut": "Jami chiqish: {value}",
       "reasoning": "Mulohaza yuritish: {value}",
+      "reasoningObserved": "{value} · {chars} ta belgi kuzatildi",
       "requestedModel": "Soʻralgan model",
       "requestProtocol": "Soʻrov protokoli",
       "cacheSource": "Kesh manbasi",

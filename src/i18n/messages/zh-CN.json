@@ -11405,6 +11405,7 @@
       "output": "输出",
       "totalOut": "总支出: {value}",
       "reasoning": "推理：{value}",
+      "reasoningObserved": "{value} · 观测到 {chars} 个字符",
       "requestedModel": "请求的模型",
       "requestProtocol": "请求协议",
       "cacheSource": "缓存源",

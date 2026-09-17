@@ -11405,6 +11405,7 @@
       "output": "Izhod",
       "totalOut": "Skupni izhod: {value}",
       "reasoning": "Sklepanje: {value}",
+      "reasoningObserved": "{value} · zaznanih {chars} znakov",
       "requestedModel": "Zahtevani model",
       "requestProtocol": "Protokol zahteve",
       "cacheSource": "Vir predpomnilnika",

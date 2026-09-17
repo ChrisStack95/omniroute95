@@ -11405,6 +11405,7 @@
       "output": "I-output",
       "totalOut": "Kabuuang Labas: {value}",
       "reasoning": "Rason: {value}",
+      "reasoningObserved": "{value} · naobserbahan ang {chars} karakter",
       "requestedModel": "Hiniling na Modelo",
       "requestProtocol": "Protocol ng Request",
       "cacheSource": "Cache Pinagmulan",

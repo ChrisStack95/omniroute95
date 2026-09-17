@@ -11405,6 +11405,7 @@
       "output": "出力",
       "totalOut": "合計出力: {value}",
       "reasoning": "理由: {value}",
+      "reasoningObserved": "{value} · {chars} 文字を検出",
       "requestedModel": "要求されたモデル",
       "requestProtocol": "要求プロトコル",
       "cacheSource": "キャッシュソース",

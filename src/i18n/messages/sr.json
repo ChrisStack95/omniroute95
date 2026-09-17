@@ -11405,6 +11405,7 @@
       "output": "Излаз",
       "totalOut": "Укупно излаз: {value}",
       "reasoning": "Резоновање: {value}",
+      "reasoningObserved": "{value} · уочено {chars} знакова",
       "requestedModel": "Захтевани модел",
       "requestProtocol": "Протокол захтева",
       "cacheSource": "Извор кеша",

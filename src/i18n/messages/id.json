@@ -11405,6 +11405,7 @@
       "output": "Keluaran",
       "totalOut": "Total Keluar: {value}",
       "reasoning": "Alasan: {value}",
+      "reasoningObserved": "{value} · {chars} karakter teramati",
       "requestedModel": "Model yang Diminta",
       "requestProtocol": "Protokol Req",
       "cacheSource": "Sumber Cache",

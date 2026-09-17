@@ -11405,6 +11405,7 @@
       "output": "Wyjście",
       "totalOut": "Całkowity Wydatki: {value}",
       "reasoning": "Rozumowanie: {value}",
+      "reasoningObserved": "{value} · zaobserwowano {chars} znaków",
       "requestedModel": "Żądany model",
       "requestProtocol": "Protokół Req",
       "cacheSource": "Źródło pamięci podręcznej",

@@ -11405,6 +11405,7 @@
       "output": "출력",
       "totalOut": "총 출금: {value}",
       "reasoning": "추론: {value}",
+      "reasoningObserved": "{value} · {chars}자 관측됨",
       "requestedModel": "요청된 모델",
       "requestProtocol": "요청 프로토콜",
       "cacheSource": "캐시 소스",

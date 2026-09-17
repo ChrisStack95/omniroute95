@@ -11405,6 +11405,7 @@
       "output": "Çıktı",
       "totalOut": "Toplam Çıkış: {value}",
       "reasoning": "Gerekçe: {value}",
+      "reasoningObserved": "{value} · {chars} karakter gözlemlendi",
       "requestedModel": "İstenen Model",
       "requestProtocol": "İstek Protokolü",
       "cacheSource": "Önbellek Kaynağı",

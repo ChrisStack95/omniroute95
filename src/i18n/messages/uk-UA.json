@@ -11405,6 +11405,7 @@
       "output": "Вивід",
       "totalOut": "Всього вихід: {value}",
       "reasoning": "Міркування: {value}",
+      "reasoningObserved": "{value} · помічено символів: {chars}",
       "requestedModel": "Запитана Модель",
       "requestProtocol": "Протокол запиту",
       "cacheSource": "Кеш Джерело",

@@ -11405,6 +11405,7 @@
       "output": "آؤٹ پٹ",
       "totalOut": "کل باہر: {value}",
       "reasoning": "وجوہات: {value}",
+      "reasoningObserved": "{value} · {chars} حروف مشاہدہ کیے گئے",
       "requestedModel": "درخواست کردہ ماڈل",
       "requestProtocol": "درخواست پروٹوکول",
       "cacheSource": "کیچ ماخذ",

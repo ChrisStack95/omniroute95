@@ -11405,6 +11405,7 @@
       "output": "ผลลัพธ์",
       "totalOut": "ยอดรวมที่ออก: {value}",
       "reasoning": "เหตุผล: {value}",
+      "reasoningObserved": "{value} · พบ {chars} อักขระ",
       "requestedModel": "โมเดลที่ร้องขอ",
       "requestProtocol": "โปรโตคอล Req",
       "cacheSource": "แหล่งข้อมูลแคช",

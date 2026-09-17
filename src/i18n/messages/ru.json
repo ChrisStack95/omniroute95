@@ -11405,6 +11405,7 @@
       "output": "Вывод",
       "totalOut": "Всего выведено: {value}",
       "reasoning": "Обоснование: {value}",
+      "reasoningObserved": "{value} · замечено символов: {chars}",
       "requestedModel": "Запрашиваемая Модель",
       "requestProtocol": "Протокол Req",
       "cacheSource": "Кэш Источника",

@@ -11405,6 +11405,7 @@
       "output": "ਆਉਟਪੁੱਟ",
       "totalOut": "ਕੁੱਲ ਆਉਟ: {value}",
       "reasoning": "ਤਰਕ: {value}",
+      "reasoningObserved": "{value} · {chars} ਅੱਖਰ ਦੇਖੇ ਗਏ",
       "requestedModel": "ਬੇਨਤੀ ਕੀਤਾ ਮਾਡਲ",
       "requestProtocol": "ਬੇਨਤੀ ਪ੍ਰੋਟੋਕੋਲ",
       "cacheSource": "ਕੈਸ਼ ਸਰੋਤ",

@@ -11405,6 +11405,7 @@
       "output": "Έξοδος",
       "totalOut": "Σύνολο εξόδου: {value}",
       "reasoning": "Συλλογισμός: {value}",
+      "reasoningObserved": "{value} · παρατηρήθηκαν {chars} χαρακτήρες",
       "requestedModel": "Ζητούμενο μοντέλο",
       "requestProtocol": "Πρωτόκολλο αιτήματος",
       "cacheSource": "Πηγή Κρυφής Μνήμης",

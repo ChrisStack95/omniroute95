@@ -11405,6 +11405,7 @@
       "output": "Izlaz",
       "totalOut": "Ukupno izlaz: {value}",
       "reasoning": "Zaključivanje: {value}",
+      "reasoningObserved": "{value} · uočeno {chars} znakova",
       "requestedModel": "Traženi model",
       "requestProtocol": "Protokol zahtjeva",
       "cacheSource": "Izvor predmemorije",
