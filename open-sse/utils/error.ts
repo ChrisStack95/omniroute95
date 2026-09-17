@@ -75,7 +75,6 @@ const SAFE_PUBLIC_ERROR_IDENTIFIERS = new Set([
   "chatgpt_subscription_unavailable",
   "chatgpt_web_codex_error",
   "chatgpt_web_codex_turn_failed",
-  "chipotle_error",
   "claude_web_protocol_error",
   "cli_not_found",
   "client_cancelled",
