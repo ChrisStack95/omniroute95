@@ -1,6 +1,96 @@
-import { randomUUID } from "crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { setUserAgentHeader } from "../executors/base.ts";
 import { generateSessionId } from "../services/sessionManager.ts";
+
+export const DEFAULT_OPENCODE_USER_AGENT = "opencode/1.18.31";
+export const OPENCODE_SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
+export const OPENCODE_REQUEST_RE = /^msg_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
+
+const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const MINIMUM_OPENCODE_MINOR_VERSION = 17;
+
+let lastSessionTimestamp = 0;
+let sessionCounter = 0;
+
+function randomBase62(length: number): string {
+  const bytes = randomBytes(length);
+  return Array.from(bytes, (byte) => BASE62_CHARS[byte % BASE62_CHARS.length]).join("");
+}
+
+function generateOpenCodeIdentifier(prefix: "ses_" | "msg_"): string {
+  const timestamp = Date.now();
+  let sequence = 1;
+  if (prefix === "ses_") {
+    if (timestamp === lastSessionTimestamp) {
+      sessionCounter += 1;
+    } else {
+      lastSessionTimestamp = timestamp;
+      sessionCounter = 1;
+    }
+    sequence = sessionCounter;
+  }
+
+  const rawValue = BigInt(timestamp) * 0x1000n + BigInt(sequence);
+  const value = prefix === "ses_" ? ~rawValue : rawValue;
+  const encodedTimestamp = Array.from({ length: 6 }, (_, index) =>
+    Number((value >> BigInt(40 - 8 * index)) & 0xffn)
+      .toString(16)
+      .padStart(2, "0")
+  ).join("");
+
+  return `${prefix}${encodedTimestamp}${randomBase62(14)}`;
+}
+
+function hasValidOpencodeVersion(userAgent: string): boolean {
+  const match = userAgent.match(/opencode\/(\d+)\.(\d+)(?:\.(\d+))?/i);
+  if (!match) return false;
+
+  const major = Number.parseInt(match[1], 10);
+  const minor = Number.parseInt(match[2], 10);
+  return major > 1 || (major === 1 && minor >= MINIMUM_OPENCODE_MINOR_VERSION);
+}
+
+function translateSessionId(sessionId: string, clientTool: string): string {
+  const normalized = sessionId.trim();
+  if (OPENCODE_SESSION_RE.test(normalized)) return normalized;
+
+  const digest = createHash("sha256")
+    .update(`opencode\0${clientTool || "generic"}\0${normalized}`)
+    .digest();
+  const translatedSuffix = Array.from(
+    digest.subarray(6, 20),
+    (byte) => BASE62_CHARS[byte % BASE62_CHARS.length]
+  ).join("");
+  return `ses_${digest.subarray(0, 6).toString("hex")}${translatedSuffix}`;
+}
+
+function normalizeRequestId(requestId: string | undefined): string {
+  const normalized = requestId?.trim();
+  return normalized && OPENCODE_REQUEST_RE.test(normalized)
+    ? normalized
+    : generateOpenCodeIdentifier("msg_");
+}
+
+function normalizeSessionId(
+  sessionId: string | undefined,
+  sessionBody:
+    | {
+        model?: string;
+        system?: unknown;
+        messages?: Array<{ role?: string; content?: unknown }>;
+        input?: Array<{ role?: string; content?: unknown }>;
+        tools?: Array<{ name?: string; function?: { name?: string } }>;
+      }
+    | undefined,
+  clientTool: string
+): string {
+  if (sessionId?.trim()) return translateSessionId(sessionId, clientTool);
+
+  const fingerprint = generateSessionId(sessionBody ?? null);
+  return fingerprint
+    ? translateSessionId(fingerprint, clientTool)
+    : generateOpenCodeIdentifier("ses_");
+}
 
 /**
  * Header keys that are forwarded from the client to the upstream provider.
@@ -46,16 +136,16 @@ function findHeader(headers: Record<string, string>, name: string): string | und
  *   missing, and synthesizes a UUID for x-opencode-request if also missing.
  * @param options.cliDefaults - When provided (OpencodeExecutor only), synthesize
  *   the OpenCode CLI identity headers that Cloudflare requires on VPS egress
- *   (User-Agent, x-opencode-client, x-opencode-project) plus fresh request/session
- *   UUIDs, but ONLY for keys the client did not already supply. Client values always
- *   win; these defaults only fill gaps. User-Agent is the one exception: a client UA
- *   that is not already the OpenCode CLI (e.g. curl/8.5.0) is REPLACED with the
- *   synthesized CLI UA, because opencode.ai's free tier rejects generic client UAs
- *   from datacenter IPs with FreeUsageLimitError 429. (#5997, follow-up #10229)
+ *   (User-Agent, x-opencode-client, x-opencode-project) plus canonical request/session
+ *   IDs. Client values are retained when they already satisfy the upstream contract;
+ *   foreign session IDs are translated deterministically and invalid request IDs are
+ *   replaced. A non-OpenCode or outdated User-Agent is replaced with the versioned
+ *   OpenCode default required by the free tier. (#4101, #4105)
  * @param options.sessionBody - Request body fields used to generate a
  *   conversation-stable session fingerprint (model, system, messages, tools).
- *   When provided, x-opencode-session is a deterministic hash instead of a random
- *   UUID, so upstream prompt caching hits across requests in the same conversation.
+ *   When provided, x-opencode-session is deterministically translated into the
+ *   canonical OpenCode format, so upstream prompt caching hits across requests in
+ *   the same conversation.
  */
 export function forwardOpencodeClientHeaders(
   headers: Record<string, string>,
@@ -67,6 +157,7 @@ export function forwardOpencodeClientHeaders(
       model?: string;
       system?: unknown;
       messages?: Array<{ role?: string; content?: unknown }>;
+      input?: Array<{ role?: string; content?: unknown }>;
       tools?: Array<{ name?: string; function?: { name?: string } }>;
     };
   }
@@ -114,13 +205,9 @@ export function forwardOpencodeClientHeaders(
 }
 
 /**
- * Fill the OpenCode CLI identity headers Cloudflare requires on VPS egress. For
- * x-opencode-* headers, client values always win (defaults only fill gaps). The
- * User-Agent is the exception: a non-CLI client UA (curl, python, SDKs) is replaced
- * with the synthesized CLI UA, because opencode.ai's free tier flags generic client
- * UAs from datacenter IPs (FreeUsageLimitError 429). A client UA that already looks
- * like the OpenCode CLI (opencode-cli/...) is preserved so the real CLI's versioned
- * identity stays intact. (#5997, follow-up)
+ * Fill the OpenCode CLI identity headers required by the free tier. Native canonical
+ * identifiers are preserved, foreign session identifiers are translated, and invalid
+ * request identifiers are regenerated for the current request.
  */
 function applyCliDefaults(
   headers: Record<string, string>,
@@ -129,18 +216,25 @@ function applyCliDefaults(
     model?: string;
     system?: unknown;
     messages?: Array<{ role?: string; content?: unknown }>;
+    input?: Array<{ role?: string; content?: unknown }>;
     tools?: Array<{ name?: string; function?: { name?: string } }>;
   }
 ): void {
   const existingUa = headers["User-Agent"] || headers["user-agent"];
-  const clientUaIsCliLike =
-    typeof existingUa === "string" && /^opencode-cli\//i.test(existingUa.trim());
-  if (!clientUaIsCliLike) {
-    setUserAgentHeader(headers, cliDefaults.userAgent);
-  }
+  const fallbackUa = hasValidOpencodeVersion(cliDefaults.userAgent)
+    ? cliDefaults.userAgent
+    : DEFAULT_OPENCODE_USER_AGENT;
+  const effectiveUa =
+    typeof existingUa === "string" && hasValidOpencodeVersion(existingUa.trim())
+      ? existingUa.trim()
+      : fallbackUa;
+  setUserAgentHeader(headers, effectiveUa);
   headers["x-opencode-client"] ||= cliDefaults.client;
   headers["x-opencode-project"] ||= cliDefaults.project;
-  headers["x-opencode-request"] ||= randomUUID();
-  headers["x-opencode-session"] ||=
-    generateSessionId(sessionBody ?? null) || randomUUID();
+  headers["x-opencode-request"] = normalizeRequestId(headers["x-opencode-request"]);
+  headers["x-opencode-session"] = normalizeSessionId(
+    headers["x-opencode-session"],
+    sessionBody,
+    headers["x-opencode-client"]
+  );
 }
