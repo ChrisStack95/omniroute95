@@ -115,6 +115,49 @@ function escapeJsonStringValues(json: string, escapeState: JsonStringEscapeState
 }
 
 /**
+ * Collapse double-escaped tab sequences inside JSON string values.
+ * Some providers (e.g. gpt-5.6-luna-xhigh, #12831) over-escape a tab when
+ * emitting tool call argument JSON: instead of the single valid JSON escape
+ * `\t` (backslash + t), they emit `\\t` (backslash + backslash + t) inside
+ * the string value. JSON.parse then decodes that to a literal two-character
+ * `\t` text (backslash followed by the letter t) instead of an actual tab
+ * character, which breaks consumers (e.g. editor patches) expecting real
+ * tabs. This only rewrites the over-escaped form and leaves an
+ * already-correct single escape untouched.
+ */
+function fixDoubleEscapedTabs(json: string): string {
+  let result = "";
+  let inString = false;
+
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+
+    if (inString && ch === "\\" && json[i + 1] === "\\" && json[i + 2] === "t") {
+      result += "\\t";
+      i += 2;
+      continue;
+    }
+
+    // Inside a string, leave any other escape sequence untouched.
+    if (inString && ch === "\\") {
+      result += ch + (json[i + 1] ?? "");
+      i++;
+      continue;
+    }
+
+    if (ch === '"') {
+      result += ch;
+      inString = !inString;
+      continue;
+    }
+
+    result += ch;
+  }
+
+  return result;
+}
+
+/**
  * Translate OpenAI chunk to Responses API events
  * @returns {Array} Array of events with { event, data } structure
  */
@@ -589,7 +632,7 @@ function emitToolCall(state, emit, tc) {
       state.funcArgsEscapeState[tcIdx] = createJsonStringEscapeState();
     }
     const sanitized = escapeJsonStringValues(
-      tc.function.arguments,
+      fixDoubleEscapedTabs(tc.function.arguments),
       state.funcArgsEscapeState[tcIdx]
     );
     const nextArgs = appendToolCallArgumentDelta(existingArgs, sanitized);
