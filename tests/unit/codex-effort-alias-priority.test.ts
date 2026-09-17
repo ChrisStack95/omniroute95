@@ -96,18 +96,27 @@ const CODEX_SRC = path.resolve(__dirname, "../../open-sse/executors/codex.ts");
 test("#2331 codex.ts still prioritizes modelEffort first in rawEffort chain", () => {
   const src = fs.readFileSync(CODEX_SRC, "utf8");
 
-  // The chain we expect: rawEffort = modelEffort || explicitReasoning || ...
-  // Anchor on the assignment so a future refactor that flips priority back
-  // (the bug we just fixed) trips this guard.
+  // The chain we expect: rawEffort = getForcedReasoningEffort(credentials) ||
+  // modelEffort || explicitReasoning || ... (#13556 added the server-selected
+  // force rule ahead of the alias; the guard still requires modelEffort to
+  // outrank every client-injected source, which is the bug we just fixed).
   const ASSIGNMENT_RE = /const\s+rawEffort\s*=\s*([\s\S]{0,400}?);/;
   const match = src.match(ASSIGNMENT_RE);
   assert.ok(match, "rawEffort assignment not found in codex.ts");
 
   const chain = match![1].replace(/\s+/g, " ").trim();
-  const firstToken = chain.split("||")[0].trim();
-  assert.equal(
-    firstToken,
-    "modelEffort",
-    `rawEffort priority chain must start with modelEffort, got: ${chain}`
-  );
+  const tokens = chain.split("||").map((t) => t.trim());
+  const modelEffortIdx = tokens.indexOf("modelEffort");
+  assert.ok(modelEffortIdx !== -1, `rawEffort chain lost modelEffort: ${chain}`);
+  for (const clientSource of [
+    "explicitReasoning",
+    "requestReasoningEffort",
+    "fallbackReasoningEffort",
+  ]) {
+    const idx = tokens.indexOf(clientSource);
+    assert.ok(
+      idx === -1 || idx > modelEffortIdx,
+      `rawEffort chain must rank modelEffort above ${clientSource}, got: ${chain}`
+    );
+  }
 });

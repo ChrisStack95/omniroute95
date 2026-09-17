@@ -1468,7 +1468,10 @@ export async function getProviderCredentials(
         return geminiEnvCredentials;
       }
       invalidateManagedLease(options, "CONNECTION_INELIGIBLE");
-      if (blockedByKeyPolicyCount > 0) {
+      // #12080: a forced pin outside the allowlist must return null (falls
+      // through to error surfacing), not the key-policy diagnostic — the
+      // pin, not the key policy, is why the pool is empty here.
+      if (blockedByKeyPolicyCount > 0 && !forcedConnectionId) {
         // #13832: the pool is empty only because the calling key's allowlist /
         // quota scope removed every connection. Say so instead of returning the
         // bare null that becomes "No active credentials for provider: X".

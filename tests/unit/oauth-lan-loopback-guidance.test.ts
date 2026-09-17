@@ -101,9 +101,10 @@ test("the flat warning string is still exported for non-UI callers", () => {
 test("OAuthModal renders the structured panel instead of the generic error step", () => {
   const modal = readSrc("shared/components/OAuthModal.tsx");
 
+  // #9944: the guard gained an explicit manual-flow bypass (`!opts?.manualLoopback`).
   assert.match(
     modal,
-    /else if \(isLocalhost\) \{[\s\S]{0,300}buildPkceLoopbackMismatchHint/,
+    /else if \(isLocalhost(?: && [^)]+)?\) \{[\s\S]{0,300}buildPkceLoopbackMismatchHint/,
     "the isLocalhost arm of PKCE_CALLBACK_SERVER_PROVIDERS must build the structured hint"
   );
   assert.match(

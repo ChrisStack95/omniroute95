@@ -374,9 +374,17 @@ test("runAuthzPipeline allows dashboard sessions to read model catalog aliases",
 test("runAuthzPipeline allows dashboard sessions to reach DB health management API", async () => {
   await forceAuthRequired();
 
+  // #13717: /api/db/health is LOCAL_ONLY (runManagedDbHealthCheck() forks native
+  // diagnostics), so the request must carry the loopback peer stamp the custom
+  // server writes — a Host header of "localhost" is not a locality signal.
+  process.env.OMNIROUTE_PEER_STAMP_TOKEN = "pipeline-test-peer-stamp-token";
   const response = await pipeline.runAuthzPipeline(
     request("http://localhost/api/db/health", {
-      headers: { cookie: await dashboardCookie() },
+      headers: {
+        cookie: await dashboardCookie(),
+        "x-omniroute-peer-ip": "pipeline-test-peer-stamp-token|127.0.0.1",
+        "x-omniroute-via-proxy": "pipeline-test-peer-stamp-token|0",
+      },
     }),
     { enforce: true }
   );

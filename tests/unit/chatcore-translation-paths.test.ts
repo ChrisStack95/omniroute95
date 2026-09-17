@@ -1901,6 +1901,11 @@ test("chatCore downgrades unsupported xhigh effort for assistant-prefill OpenAI-
     provider: "openai-compatible-aio",
     model: "glm-5.1",
     endpoint: "/v1/chat/completions",
+    credentials: {
+      apiKey: "sk-test",
+      // #13452: compatible connections need a hydrated baseUrl.
+      providerSpecificData: { baseUrl: "https://aio.example.com/v1" },
+    },
     body: {
       model: "aio/glm-5.1",
       messages: [
