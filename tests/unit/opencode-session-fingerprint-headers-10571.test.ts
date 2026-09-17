@@ -1,24 +1,20 @@
 /**
- * Regression test for PR #10571 — `x-opencode-session` must be a STABLE,
- * conversation-scoped fingerprint (via `generateSessionId()`) instead of a
- * fresh random UUID on every request, so upstream prompt caching can hit
- * across requests belonging to the same conversation.
+ * Regression test for PR #10571 and the OpenCode free-tier validation change —
+ * `x-opencode-session` must be a stable, conversation-scoped fingerprint in
+ * OpenCode's canonical `ses_...` format instead of a UUID.
  *
- * `open-sse/utils/opencodeHeaders.ts::applyCliDefaults` now derives
- * `x-opencode-session` from `generateSessionId(sessionBody)`
- * (`open-sse/services/sessionManager.ts`) when a `sessionBody` is supplied,
- * falling back to `randomUUID()` only when no fingerprint can be derived
- * (e.g. an empty/missing body).
+ * `open-sse/utils/opencodeHeaders.ts::applyCliDefaults` derives a stable
+ * fingerprint from `generateSessionId(sessionBody)` and translates it into
+ * the canonical format required by OpenCode.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { forwardOpencodeClientHeaders } from "../../open-sse/utils/opencodeHeaders.ts";
 import { OpencodeExecutor } from "../../open-sse/executors/opencode.ts";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SESSION_HASH_RE = /^[0-9a-f]{16}$/i;
+const SESSION_ID_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
 
-const CLI_DEFAULTS = { userAgent: "opencode", client: "desktop", project: "global" };
+const CLI_DEFAULTS = { userAgent: "opencode/1.18.31", client: "desktop", project: "global" };
 
 const CONVERSATION_A = {
   model: "big-pickle",
@@ -51,12 +47,7 @@ test("x-opencode-session is a stable fingerprint hash (not a random UUID) when s
     {},
     { cliDefaults: CLI_DEFAULTS, sessionBody: CONVERSATION_A }
   );
-  assert.match(headers["x-opencode-session"] ?? "", SESSION_HASH_RE);
-  assert.doesNotMatch(
-    headers["x-opencode-session"] ?? "",
-    UUID_RE,
-    "must not be a random UUID when a fingerprint can be derived"
-  );
+  assert.match(headers["x-opencode-session"] ?? "", SESSION_ID_RE);
 });
 
 test("x-opencode-session stays STABLE across requests in the same conversation (same model + growing message history keeps the first-user-message fingerprint)", () => {
@@ -125,20 +116,32 @@ test("x-opencode-session CHANGES when the first user message (conversation ident
   );
 });
 
-test("x-opencode-session falls back to a random UUID when no sessionBody is provided", () => {
+test("x-opencode-session falls back to a generated canonical ID when no sessionBody is provided", () => {
   const headers: Record<string, string> = {};
   forwardOpencodeClientHeaders(headers, {}, { cliDefaults: CLI_DEFAULTS });
-  assert.match(headers["x-opencode-session"] ?? "", UUID_RE);
+  assert.match(headers["x-opencode-session"] ?? "", SESSION_ID_RE);
 });
 
-test("client-supplied x-opencode-session always wins over the derived fingerprint", () => {
+test("invalid client sessions are deterministically translated into canonical IDs", () => {
   const headers: Record<string, string> = {};
   forwardOpencodeClientHeaders(
     headers,
     { "x-opencode-session": "client-supplied-session-id" },
     { cliDefaults: CLI_DEFAULTS, sessionBody: CONVERSATION_A }
   );
-  assert.equal(headers["x-opencode-session"], "client-supplied-session-id");
+  assert.match(headers["x-opencode-session"] ?? "", SESSION_ID_RE);
+  assert.notEqual(headers["x-opencode-session"], "client-supplied-session-id");
+});
+
+test("valid native x-opencode-session values are preserved", () => {
+  const headers: Record<string, string> = {};
+  const sessionId = "ses_0123456789abABCDEFGHIJKLMN";
+  forwardOpencodeClientHeaders(
+    headers,
+    { "x-opencode-session": ` ${sessionId} ` },
+    { cliDefaults: CLI_DEFAULTS, sessionBody: CONVERSATION_A }
+  );
+  assert.equal(headers["x-opencode-session"], sessionId);
 });
 
 test("OpencodeExecutor.buildHeaders derives a stable x-opencode-session from the request body across calls with the same conversation", () => {
@@ -156,11 +159,11 @@ test("OpencodeExecutor.buildHeaders derives a stable x-opencode-session from the
     ],
   });
 
-  assert.match(headersFirst["x-opencode-session"] ?? "", SESSION_HASH_RE);
+  assert.match(headersFirst["x-opencode-session"] ?? "", SESSION_ID_RE);
   assert.equal(headersFirst["x-opencode-session"], headersSecond["x-opencode-session"]);
 });
 
-test("Responses requests use a UUID x-opencode-session for Muse compatibility", () => {
+test("Responses requests use a canonical x-opencode-session for Muse compatibility", () => {
   const executor = new OpencodeExecutor("opencode");
   executor._requestFormat = "openai-responses";
   const headers = executor.buildHeaders(
@@ -176,8 +179,8 @@ test("Responses requests use a UUID x-opencode-session for Muse compatibility", 
   );
   assert.match(
     headers["x-opencode-session"] ?? "",
-    UUID_RE,
-    "Responses transport must use a UUID session"
+    SESSION_ID_RE,
+    "Responses transport must use a canonical OpenCode session"
   );
 });
 

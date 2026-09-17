@@ -1,0 +1,1 @@
+- **fix(opencode):** send free-tier requests with a versioned OpenCode User-Agent and canonical `ses_...` / `msg_...` identity headers, preventing the upstream `FreeTierError` for non-OpenCode clients.

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   BaseExecutor,
   type ExecuteInput,
@@ -16,7 +15,10 @@ import {
   runWithDirectFetchContext,
   runWithProxyContext,
 } from "../utils/proxyFetch.ts";
-import { forwardOpencodeClientHeaders } from "../utils/opencodeHeaders.ts";
+import {
+  DEFAULT_OPENCODE_USER_AGENT,
+  forwardOpencodeClientHeaders,
+} from "../utils/opencodeHeaders.ts";
 import {
   type AccountProxyConfig,
   type RotatableAccount,
@@ -989,6 +991,11 @@ export class OpencodeExecutor extends BaseExecutor {
       } else {
         headers["Authorization"] = `Bearer ${key}`;
       }
+    } else if (this.provider === "opencode" || this.provider === "opencode-zen") {
+      // OpenCode's anonymous Zen tier validates the CLI identity together with
+      // the public bearer credential. This does not apply to opencode-go, whose
+      // endpoint has no anonymous tier.
+      headers["Authorization"] = "Bearer public";
     }
 
     if (this._requestFormat === "claude") {
@@ -1002,8 +1009,8 @@ export class OpencodeExecutor extends BaseExecutor {
     // Synthesize OpenCode CLI identity headers by default so Cloudflare in front of
     // opencode.ai/zen doesn't 429 VPS requests lacking CLI identity. Opt-out via
     // OPENCODE_SYNTHESIZE_CLI_HEADERS=false. Client-supplied headers always win;
-    // User-Agent is replaced with the CLI UA unless the client already sends one that
-    // looks like the OpenCode CLI. Default values match 9router's proven defaults.
+    // User-Agent is replaced unless the client already sends a valid versioned
+    // OpenCode identity. Default values match the upstream free-tier contract.
     const synthesizeCli = !/^(0|false|no|off)$/i.test(
       process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS?.trim() ?? ""
     );
@@ -1015,7 +1022,7 @@ export class OpencodeExecutor extends BaseExecutor {
             userAgent:
               process.env[envUAKey]?.trim() ||
               process.env.OPENCODE_USER_AGENT?.trim() ||
-              "opencode",
+              DEFAULT_OPENCODE_USER_AGENT,
             client: process.env.OPENCODE_CLIENT?.trim() || "desktop",
             project: process.env.OPENCODE_PROJECT?.trim() || "global",
           };
@@ -1034,24 +1041,15 @@ export class OpencodeExecutor extends BaseExecutor {
               messages: Array.isArray(b.messages)
                 ? (b.messages as Array<{ role?: string; content?: unknown }>)
                 : undefined,
+              input: Array.isArray(b.input)
+                ? (b.input as Array<{ role?: string; content?: unknown }>)
+                : undefined,
               tools: Array.isArray(b.tools)
                 ? (b.tools as Array<{ name?: string; function?: { name?: string } }>)
                 : undefined,
             }
           : undefined,
       });
-    }
-
-    // Muse's Responses endpoint rejects the short conversation fingerprint used
-    // by the Chat endpoint in practice. Keep the workaround scoped to Muse.
-    if (
-      this._requestFormat === "openai-responses" &&
-      model.startsWith("muse-spark") &&
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        headers["x-opencode-session"] || ""
-      )
-    ) {
-      headers["x-opencode-session"] = randomUUID();
     }
 
     void model;

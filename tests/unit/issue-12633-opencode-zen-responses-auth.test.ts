@@ -52,3 +52,19 @@ test("#12633: claude format keeps sending x-api-key (unchanged behavior)", () =>
   assert.equal(headers["x-api-key"], "sk-claude-test");
   assert.equal(headers["Authorization"], undefined);
 });
+
+test("OpenCode Zen free tier uses the public bearer credential without an API key", () => {
+  const executor = new OpencodeExecutor("opencode-zen");
+  const headers = executor.buildHeaders(null, true, null, "mimo-v2.5-free");
+
+  assert.equal(headers["Authorization"], "Bearer public");
+  assert.equal(headers["x-api-key"], undefined);
+});
+
+test("OpenCode Go does not fabricate the public bearer credential", () => {
+  const executor = new OpencodeExecutor("opencode-go");
+  const headers = executor.buildHeaders(null, true, null, "mimo-v2.5");
+
+  assert.equal(headers["Authorization"], undefined);
+  assert.equal(headers["x-api-key"], undefined);
+});
